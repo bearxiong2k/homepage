@@ -8,6 +8,7 @@ This project began as a generated standalone HTML atlas plus compact source note
   - Original standalone atlas.
   - Contains embedded paper records, role/style counts, display names, short overviews, and visualization logic.
   - Use this when recovering the old atlas overview text, original grouping, legacy display labels, or old visualization behavior.
+  - For the current atlas milestone, treat this as the UI reference for first-screen framing, role/style cards, matrix click-to-filter behavior, searchable paper cards, result counts, and responsive layout density.
 - `src/content/legacy/CIM stack library compact.md`
   - Compact source material for the 62-entry paper library.
   - Use this as the main seed when creating new `src/content/papers/*.md` entries.
@@ -24,6 +25,7 @@ This project began as a generated standalone HTML atlas plus compact source note
 - Do not restore the old visual totals as quality rankings.
 - If a future task asks for "original paper overview", first check the embedded records in the legacy HTML, then cross-check the matching compact note.
 - If a future task asks for "coverage score", treat it as a legacy-atlas request unless the user explicitly asks to reintroduce coverage metadata.
+- If a future task asks to improve the atlas, start with `docs/atlas-visualization-harness.md` and the legacy HTML before touching paper detail pages.
 
 ## Migration Order
 

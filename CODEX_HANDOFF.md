@@ -6,7 +6,7 @@ Finish this as a static Astro paper library. Do not add PDF hosting yet.
 
 Root-level project instructions live in `AGENTS.md`. Use this handoff as a short status note; use `AGENTS.md` for ongoing agent behavior.
 
-Current development plan lives in `docs/future-development-plan.md`. A ready-to-use restart prompt lives in `docs/next-session-prompt.md`.
+Current development plan lives in `docs/future-development-plan.md`. Atlas UI work should follow `docs/atlas-visualization-harness.md`. A ready-to-use restart prompt lives in `docs/next-session-prompt.md`.
 
 ## Design decisions already made
 
@@ -14,7 +14,7 @@ Current development plan lives in `docs/future-development-plan.md`. A ready-to-
 - Taxonomy vocabulary source: `src/data/taxonomy.json`.
 - Atlas route: `/library/`.
 - Paper route: `/papers/[slug]/`.
-- Visualization: keep the Axis A x Axis B dot atlas and selected-paper metadata panel.
+- Visualization: prioritize a strong `/library/` taxonomy atlas before paper detail-page polish. Use the legacy standalone HTML as the benchmark for overview flow, matrix/list interactions, sizing, layout, and browsing utility.
 - No coverage score, ranking score, or trajectory-IR relevance metadata in the active schema.
 - Keep the site static and suitable for personal hosting.
 
@@ -62,15 +62,14 @@ On macOS-style case-insensitive filesystems, Git may show case-only filename nor
 
 ## What to finish next
 
-1. Run content QA across the now-valid corpus.
-2. Scan for duplicate slugs and title collisions.
-3. Check typo-like names and long migrated filenames.
-4. Spot-check paper and artifact URLs for high-priority entries.
-5. Review entries with `year: null`, blank artifact URLs, or `reproducibility_level: unknown`.
-6. Improve individual paper page layout only after QA remains green.
-7. Optional: add tag, axis detail, or search pages after the atlas is stable.
+1. Keep content QA green with `npm run qa`, `npm run validate`, `npm run check`, and `npm run build`.
+2. Improve `/library/` before individual paper pages.
+3. Use `docs/atlas-visualization-harness.md` and `src/content/legacy/cim_compiler_ir_taxonomy_visualization.html` as the guide.
+4. Restore or adapt the legacy strengths: first-screen taxonomy framing, role/style matrix with click-to-filter behavior, visible result counts, compact synchronized paper browsing, selected-paper details, and responsive sizing.
+5. Do not reintroduce coverage scores, ranking scores, or `trajectory_IR_relevance` as active metadata.
+6. Improve individual paper page layout only after the atlas is substantially useful.
 
-Use `docs/corpus-note-harness.md` when generating full public notes. Use `docs/legacy-source-map.md` when recovering original overview text or compact-source material from draft artifacts.
+Use `docs/atlas-visualization-harness.md` for atlas work. Use `docs/corpus-note-harness.md` when generating full public notes. Use `docs/legacy-source-map.md` when recovering original overview text or compact-source material from draft artifacts.
 
 ## Frontmatter contract
 

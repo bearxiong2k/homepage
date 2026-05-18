@@ -2,6 +2,8 @@
 
 Use this harness when converting one CIM stack paper into a public corpus note.
 
+Current project priority note: the paper corpus migration is complete enough that the next product milestone is the `/library/` taxonomy atlas visualization, not more single-paper page polish. Use `docs/atlas-visualization-harness.md` for atlas UI work. Use this corpus-note harness only when adding or substantially revising paper notes.
+
 For the current raw-note migration, most notes already follow this harness. The task is usually to promote their `## 12. Suggested metadata entry` YAML into Astro frontmatter, not to regenerate the full note.
 
 ## Input Contract
