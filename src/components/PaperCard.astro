@@ -1,4 +1,30 @@
 ---
+type AxisA = 'A1' | 'A2' | 'A3' | 'A4' | 'A5' | 'A6';
+type AxisB = 'B1' | 'B2' | 'B3' | 'B4' | 'B5' | 'B6' | 'B7';
+
+type PaperSummary = {
+  slug: string;
+  title: string;
+  subtitle?: string | null;
+  year?: number | null;
+  summary: string;
+  axis_A: {
+    primary: AxisA;
+    secondary?: AxisA[];
+  };
+  axis_B: AxisB[];
+};
+
+type Taxonomy = {
+  families: Record<AxisA, { short: string; color: string }>;
+  middles: Record<AxisB, { short: string }>;
+};
+
+interface Props {
+  paper: PaperSummary;
+  taxonomy: Taxonomy;
+}
+
 const { paper, taxonomy } = Astro.props;
 const family = taxonomy.families[paper.axis_A.primary];
 const middle = paper.axis_B.map((code) => taxonomy.middles[code]?.short ?? code).join(', ');

@@ -24,6 +24,9 @@ src/pages/papers/[slug].astro dynamic paper route
 src/components/TaxonomyAtlas.astro interactive atlas + cloud panel
 scripts/validate-library.mjs frontmatter/reference checks
 scripts/scaffold-paper.mjs   create a new paper stub
+AGENTS.md                    project instructions for future Codex runs
+docs/corpus-note-harness.md  paper-note conversion harness
+docs/legacy-source-map.md    where to recover legacy atlas/source details
 CODEX_HANDOFF.md             concise implementation notes
 ```
 
@@ -53,6 +56,8 @@ Create a blank stub:
 ```bash
 npm run new:paper -- cim-mlc "CIM-MLC"
 ```
+
+For full note conversion, use `docs/corpus-note-harness.md`. Legacy seed material is intentionally preserved in `src/content/legacy/`; `docs/legacy-source-map.md` explains which file to consult for compact notes, original overview text, and old atlas behavior.
 
 ## Visualization behavior
 

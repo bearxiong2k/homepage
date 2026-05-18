@@ -6,7 +6,7 @@ const coverageLevel = z.number().int().min(0).max(3);
 const axisA = z.enum(['A1', 'A2', 'A3', 'A4', 'A5', 'A6']);
 const axisB = z.enum(['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7']);
 const optionalText = z.string().nullable().optional();
-const optionalUrl = z.string().url().nullable().optional();
+const optionalUrl = z.url().nullable().optional();
 
 const papers = defineCollection({
   loader: glob({ pattern: '**/*.md', base: './src/content/papers' }),

@@ -4,6 +4,8 @@
 
 Finish this as a static Astro paper library. Do not add PDF hosting yet.
 
+Root-level project instructions now live in `AGENTS.md`. Use this handoff as a short status note; use `AGENTS.md` for ongoing agent behavior.
+
 ## Design decisions already made
 
 - Paper metadata source: Markdown frontmatter in `src/content/papers/*.md`.
@@ -20,6 +22,8 @@ Finish this as a static Astro paper library. Do not add PDF hosting yet.
 3. Run `npm install`, `npm run validate`, `npm run check`, and `npm run build`.
 4. Improve the Markdown paper page layout only after content compiles.
 5. Optional: add tag/axis detail pages after the atlas is stable.
+
+Use `docs/corpus-note-harness.md` when generating full public notes. Use `docs/legacy-source-map.md` when recovering original overview text, legacy coverage behavior, or compact-source material from the draft artifacts.
 
 ## Frontmatter contract
 
@@ -49,6 +53,8 @@ coverage:
 ```
 
 Keep arrays inline where possible. The Astro schema is the strict source of truth; `scripts/validate-library.mjs` is a fast preflight check.
+
+Coverage levels are descriptive evidence levels, not a ranking model. The current atlas sums the twelve dimensions only for visualization size and summary display.
 
 ## Converting existing generated notes
 

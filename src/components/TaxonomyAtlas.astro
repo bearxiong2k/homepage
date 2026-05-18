@@ -2,6 +2,61 @@
 import CoverageMatrix from './CoverageMatrix.astro';
 import CoverageCloud from './CoverageCloud.astro';
 
+type AxisA = 'A1' | 'A2' | 'A3' | 'A4' | 'A5' | 'A6';
+type AxisB = 'B1' | 'B2' | 'B3' | 'B4' | 'B5' | 'B6' | 'B7';
+
+type Family = {
+  name: string;
+  short: string;
+  artifact: string;
+  color: string;
+};
+
+type Middle = {
+  name: string;
+  short: string;
+  desc: string;
+};
+
+type CoverageDimension = {
+  key: string;
+  label: string;
+  short: string;
+  desc: string;
+};
+
+type Paper = {
+  slug: string;
+  title: string;
+  subtitle?: string | null;
+  year?: number | null;
+  venue?: string | null;
+  summary: string;
+  tags?: string[];
+  technology?: string[];
+  workloads?: string[];
+  baselines?: string[];
+  axis_A: {
+    primary: AxisA;
+    secondary?: AxisA[];
+  };
+  axis_B: AxisB[];
+  axis_C_first_class_objects?: string[];
+  axis_D_rewrite_objects?: string[];
+  coverage: Record<string, number>;
+};
+
+type Taxonomy = {
+  families: Record<AxisA, Family>;
+  middles: Record<AxisB, Middle>;
+  coverage_dimensions: CoverageDimension[];
+};
+
+interface Props {
+  papers: Paper[];
+  taxonomy: Taxonomy;
+}
+
 const { papers, taxonomy } = Astro.props;
 ---
 <section id="taxonomy" class="panel pad">
@@ -80,7 +135,7 @@ const { papers, taxonomy } = Astro.props;
     </div>
   </div>
   <div class="dimension-grid">
-    {taxonomy.coverage_dimensions.map((dimension) => (
+    {taxonomy.coverage_dimensions.map((dimension: CoverageDimension) => (
       <div class="dim-card">
         <code>{dimension.short}</code>
         <h3>{dimension.label}</h3>
@@ -90,8 +145,8 @@ const { papers, taxonomy } = Astro.props;
   </div>
 </section>
 
-<script type="application/json" id="paper-data" set:html={JSON.stringify(papers)}></script>
-<script type="application/json" id="taxonomy-data" set:html={JSON.stringify(taxonomy)}></script>
+<script is:inline type="application/json" id="paper-data" set:html={JSON.stringify(papers)}></script>
+<script is:inline type="application/json" id="taxonomy-data" set:html={JSON.stringify(taxonomy)}></script>
 <script is:inline>
 (() => {
   const papers = JSON.parse(document.getElementById('paper-data').textContent);
@@ -225,7 +280,6 @@ const { papers, taxonomy } = Astro.props;
   }
 
   function renderStats() {
-    const totalCoverage = filtered.reduce((sum, p) => sum + coverageTotal(p), 0);
     const roleCounts = Object.fromEntries(familyCodes.map((code) => [code, filtered.filter((p) => p.axis_A.primary === code).length]));
     const topRole = Object.entries(roleCounts).sort((a, b) => b[1] - a[1])[0];
     const middleCounts = Object.fromEntries(middleCodes.map((code) => [code, filtered.filter((p) => (p.axis_B ?? []).includes(code)).length]));
