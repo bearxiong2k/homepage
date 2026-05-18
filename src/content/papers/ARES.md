@@ -61,7 +61,7 @@ artifact:
   status: "no public artifact found"
   url:
   license:
-  last_checked: "2026-05-15"
+  last_checked: "2026-05-19"
 integration_roles:
   - "IR inspiration"
   - "mapper_scheduler"
@@ -73,6 +73,7 @@ notes:
   - "Memory abstraction is the most reusable IR idea: bit-level layout legality via mapping matrices and offsets."
   - "Simulator-backed experiments cover four adapted PIM platforms; public simulator/code artifact was not found."
   - "Useful bridge between tensor access-matrix semantics and PIM-specific operand placement constraints."
+  - "Artifact URL spot-check on 2026-05-19 found the author-hosted paper PDF but no public implementation link."
 takeaways: []
 ---
 

@@ -43,7 +43,7 @@ artifact:
   status: "no public artifact found"
   url:
   license: "Unknown / not found"
-  last_checked: "2026-05-15"
+  last_checked: "2026-05-19"
 integration_roles:
   - "IR_inspiration"
   - "mapper_scheduler"
@@ -55,6 +55,7 @@ notes:
   - "Best treated as a spec-to-layout DCIM macro compiler, not a workload compiler or explicit graph/ISA IR stack."
   - "Public evidence is strongest for template-based macro generation and array-partitioning/layout exploration."
   - "Follow-on work characterizes AutoDCIM as fixed-point/integer, closed-source, and commercial-EDA-dependent."
+  - "Artifact URL spot-check on 2026-05-19 found official paper/metadata pages but no public implementation link."
 takeaways: []
 ---
 

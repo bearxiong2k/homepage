@@ -54,7 +54,7 @@ artifact:
   status: "no public artifact found"
   url: 
   license: "unknown"
-  last_checked: "2026-05-15"
+  last_checked: "2026-05-19"
 integration_roles:
   - "IR inspiration"
   - "mapper_scheduler"
@@ -67,6 +67,7 @@ notes:
   - "Strongest evidence is the DEHA/DACO/DMO paper formulation: array-mode hardware abstraction, DP segmentation, MIP allocation, and CM.switch meta-operator syntax."
   - "No public CMSwitch code, simulator patch, benchmark harness, or generated meta-operator examples were found."
   - "Value-trajectory relevance comes from resource residency and mode-transition modeling, not from explicit numeric trajectory or partial-sum representation."
+  - "Artifact URL spot-check on 2026-05-19 found arXiv and paper mirrors but no official public implementation link."
 takeaways: []
 ---
 

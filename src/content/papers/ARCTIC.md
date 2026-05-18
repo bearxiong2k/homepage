@@ -49,7 +49,7 @@ artifact:
   status: "no public artifact found"
   url: 
   license: "unknown"
-  last_checked: "2026-05-15"
+  last_checked: "2026-05-19"
 integration_roles:
   - "IR inspiration"
   - "cost_model"
@@ -61,6 +61,7 @@ notes:
   - "Best viewed as a precision-parameterized physical DCIM macro generator."
   - "Most useful IR ingredients are precision fields, mantissa/exponent placement, normalization path, and MarchCIM BIST state."
   - "The paper evidences macro-level PPA and BIST overhead, not model-frontend compilation or tensor-to-array scheduling."
+  - "Artifact URL spot-check on 2026-05-19 found the DATE paper PDF but no public implementation link."
 takeaways: []
 ---
 

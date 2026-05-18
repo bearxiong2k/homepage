@@ -67,7 +67,8 @@ const titles = new Map();
 const normalizedTitles = new Map();
 const rawFiles = [];
 const slugFileMismatches = [];
-const markerHits = [];
+const generatedMarkerHits = [];
+const valueTrajectoryMentions = [];
 const typoWatchHits = [];
 const nullYears = [];
 const blankArtifactUrls = [];
@@ -86,8 +87,7 @@ const markers = [
   { label: 'Suggested metadata entry', regex: /Suggested metadata entry/g },
   { label: 'trajectory_IR_relevance', regex: /trajectory_IR_relevance/g },
   { label: 'Relation to a value-trajectory', regex: /Relation to a value-trajectory/g },
-  { label: 'value-trajectory IR project', regex: /value-trajectory IR project/g },
-  { label: 'value-trajectory mention', regex: /value-trajectory/gi }
+  { label: 'value-trajectory IR project', regex: /value-trajectory IR project/g }
 ];
 
 for (const file of files) {
@@ -123,7 +123,12 @@ for (const file of files) {
 
   for (const marker of markers) {
     const matches = [...markdown.matchAll(marker.regex)];
-    if (matches.length) markerHits.push(`${file}: ${marker.label} (${matches.length})`);
+    if (matches.length) generatedMarkerHits.push(`${file}: ${marker.label} (${matches.length})`);
+  }
+
+  const valueTrajectoryMatches = [...markdown.matchAll(/value-trajectory/gi)];
+  if (valueTrajectoryMatches.length) {
+    valueTrajectoryMentions.push(`${file}: value-trajectory mention (${valueTrajectoryMatches.length})`);
   }
 }
 
@@ -145,7 +150,8 @@ printList('Typo-watch hits', typoWatchHits);
 printList('Null or blank years', nullYears);
 printList('Blank artifact URLs', blankArtifactUrls);
 printList('Unknown reproducibility levels', unknownRepro);
-printList('Generated-marker hits', markerHits);
+printList('Generated-marker hits', generatedMarkerHits);
+printList('Value-trajectory mentions (informational)', valueTrajectoryMentions);
 
 if (files.length !== expectedCount || rawFiles.length || duplicateSlugs.length || slugFileMismatches.length) {
   process.exitCode = 1;

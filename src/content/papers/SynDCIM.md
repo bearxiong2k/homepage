@@ -50,7 +50,7 @@ artifact:
   status: "no public artifact found"
   url: 
   license: 
-  last_checked: "2026-05-15"
+  last_checked: "2026-05-19"
 integration_roles:
   - "IR inspiration"
   - "mapper_scheduler"
@@ -63,6 +63,7 @@ notes:
   - "Macro-specification-to-layout scope is well evidenced in the paper."
   - "No public SCL, RTL templates, PPA LUTs, generated outputs, or reproduction scripts found in checked sources."
   - "Most useful corpus reading is hardware-resource/config-as-IR rather than graph/loop/ISA compiler stack."
+  - "Artifact URL spot-check on 2026-05-19 found the arXiv paper record but no official public implementation link."
 takeaways: []
 ---
 

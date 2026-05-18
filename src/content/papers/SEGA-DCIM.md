@@ -48,7 +48,7 @@ artifact:
   status: "no public artifact found"
   url: 
   license: "unknown / no implementation license found"
-  last_checked: "2026-05-15"
+  last_checked: "2026-05-19"
 integration_roles:
   - "IR_inspiration"
   - "mapper_scheduler"
@@ -62,6 +62,7 @@ notes:
   - "Design vector and component cost model are the clearest reusable abstractions."
   - "Backend reuse depends on unavailable templates, scripts, PDK collateral, and commercial EDA setup."
   - "Useful value-trajectory ingredients include bit-position columns, k-bit temporal input chunks, shift accumulation, result fusion, and FP pre-alignment/conversion."
+  - "Artifact URL spot-check on 2026-05-19 found arXiv/paper mirrors but no official public implementation link."
 takeaways: []
 ---
 
