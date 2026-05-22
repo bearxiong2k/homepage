@@ -8,7 +8,7 @@ authors_or_group: "Shixin Zhao, Yuming Li, Bing Li, Yintao He, Mengdi Wang, Yinh
 summary: >-
   CMSwitch is best classified as a **dual-mode-aware CIM mapping and scheduling compiler** whose central contribution is making the compute-vs-memory mode of each CIM array part of the compilation optimization space. The paper introduces DEHA, a hardware abstraction that records dual-mode array parameters and switch overheads; DACO, a two-stage optimization pass that segments the DNN graph with dynamic programming and solves per-segment compute/memory allocation with mixed-integer programming; and DMO, a small meta-operator extension that expresses array-mode switching through `CM.switch(TOM/TOC, arrayaddr)`. The demonstrated stack takes ONNX-format DNN inference workloads and user-defined CIM hardware parameters, targets a Dynaplasia-like dual-mode CIM accelerator, evaluates CNN and Transformer models with 8-bit weights/activations through simulator-backed experiments, and reports a 1.31× average speedup over CIM-MLC. For CIM compiler/IR research, its most useful abstraction is the array-level resource/mode allocation state rather than a full public compiler IR or reusable backend contract. ([arXiv](https://arxiv.org/pdf/2502.17006v1))
 links:
-  paper:
+  paper: https://arxiv.org/abs/2502.17006
   artifact:
   docs:
   code:

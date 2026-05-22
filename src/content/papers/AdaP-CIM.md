@@ -8,7 +8,7 @@ authors_or_group: "Jingyu He, Fengbin Tu, Kwang-Ting Cheng, Chi-Ying Tsui; HKUST
 summary: >-
   **AdaP-CIM** is best read as a hardware–numeric-format co-design paper for CIM inference rather than as a compiler or IR stack. Its main contribution is **Adaptive Posit**, a Posit-derived format that bounds the regime length with parameter `rs` and adds an exponent-extension encoding mode, paired with a **speculative alignment unit** that computes the maximum effective exponent before CIM MAC execution. The demonstrated scope is BERT-Base-Uncased quantization on three GLUE tasks and synthesis of a 256×64 SRAM-CIM macro in TSMC 28 nm against a Posit/CT-based baseline. For CIM compiler/IR research, the reusable interface is clearest at the numeric type and alignment-state boundary: `AdaP(n, es, rs)`, effective exponent, encoding flag, exponent extension, fraction, `Emax`, and exponent-offset shift become the objects that a future IR would need to name, type, preserve, and lower. ([DATE Conference](https://past.date-conference.com/proceedings-archive/2024/DATA/1077_pdf_upload.pdf))
 links:
-  paper:
+  paper: https://researchportal.hkust.edu.hk/en/publications/adap-cim-compute-in-memory-based-neural-network-accelerator-using/
   artifact:
   docs:
   code:

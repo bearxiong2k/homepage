@@ -8,7 +8,7 @@ authors_or_group: "Xiaolin He, Cenlin Duan, Yingjie Qi, Xiao Ma, Jianlei Yang / 
 summary: >-
   **MIREDO** is best read as a CIM dataflow mapping framework that makes loop-factor placement, operand-specific memory hierarchy use, transfer paths, and buffering decisions explicit inside a Mixed-Integer Programming formulation. The paper’s strongest contribution is not a public compiler IR or instruction stack, but a stall-aware analytical model for SRAM-CIM accelerator mapping: it captures memory-capacity constraints, bus-width-derived transfer latency, single-versus-double buffering, and recursive loop-level latency to select a dataflow for DNN inference. The demonstrated workload setting is primarily INT8 CNN inference, with ResNet-18/ImageNet used as the baseline case and additional DNN/hardware sweeps reported through simulator-backed experiments. For CIM compiler/IR research, MIREDO is valuable as evidence that a useful “hidden IR” for CIM mapping can be a structured optimization state: constants, binary variables, enumerated data-size candidates, loop-factor placements, memory-level bindings, and latency recurrences. ([arXiv](https://arxiv.org/pdf/2510.26463))
 links:
-  paper:
+  paper: https://arxiv.org/pdf/2510.26463
   artifact:
   docs:
   code:

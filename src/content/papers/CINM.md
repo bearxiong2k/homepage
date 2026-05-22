@@ -8,8 +8,8 @@ authors_or_group: "Asif Ali Khan; Hamid Farzaneh; Karl F. A. Friebel; Clément F
 summary: >-
   CINM, or Cinnamon, contributes an MLIR-based abstraction and lowering stack for compute-in-memory and compute-near-memory systems. Its strongest contribution for a compiler/IR corpus is the explicit hierarchy of dialects: a high-level `cinm` dialect for device-agnostic CINM operations and target-selection hooks, mid-level `cnm` and `cim` dialects for common near-memory and in-memory resource/control patterns, and device dialects such as UPMEM and memristor for backend-specific lowering. The demonstrated scope is CPU+UPMEM on real UPMEM hardware and CPU+memristor-crossbar through an OCC/gem5-style simulation path, with workloads drawn from ML kernels, tensor contractions, MLPs, and selected PriM benchmarks. CINM is therefore best read as a reusable compiler/mapping framework and IR design point for heterogeneous CIM/CNM systems, rather than as a fully calibrated universal CIM runtime or value-trajectory IR. ([arXiv](https://arxiv.org/html/2301.07486v4))
 links:
-  paper:
-  artifact:
+  paper: https://arxiv.org/pdf/2301.07486
+  artifact: https://github.com/tud-ccc/Cinnamon
   docs:
   code:
 technology:

@@ -8,7 +8,7 @@ authors_or_group: "João Paulo C. de Lima, Marc Dietrich, Jeronimo Castrillon, A
 summary: >-
   This paper is best read as a focused hardware-software co-design study for mapping Monarch-style block-diagonal transformer weights onto analog CIM crossbars. Its core contribution is not a general CIM compiler IR, but a set of mapping and scheduling rules that make block-diagonal structure usable on CIM arrays: a latency-oriented sparse mapping, a capacity-oriented dense packing, diagonal-index placement with rotation cancellation, permutation folding, and mapping-aware temporal row/column activation. The demonstrated workload is transformer inference over parameterized matmuls in BERT-large, BART-large, and GPT-2-Medium, evaluated through a simulator based on IBM’s PCM-oriented 3D AIMC modeling stack with ADC/DAC design-space variation. For CIM compiler/IR research, the paper is valuable because it exposes a compact “hidden IR” centered on packed array layout, diagonal offsets, ADC sharing, and schedule timestamps—objects that a future explicit IR could name, type, verify, serialize, and lower to a backend. ([arXiv](https://arxiv.org/pdf/2510.11192v1))
 links:
-  paper:
+  paper: https://arxiv.org/abs/2510.11192
   artifact:
   docs:
   code:

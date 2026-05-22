@@ -6,7 +6,7 @@ Static Astro paper library for CIM compiler/IR-stack research.
 
 - Paper metadata lives in `src/content/papers/*.md` frontmatter.
 - Taxonomy vocabulary lives in `src/data/taxonomy.json`.
-- Atlas route: `/library/`.
+- Atlas routes: `/` and `/library/` render the same atlas; `/` is the primary public entry.
 - Paper route: `/papers/[slug]/`.
 - Keep the site static. Do not add PDF hosting, backend services, or a database.
 - Do not reintroduce coverage scores, ranking scores, or `trajectory_IR_relevance`.
@@ -15,7 +15,7 @@ Static Astro paper library for CIM compiler/IR-stack research.
 
 - 62 paper notes are migrated and schema-valid.
 - No raw long-form corpus notes remain in `src/content/papers/`.
-- `/library/` atlas core is substantially done.
+- `/` and `/library/` atlas core is substantially done.
 - Current atlas behavior:
   - large graph with layout switch between Axis A x Axis B and normalized Axis C x Axis D;
   - deterministic node spreading;
@@ -32,7 +32,23 @@ Static Astro paper library for CIM compiler/IR-stack research.
 - Paper detail pages have:
   - initial CSS improvements for long notes, tables, code blocks, and mobile wrapping;
   - normalized Axis C/D chips;
-  - detail-page facet/context chips that link back into scoped atlas views.
+  - detail-page facet/context chips that link back into scoped atlas views;
+  - a source provenance strip derived from existing frontmatter;
+  - richer paper/artifact/docs/code link cards with hostnames and short source-role descriptions.
+- `npm run qa` now includes source/provenance coverage counters:
+  - `links.paper`, `links.artifact`, `artifact.url`, `links.docs`, and `links.code` population;
+  - missing paper-source links;
+  - missing artifact `last_checked` dates;
+  - artifact URLs recorded only under `artifact.url`;
+  - disagreement between `links.artifact` and `artifact.url`;
+  - entries with no recorded source links.
+- Provenance backfill progress:
+  - `links.paper` is populated for 45/62 entries after high-confidence backfill from existing body citations;
+  - `links.artifact` is populated for 38/62 entries after mirroring existing `artifact.url` values;
+  - 17 entries still need manual source checking before adding a paper link;
+  - 7 entries currently have no recorded frontmatter source link at all;
+  - artifact `last_checked` remains complete;
+  - artifact status/url contradictions, artifact URL-only entries, and `links.artifact` / `artifact.url` disagreements remain at zero.
 
 Latest known checks:
 
@@ -42,15 +58,22 @@ npm run check
 npm run build
 ```
 
-All were green after the latest atlas coverage-cloud work.
+All were green after the latest detail-page provenance work.
 
 ## Next Work
 
-Primary focus: improve individual paper detail pages and provenance.
+Primary focus: backfill and normalize provenance metadata carefully.
+
+- Use existing paper-body citations and checked sources to populate `links.paper` for representative papers first.
+- Continue with the remaining 17 missing `links.paper` entries only when the body citation or checked source clearly identifies the exact paper.
+- Keep future `links.artifact` and `artifact.url` values aligned unless there is a clear reason to distinguish source-card link from artifact status URL.
+- Do not invent paper, code, docs, or artifact links; leave blank fields blank when uncertain.
+- Keep artifact status, license, and last-checked conservative.
+
+Secondary detail-page focus:
 
 - Make long notes easier to read and scan.
 - Improve metadata panels and Axis C / Axis D presentation.
-- Add source/provenance affordances if they improve public trust.
 - Keep mobile behavior robust for long titles, tables, code blocks, and sidebars.
 
 Secondary focus: refine atlas scoping/filtering after the current C/D pass.

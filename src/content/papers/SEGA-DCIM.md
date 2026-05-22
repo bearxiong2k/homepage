@@ -8,7 +8,7 @@ authors_or_group: "Haikang Diao, Haoyi Zhang, Jiahao Song, Haoyang Luo, Yibo Lin
 summary: >-
   SEGA-DCIM is a digital SRAM-CIM macro-generation and design-space-exploration framework for producing Pareto-frontier DCIM macro designs across integer and floating-point precision choices. Its strongest contribution is the combination of a parameterized synthesizable DCIM architecture, normalized analytical area/delay/energy/throughput models, an NSGA-II-based multi-objective search over macro parameters, and a template-based Verilog/netlist/layout generation flow that relies on user-provided cell/layout resources and commercial EDA tools. The demonstrated workload abstraction is matrix-vector multiplication with static stored weights and streamed input vectors, evaluated mainly through macro-level PPA trends, generated layouts, and comparisons against published DCIM macro results. For CIM compiler/IR research, SEGA-DCIM is most useful as a hardware-generation and backend-cost-model reference: it makes DCIM macro structure and numeric precision choices first-class, while workload graph import, tensor IR, CIM ISA, runtime state, and simulator-facing instruction streams sit outside the demonstrated interface. ([arXiv](https://arxiv.org/abs/2505.09451)) |
 links:
-  paper:
+  paper: https://arxiv.org/abs/2505.09451
   artifact:
   docs:
   code:

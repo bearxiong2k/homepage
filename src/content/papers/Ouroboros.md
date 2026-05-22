@@ -8,7 +8,7 @@ authors_or_group: "Yiqi Liu, Yudong Pan, Mengdi Wang, Shixin Zhao, Haonan Zhu, Y
 summary: >-
   **Ouroboros** is best classified as a narrow end-to-end hardware–software co-design for wafer-scale **digital SRAM compute-in-memory** LLM inference. The paper’s central stack contribution is not a general CIM compiler IR, but a coherent target-specific execution stack: token-grained pipelining for causal decoder inference, communication- and fault-aware layer-to-core mapping, H-tree-aware intra-core placement, distributed dynamic KV-cache management, and a simulator-backed evaluation loop. Its demonstrated setting is LLM inference over a proposed 54 GB SRAM-CIM wafer-scale architecture, evaluated with decoder-only models such as LLaMA/Baichuan/Qwen and encoder-containing models such as T5/BERT. For CIM compiler/IR research, Ouroboros is valuable because it exposes a rich “hidden IR” made from mapping variables, pipeline stages, KV runtime tables, hardware-resource coordinates, and simulator parameters, even though those interfaces are paper-internal rather than released as a reusable dialect or instruction stream. ([arXiv](https://arxiv.org/html/2603.02737v1))
 links:
-  paper:
+  paper: https://arxiv.org/abs/2603.02737
   artifact:
   docs:
   code:

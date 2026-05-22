@@ -9,7 +9,7 @@ summary: >-
   This paper contributes a hardware-software co-design for attention-free LLM inference that makes the MVM/EWM split in Mamba and RWKV the central optimization boundary. Its clearest CIM-stack contribution is a precision-and-arithmetic layer: PN, a PIM-oriented exponent-free non-uniform weight format that preserves bit-sliced analog RRAM MVM execution, and a multiplication-free approximate FP16 EWM implementation mapped onto a proposed 3D-SRAM digital PIM array. The demonstrated path is not a general compiler IR, but it does expose useful compiler/IR ingredients: a named numeric representation, a group-wise offline parameter-search algorithm, an operator-to-hardware mapping rule, a PN shift configuration boundary, conversion units between INT and FP stages, and simulator/synthesis-backed hardware evaluation for Mamba/RWKV families. The work is therefore best placed as a narrow end-to-end co-design with a strong isolated precision/mapping abstraction, relevant to CIM compiler research as evidence for treating bit significance, scaling-factor propagation, operator sensitivity, and domain transition as first-class lowering state. ([NIC SEFC](https://nicsefc.ee.tsinghua.edu.cn/nics_file/pdf/3b18c2b6-a7c4-439d-9fa8-d6276749f085.pdf))
 links:
   paper:
-  artifact:
+  artifact: https://github.com/gld17/PN
   docs:
   code:
 technology:

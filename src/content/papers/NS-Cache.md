@@ -8,8 +8,8 @@ authors_or_group: "Faaiq Waqar, Jungyoun Kwak, Junmo Lee, Minji Shon, Mohammadho
 summary: >-
   **NS-Cache**, formally *Optimization and Benchmarking of Monolithically Stackable Gain Cell Memory for Last-Level Cache*, contributes a public early-exploration framework for advanced last-level-cache memory technologies, especially monolithically stacked amorphous-oxide-semiconductor 2T gain-cell memories for large LLCs. Its strongest reusable layer is the backend cache/device/circuit PPA model: bank–subarray–mat hierarchy, peripheral and interconnect cost modeling, M3D/TSV-like stacking parameters, access-mode choices, refresh timing, and a Gem5/Ruby benchmarking bridge. The demonstrated workload setting is CPU multicore LLC evaluation using Rodinia and PARSEC/Splash2x benchmarks with Gem5 statistics and NS-Cache-derived cache timing/energy parameters, rather than a neural operator graph or CIM tensor compiler. For a CIM compiler/IR corpus, NS-Cache is most useful as a **cost-model and backend-contract case study**: the first-class object is an advanced cache-memory configuration and its timing/energy consequences, while tensor-CIM scheduling, ISA lowering, analog partial-sum semantics, and value-trajectory rewrites remain outside the demonstrated abstraction. ([arXiv](https://arxiv.org/pdf/2503.06304))
 links:
-  paper:
-  artifact:
+  paper: https://arxiv.org/pdf/2503.06304
+  artifact: https://github.com/neurosim/NS-Cache
   docs:
   code:
 technology:

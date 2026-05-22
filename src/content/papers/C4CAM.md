@@ -9,7 +9,7 @@ summary: >-
   C4CAM is a 2024 ASPLOS paper that proposes an MLIR-based compiler and mapping flow for content-addressable-memory accelerators, focused on similarity and search-style workloads rather than general tensor-program compilation. Its main technical contribution is a layered lowering path from TorchScript/Torch MLIR into a generic `cim` abstraction and then into a CAM-specific `cam` abstraction that names CAM hierarchy, allocation, search mode, similarity metric, and partial-result handling. The demonstrated workloads are KNN, hyperdimensional-computing similarity, and DNA read mapping, evaluated through a CAMASim/Eva-CAM-style simulator setup with FeFET TCAM/MCAM assumptions rather than through a public end-to-end compiler artifact. The work is most useful to CIM compiler/IR research as an example of making CAM search and hierarchy mapping explicit in IR, with the clearest reusable boundary around pattern lowering, CAM resource binding, and simulator-facing cost-model integration. ([Cfaed](https://cfaed.tu-dresden.de/publications?pubId=3738))
 links:
   paper:
-  artifact:
+  artifact: https://github.com/camasim-project/CAMASim
   docs:
   code:
 technology:

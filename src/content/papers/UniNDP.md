@@ -9,7 +9,7 @@ summary: >-
   UniNDP is best read as a unified mapping-and-simulation framework for **DRAM-based near-data / near-DRAM processing architectures**. Its main contribution is a narrow but concrete stack that takes ML operator descriptions and hardware configuration, enumerates partition and data-layout strategies across DRAM hierarchy levels, prunes and ranks those strategies with DRAM-timing-derived predictors, lowers top candidates to a small NDP instruction abstraction, and evaluates them with an instruction-driven timing simulator. The paper strengthens the CIM/PIM stack at the **mapping, hardware-resource abstraction, cost-model, and simulator-backend** layers rather than at the frontend language or formal IR-verification layer. The demonstrated scope is ML operators from CNN and LLM workloads—especially MM and MVM shapes—on bank-, device-, and rank-level NDP architectures modeled after UPMEM, AiM, HBM-PIM, and DIMMining-like organizations. ([nicsefc.ee.tsinghua.edu.cn](https://nicsefc.ee.tsinghua.edu.cn/nics_file/pdf/d356f1fd-6204-4b21-8849-a9c3b2e15065.pdf))
 links:
   paper:
-  artifact:
+  artifact: https://github.com/godfather991/UniNDP
   docs:
   code:
 technology:

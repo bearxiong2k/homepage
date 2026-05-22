@@ -8,8 +8,8 @@ authors_or_group: "João Paulo C. de Lima, Benjamin Morris III, Asif Ali Khan, J
 summary: >-
   **Count2Multiply** contributes a digital-CIM masked accumulation primitive for integer-binary and integer-integer matrix operations by storing one operand as bit-sliced mask rows, storing outputs as high-radix Johnson-counter rows, and converting the other operand into host-generated Ambit-style memory-command µPrograms. Its compiler/IR relevance is clearest at the boundary between numeric lowering and backend instruction generation: input values are converted into radix digits, zero digits are skipped, row addresses are populated into preconstructed command macros, and a host-side virtual counter manages delayed carry propagation. The demonstrated stack is an Ambit-style commodity-DRAM CIM design evaluated with a cycle-level NVMain/RTSim extension over GEMV/GEMM-like kernels from LLaMA/LLaMA-2, BERT/LLama-3 attention, DNA pre-alignment filtering, and quantized GNN workloads. The work is best read as a hardware-software co-design and instruction-stream lowering study for digital-CIM arithmetic, with reusable ideas for representing masks, counter state, µProgram templates, and ECC-aware recomputation paths in a future CIM IR. ([CFAED](https://cfaed.tu-dresden.de/files/Images/people/chair-cc/publications/2602_Lima_HPCA.pdf))
 links:
-  paper:
-  artifact:
+  paper: https://arxiv.org/html/2409.10136v3
+  artifact: https://github.com/SU-JonesLab/C2M
   docs:
   code:
 technology:

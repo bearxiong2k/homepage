@@ -8,8 +8,8 @@ authors_or_group: "Lian Liu, Shixin Zhao, Bing Li, Haimeng Ren, Zhaohui Xu, Meng
 summary: >-
   Hermes, formally “Make LLM Inference Affordable to Everyone: Augmenting GPU Memory with NDP-DIMM,” is an HPCA 2025 hardware–software co-design for activation-sparse LLM inference on a consumer-grade GPU augmented by digital near-data-processing DIMMs. Its core contribution is not a general CIM compiler IR, but a specialized runtime mapping and scheduling layer: frequently active “hot” neurons are kept on the GPU, while less frequently active “cold” neurons remain in NDP-DIMMs, with an offline ILP initializer, a lightweight online predictor, and a window-based DIMM load-balancing scheduler. The paper demonstrates this design for OPT, LLaMA2, and Falcon-style models under ReLU-based activation sparsity, using an RTX 4090, eight modeled DDR4 NDP-DIMMs, measured GPU kernels, a modified Ramulator 2.0 simulator, and RTL-synthesized NDP cores. For CIM compiler/IR research, Hermes is most useful as a runtime-state and mapping case study: it names neuron activity, placement, and remapping as first-class scheduling objects, while the compiler-visible value trajectory remains implicit in the scheduler, commands, barriers, and simulator assumptions. ([arXiv](https://arxiv.org/abs/2502.16963?utm_source=chatgpt.com))
 links:
-  paper:
-  artifact:
+  paper: https://arxiv.org/abs/2502.16963
+  artifact: https://huggingface.co/SparseLLM
   docs:
   code:
 technology:

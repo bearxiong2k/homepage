@@ -8,7 +8,7 @@ authors_or_group: "Yintao He, Haiyu Mao, Christina Giannoula, Mohammad Sadrosada
 summary: >-
   **PAPI** is a heterogeneous HBM/DRAM-PIM architecture and runtime scheduling framework for LLM decoding. Its central contribution is not an explicit compiler IR, but a runtime decision layer that observes request-level parallelism and token-level parallelism, estimates whether fully connected kernels are compute- or memory-bound, and then maps those kernels either to GPU-like processing units or to FC-PIM, while attention/KV-cache-heavy work is assigned to disaggregated Attn-PIM devices. The demonstrated stack is simulator-backed: the paper evaluates LLaMA-65B, GPT-3 66B, and GPT-3 175B on Dolly creative-writing and general-QA tasks using Ramulator2/AttAcc-derived modeling. For CIM compiler/IR research, PAPI is most useful as a runtime-state and hardware-resource case study: it makes dynamic batching/speculation state first-class enough to schedule over heterogeneous PIM resources, but the reusable compiler boundary remains embedded in scheduler equations, hardware assumptions, data partitioning rules, and simulator setup rather than a serialized IR. ([arXiv](https://arxiv.org/html/2502.15470v1))
 links:
-  paper:
+  paper: https://arxiv.org/pdf/2502.15470v2
   artifact:
   docs:
   code:

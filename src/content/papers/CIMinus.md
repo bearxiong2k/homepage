@@ -8,7 +8,7 @@ authors_or_group: "Yingjie Qi, Jianlei Yang, Rubing Yang, Cenlin Duan, Xiaolin H
 summary: >-
   **CIMinus** contributes a sparse-DNN modeling and exploration framework for digital SRAM-based compute-in-memory systems. Its central stack contribution is **FlexBlock**, a compositional sparsity abstraction that represents structurally constrained sparse weight matrices using FullBlock and IntraBlock patterns, coupled with a declarative interface for workload DAGs, hardware units, and mapping templates. The demonstrated flow starts from ONNX or manually described DNN workloads, applies or describes FlexBlock-compatible pruning masks, maps compressed/rearranged weights onto parameterized CIM macros, and estimates latency and energy through system-level/cycle-level modeling. The work is most relevant to CIM compiler/IR research as a **configuration-and-mapping boundary**: it shows how sparsity masks, compressed matrix layout, loopnest mapping, index-memory overhead, and macro organization can be named explicitly enough for exploration, even though the paper’s reusable endpoint is a simulator/cost-model report rather than a compiler IR, ISA, or synthesis backend. ([arXiv](https://arxiv.org/pdf/2511.16368v1))
 links:
-  paper:
+  paper: https://arxiv.org/pdf/2511.16368v1
   artifact:
   docs:
   code:

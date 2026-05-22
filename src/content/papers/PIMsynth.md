@@ -9,7 +9,7 @@ summary: >-
   PIMsynth is a public compiler framework for generating bit-serial PIM microprograms from bit-parallel combinational Verilog. Its clearest contribution is an automated lowering path that combines Yosys/ABC logic synthesis, a GenLib-described bit-serial PIM instruction set, analog-PIM-specific transformations for TRA/MAJ/DCC behavior, LLVM-based scheduling and register allocation, and PIMeval-backed functional/performance validation. The demonstrated setting is fixed-width integer and bitwise combinational kernels over 8/16/32/64-bit operands, evaluated on representative digital and analog DRAM-PIM programming models with small single-bit register sets. For CIM compiler/IR research, PIMsynth is most useful as a bit-level compiler-stack example where the first-class object is neither a neural-network tensor graph nor an array placement map, but a bit-serial operation DAG plus a constrained register/simulator instruction interface. ([University of Virginia Computer Science](https://www.cs.virginia.edu/venkat/papers/cal2025.pdf))
 links:
   paper:
-  artifact:
+  artifact: https://github.com/UVA-LavaLab/PIMsynth
   docs:
   code:
 technology:

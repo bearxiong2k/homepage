@@ -29,15 +29,32 @@ Recently completed:
   - expandable object/rewrite/context clouds for long metadata lists;
   - dense-cell summary under the atlas with one-click exact scoping for plotted cells.
 - Expanded the taxonomy explanation to include Axis C object vocabulary and Axis D rewrite vocabulary.
-- Updated CODEX_HANDOFF.md and docs/future-development-plan.md with this iteration's state.
+- Added detail-page provenance affordances:
+  - provenance strip for paper source, artifact link, artifact status, and last-checked date;
+  - hero source actions derived from existing paper/artifact/docs/code links;
+  - richer source cards with source-role descriptions and hostnames;
+  - source note clarifying that artifact status and checked date come from recorded corpus metadata rather than live monitoring.
+- Added source/provenance QA coverage:
+  - npm run qa reports links.paper, links.artifact, artifact.url, links.docs, and links.code population;
+  - missing paper-source links and entries with no recorded source links are informational audit items;
+  - artifact last_checked coverage and links.artifact vs artifact.url disagreements are checked separately.
+- Backfilled high-confidence links.paper values from existing body citations:
+  - links.paper is now populated for 45/62 entries;
+  - links.artifact is now populated for 38/62 entries and aligned with artifact.url coverage;
+  - 17 entries remain missing paper links and should be checked manually before editing;
+  - 7 entries still have no recorded frontmatter source link;
+  - artifact.last_checked remains complete;
+  - artifact status/url contradictions, artifact URL-only entries, and links.artifact vs artifact.url disagreements remain at zero.
+- Updated CODEX_HANDOFF.md and docs/future-development-plan.md with the latest state.
 
 Good next steps:
 1. Audit Axis C/D normalization quality against a handful of papers from different families; tune rules only when evidence clearly supports it.
-2. Improve source/provenance affordances on detail pages, especially paper/artifact/code/docs link presentation and last-checked status.
-3. Audit rendered note content for Markdown display edge cases, formula/math notation, escaped symbols, tables, and code blocks.
-4. Consider whether technology/workload raw terms need controlled vocabularies after the current separate filters.
-5. Keep improving mobile behavior for atlas/detail transitions, long titles, tables, code blocks, metadata panels, and dense-cell summaries.
-6. Consider compact paper list/card views or a static search index only after detail-page scanability is stable.
+2. Continue provenance backfill for the remaining missing links.paper entries, but only when the exact paper source is clear from body citations or checked sources; leave ambiguous entries blank.
+3. Preserve links.artifact and artifact.url alignment unless a future schema change intentionally separates those concepts.
+4. Audit rendered note content for Markdown display edge cases, formula/math notation, escaped symbols, tables, and code blocks.
+5. Consider whether technology/workload raw terms need controlled vocabularies after the current separate filters.
+6. Keep improving mobile behavior for atlas/detail transitions, long titles, tables, code blocks, metadata panels, and dense-cell summaries.
+7. Consider compact paper list/card views or a static search index only after detail-page scanability is stable.
 
 Implementation guidance:
 - Use current frontmatter and src/data/taxonomy.json as source of truth.

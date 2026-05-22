@@ -8,7 +8,7 @@ authors_or_group: "Shubham Negi, Indranil Chakraborty, Aayush Ankit, Kaushik Roy
 summary: >-
   NAX is a hardware-aware neural architecture search framework for CNN inference on memristive crossbar array IMC accelerators. Its main contribution is not a general compiler IR, but a search formulation that makes **per-layer coupling between neural operation choice and crossbar-size binding** explicit: convolution kernels in a ResNet-derived super-network are searched together with crossbar sizes, and the selected architecture is evaluated against accuracy, energy, and area-normalized latency objectives. The stack slice strengthened by the paper is the mapper/DSE layer between a CNN graph and a PUMA-like analog crossbar accelerator model, with nonideality feedback supplied through GENIEx and hardware-efficiency feedback through per-operation lookup-table costs. The demonstrated setting is static CNN inference on CIFAR-10 and Tiny ImageNet using ResNet-20/ResNet-18-derived search spaces, with simulator-backed comparisons against homogeneous-crossbar ResNet baselines. ([arXiv](https://arxiv.org/pdf/2106.12125)) |
 links:
-  paper:
+  paper: https://arxiv.org/pdf/2106.12125
   artifact:
   docs:
   code:

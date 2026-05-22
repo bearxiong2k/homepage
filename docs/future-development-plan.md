@@ -7,7 +7,7 @@ This is a static Astro paper library for CIM compiler/IR-stack research.
 - `src/content/papers/` contains 62 schema-valid Markdown paper entries.
 - The raw-note migration milestone is complete; no raw long-form notes remain.
 - The active metadata contract is descriptive. It does not include coverage scores, ranking scores, or `trajectory_IR_relevance`.
-- `/library/` is the primary public atlas route.
+- `/` is the primary public atlas route; `/library/` renders the same atlas for compatibility.
 - `/papers/[slug]/` renders individual long-form corpus notes.
 - Axis C first-class objects and Axis D rewrite objects are normalized at render time from `src/data/taxonomy.json` vocabulary, without adding new required frontmatter fields.
 - The atlas supports both Axis A x Axis B and normalized Axis C x Axis D layouts.
@@ -25,6 +25,7 @@ npm run build
 Latest known good baseline:
 
 - `npm run validate`: `Validated 62 paper metadata file(s).`
+- `npm run qa`: 62 files, 62 structured, 0 raw files; source/provenance coverage is now reported as informational audit output.
 - `npm run check`: `0 errors, 0 warnings, 0 hints`.
 - `npm run build`: 64 static pages.
 
@@ -60,6 +61,39 @@ Implemented:
 
 Do not rebuild the atlas from scratch. Future atlas work should be incremental and should use current frontmatter plus `src/data/taxonomy.json` as source of truth.
 
+## Completed Focus -- Detail-Page Provenance, First Pass
+
+Implemented:
+
+- detail-page provenance strip summarizing paper-source presence, artifact-link presence, artifact status, and last-checked date;
+- hero source actions generated from existing `links.paper`, `links.artifact`, `links.docs`, `links.code`, and `artifact.url` metadata;
+- richer source cards with source role labels, short descriptions, and hostnames;
+- explanatory source note clarifying that artifact status and checked date come from the recorded corpus pass rather than live monitoring;
+- responsive source/provenance layout with single-column mobile behavior and no horizontal overflow in checked viewports.
+
+This pass did not add new schema fields. It surfaces the current descriptive frontmatter more clearly.
+
+## Completed Focus -- Provenance QA, First Pass
+
+Implemented:
+
+- `npm run qa` now reports source/provenance coverage for `links.paper`, `links.artifact`, `artifact.url`, `links.docs`, and `links.code`;
+- missing paper-source links are listed as informational audit items;
+- missing artifact `last_checked` dates are checked separately from artifact URL coverage;
+- artifact URLs recorded only under `artifact.url` are surfaced so the frontmatter can be normalized intentionally;
+- disagreements between `links.artifact` and `artifact.url` are reported;
+- entries with no recorded source links are listed.
+
+Current mechanical audit reading:
+
+- `links.paper` is now populated for 45/62 entries after high-confidence backfill from checked body citations.
+- `links.artifact` is now populated for 38/62 entries and aligned with the existing `artifact.url` coverage.
+- 17 entries still need manual source checking before adding a paper link.
+- 7 entries currently have no recorded frontmatter source link at all.
+- `artifact.last_checked` is complete across the current corpus.
+- artifact status and artifact URL fields currently have no contradiction according to the QA script.
+- artifact URL-only entries and `links.artifact` / `artifact.url` disagreements are currently zero.
+
 ## Next Focus -- Detail Pages and Atlas Scoping
 
 The next product milestone should treat paper detail pages and atlas scoping as one connected improvement loop. The detail page is where users inspect evidence and vocabulary; the atlas is where the same vocabulary becomes navigable. Improve them together so metadata refinements, controlled facets, back-links, and rendering fixes reinforce the same browsing workflow.
@@ -68,12 +102,13 @@ Remaining priority work:
 
 1. Improve the long-note reading layout on `/papers/[slug]/`.
 2. Make metadata easier to scan without duplicating the full note.
-3. Improve source/provenance affordances if they help public trust.
-4. Audit normalized Axis C/D categories for false positives or overly broad buckets; keep them descriptive.
-5. Consider whether normalized technology/workload metadata needs a controlled vocabulary beyond the current separate selectors.
-6. Improve mobile behavior for long titles, tables, code blocks, metadata panels, and atlas/detail transitions.
-7. Refine rendered note content: audit Markdown display edge cases, formula/math notation, escaped symbols, and table/code rendering so corpus notes display faithfully instead of exposing raw Markdown or unrendered formulas.
-8. Consider compact paper lists/cards and an optional static search index only after the detail-page and metadata scanability path is stable.
+3. Continue source/provenance backfill for the remaining missing `links.paper` entries, but only when the exact source is clear from checked evidence.
+4. Preserve alignment between `links.artifact` and `artifact.url` unless a future schema change intentionally separates source-card links from artifact-status URLs.
+5. Audit normalized Axis C/D categories for false positives or overly broad buckets; keep them descriptive.
+6. Consider whether normalized technology/workload metadata needs a controlled vocabulary beyond the current separate selectors.
+7. Improve mobile behavior for long titles, tables, code blocks, metadata panels, and atlas/detail transitions.
+8. Refine rendered note content: audit Markdown display edge cases, formula/math notation, escaped symbols, and table/code rendering so corpus notes display faithfully instead of exposing raw Markdown or unrendered formulas.
+9. Consider compact paper lists/cards and an optional static search index only after the detail-page and metadata scanability path is stable.
 
 The atlas should remain descriptive. Do not introduce coverage, quality, ranking, or relevance scores.
 

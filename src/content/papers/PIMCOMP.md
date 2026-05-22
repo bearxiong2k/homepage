@@ -8,8 +8,8 @@ authors_or_group: "Xiaotian Sun, Xinyu Wang, Wanqian Li, Yinhe Han, Xiaoming Che
 summary: >-
   PIMCOMP is best read as a crossbar-PIM/CIM DNN deployment compiler whose most reusable contribution is the middle/backend optimizer: it converts an ONNX-style DNN description into a structure IR plus weight data, partitions weights into **array groups**, optimizes weight replication and AG layout across cores, schedules high-throughput or low-latency inter-layer pipelines, and emits pseudo-instruction/configuration artifacts for verification and simulation. The paper strengthens the CIM compiler stack at the mapping/scheduling boundary rather than at a formal general-purpose IR boundary: its named abstractions are structure IR, hardware configuration, array groups, mapping info, pseudo-instructions, and pixel-level runtime management. The demonstrated setting is static DNN inference on configurable NVM crossbar-style PIM accelerators, evaluated with simulator-backed experiments over VGG/ResNet/GoogleNet-style workloads and three abstracted architecture instances. ([arXiv](https://arxiv.org/pdf/2411.09159v1))
 links:
-  paper:
-  artifact:
+  paper: https://arxiv.org/pdf/2411.09159v1
+  artifact: https://github.com/sunxt99/PIMCOMP-NN
   docs:
   code:
 technology:

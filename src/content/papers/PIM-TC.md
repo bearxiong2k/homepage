@@ -8,8 +8,8 @@ authors_or_group: "Lorenzo Asquini, Manos Frouzakis, Juan Gómez-Luna, Mohammad 
 summary: >-
   PIM-TC is a real-hardware graph-processing stack for triangle counting on UPMEM processing-in-memory DPUs. Its main contribution is a workload-specific host/DPU implementation that maps COO-format graph edges to PIM cores using vertex coloring, constructs host-to-DPU edge batches, optionally applies uniform and reservoir sampling for approximate counting, uses Misra-Gries summaries to handle high-degree vertices, and measures the result on a real UPMEM platform. For CIM compiler/IR research, the work is most useful as evidence for the backend/runtime boundary of a graph workload on commercial digital PIM: it names hardware resources, batching state, graph partition state, and per-DPU memory-resident samples, while the demonstrated reusable abstraction is closer to a specialized mapping/runtime protocol than to a general compiler dialect or instruction-level IR. ([arXiv](https://arxiv.org/pdf/2505.04269v2))
 links:
-  paper:
-  artifact:
+  paper: https://arxiv.org/pdf/2505.04269v2
+  artifact: https://github.com/CMU-SAFARI/PIM-TC
   docs:
   code:
 technology:

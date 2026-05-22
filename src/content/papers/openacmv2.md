@@ -8,8 +8,8 @@ authors_or_group: "Yiqi Zhou, Yue Yuan, Yikai Wang, Bohao Liu, Qinxin Mei, Zhuoh
 summary: >-
   OpenACMv2 contributes an accuracy-constrained architecture–circuit co-optimization flow for approximate digital SRAM-based compute-in-memory processing elements. Its strongest reusable layer is the design-space exploration and cost-model boundary: Level-I encodes approximate multiplier choices and SRAM macro parameters as optimizer states, evaluates multiplier error/PPA through PEA-GNN, and selects Pareto candidates under MRED/NMED budgets; Level-II refines selected compressor cells and SRAM bitcells through SPICE/PVT/Monte Carlo-style transistor sizing. The demonstrated workloads are image blending for 8-bit multipliers and CIFAR-10 inference for 16-bit multipliers, with hardware evidence centered on 8/16-bit approximate multipliers, SRAM macro configurations, FreePDK45/Nangate45-style cells, OpenROAD/OpenSTA/VCS evaluation, and Xyce/SPICE-style sizing. For CIM compiler/IR research, the paper is most useful as a concrete example of making approximate arithmetic choices, SRAM macro parameters, and circuit-validity constraints first-class optimization objects, while high-level workload ingestion, tensor IR, instruction lowering, and runtime abstractions remain outside the paper’s main demonstrated interface. ([arXiv](https://arxiv.org/pdf/2603.13042))
 links:
-  paper:
-  artifact:
+  paper: https://arxiv.org/pdf/2603.13042
+  artifact: https://github.com/ShenShan123/OpenACM
   docs:
   code:
 technology:

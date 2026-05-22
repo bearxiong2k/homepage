@@ -8,8 +8,8 @@ authors_or_group: "Tsinghua LEMON Lab and collaborators"
 summary: >-
   OpenCIMTC is best read as a concrete end-to-end memristor/RRAM CIM co-design stack whose reusable compiler contribution is a serialized YAML **CIM-IR** separating layer attributes, physical mapping information, and calculation/deployment parameters. The work strengthens the vertical path from ONNX model import to memristor-array placement, simulator or hardware execution, post-deployment training, and simulator-/chip-in-the-loop tuning of hardware-sensitive parameters. The demonstrated system targets static neural-network inference and training-adjustment flows for a specific memristor CIM prototype with FPGA/CPU support, with public artifact support clearest around ResNet-32 simulation and generated training/optimization/inference scripts. For CIM compiler/IR research, its main value is not a broad formal IR, but an auditable example of how mapping state, physical addresses, ADC/integration-time parameters, quantization fields, and backend generation contracts can be made explicit enough to survive a compiler-to-hardware flow. ([Nature](https://www.nature.com/articles/s41467-025-57183-0))
 links:
-  paper:
-  artifact:
+  paper: https://www.nature.com/articles/s41467-025-57183-0
+  artifact: https://github.com/Tsinghua-LEMON-Lab/OpenCIMTC
   docs:
   code:
 technology:

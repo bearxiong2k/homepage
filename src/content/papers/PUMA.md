@@ -9,7 +9,7 @@ summary: >-
   PUMA is an ASPLOS 2019 hardware–software co-design for ML inference on a hybrid CMOS–memristor spatial accelerator. Its core contribution is a concrete, ISA-programmable CIM backend: a core/tile/node microarchitecture with memristor MVM units and digital functional units, a PUMA ISA with MVM, vector, memory, communication, and control instructions, a compiler that builds and partitions a model graph into per-core/per-tile assembly, and PUMAsim for functionality/timing/power evaluation. The demonstrated setting is static, MVM-heavy DNN inference—MLPs, LSTMs, and CNNs—with 16-bit fixed-point operations realized over conservative 2-bit memristor cells via bit-slicing. For CIM compiler/IR research, PUMA is most useful as a concrete example of a narrow end-to-end stack where graph partitioning, resource binding, inter-tile communication, and instruction scheduling are made compiler-visible for one architecture, while a more portable CIM IR would likely factor those internal states into explicit, verifiable, backend-independent objects. ([Izzat El Hajj](https://ielhajj.github.io/publications/paper/paper-puma-asplos19.pdf))
 links:
   paper:
-  artifact:
+  artifact: https://github.com/illinois-impact/puma-compiler
   docs:
   code:
 technology:

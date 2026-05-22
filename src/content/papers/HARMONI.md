@@ -8,8 +8,8 @@ authors_or_group: "LAVAlab / University of Virginia; exact author list unknown f
 summary: >-
   HARMONI is best read as a modeling, mapping, and simulation stack for LLM inference on hierarchical DRAM-PIM / near-memory systems. Its strongest reusable contribution is the combination of a Python-generated Transformer task graph, tensor placement metadata, hierarchical memory/logic-unit binding, and analytic latency/energy/resource modeling. The public artifact demonstrates the stack through configurable LLM model presets, DRAM hierarchy strings, batch/token settings, fusion flags, mapping options, network/GEMM trace generation, and ISPASS artifact-evaluation scripts. For CIM compiler/IR research, HARMONI is most useful as a simulator-backend and benchmark-harness reference: it shows how an LLM task graph can be enriched with placement, phase, communication, and hardware-binding information before being evaluated by a memory-system cost model. ([GitHub](https://github.com/UVA-LavaLab/HARMONI))
 links:
-  paper:
-  artifact:
+  paper: https://arxiv.org/abs/2511.12286v1
+  artifact: https://github.com/UVA-LavaLab/HARMONI
   docs:
   code:
 technology:

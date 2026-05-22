@@ -8,8 +8,8 @@ authors_or_group: "Wanqian Li, Xiaotian Sun, Xinyu Wang, Lei Wang, Yinhe Han, Xi
 summary: >-
   PIMSYN-NN, published as **PIMSYN: Synthesizing Processing-in-memory CNN Accelerators**, contributes an automatic synthesis and design-space-exploration flow for crossbar-based PIM CNN accelerators. Its central compiler/IR contribution is an IR-based dataflow DAG used to express computation, intra-macro communication, and inter-macro communication while the DSE flow searches weight duplication, DAC/ReRAM/crossbar settings, macro partitioning, macro sharing, and peripheral allocation. The demonstrated stack is strongest for **static CNN inference** from ONNX-format model structure plus a power budget into a synthesized macro/PE/crossbar architecture and dataflow schedule, with evaluation through a cycle-accurate IR-based behavior-level simulator. For CIM compiler/IR research, PIMSYN-NN is most useful as a mapping/scheduling and hardware-resource synthesis case study: it makes several CIM architectural objects first-class, while its IR semantics are most reusable when read together with the DAG construction rules, component-allocation model, JSON configs, and downstream PIMCOMP/PIMSIM toolchain interfaces. ([arXiv](https://arxiv.org/pdf/2402.18114))
 links:
-  paper:
-  artifact:
+  paper: https://arxiv.org/pdf/2402.18114
+  artifact: https://github.com/lixixi-jook/PIMSYN-NN
   docs:
   code:
 technology:

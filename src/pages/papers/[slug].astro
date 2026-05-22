@@ -27,11 +27,43 @@ const axisBEntries = data.axis_B.map((code) => ({
   short: taxonomy.middles[code]?.short ?? code,
   desc: taxonomy.middles[code]?.desc ?? ''
 }));
-const linkEntries = Object.entries(data.links ?? {})
-  .filter(([, url]) => Boolean(url))
-  .map(([kind, url]) => ({ kind, url }));
+const sourceLabels: Record<string, string> = {
+  paper: 'Paper',
+  artifact: 'Artifact',
+  docs: 'Docs',
+  code: 'Code'
+};
+const sourceDescriptions: Record<string, string> = {
+  paper: 'Primary publication or paper PDF',
+  artifact: 'Project, release, dataset, or artifact landing page',
+  docs: 'Official usage or architecture documentation',
+  code: 'Source repository'
+};
+const sourceHost = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+};
+const linkEntries = Object.entries(data.links ?? {}).flatMap(([kind, url]) => {
+  if (!url) return [];
+  return [{
+    kind,
+    label: sourceLabels[kind] ?? kind,
+    description: sourceDescriptions[kind] ?? 'Recorded source link',
+    url,
+    host: sourceHost(url)
+  }];
+});
 if (data.artifact?.url && !linkEntries.some((entry) => entry.url === data.artifact.url)) {
-  linkEntries.push({ kind: 'artifact', url: data.artifact.url });
+  linkEntries.push({
+    kind: 'artifact',
+    label: sourceLabels.artifact,
+    description: sourceDescriptions.artifact,
+    url: data.artifact.url,
+    host: sourceHost(data.artifact.url)
+  });
 }
 const normalizedAxes = normalizePaperAxes(data, taxonomy);
 const atlasFacetHref = (params: Record<string, string>) => {
@@ -51,6 +83,14 @@ for (const heading of noteOutline) {
 }
 const paperMeta = [data.year, data.venue, data.authors_or_group].filter(Boolean).join(' · ');
 const emptyLabel = 'Unknown / not specified';
+const artifactChecked = data.artifact.last_checked ?? emptyLabel;
+const artifactUrlRecorded = Boolean(data.artifact?.url || data.links?.artifact);
+const provenanceSummary = [
+  { label: 'Paper source', value: data.links?.paper ? 'Recorded' : emptyLabel },
+  { label: 'Artifact link', value: artifactUrlRecorded ? 'Recorded' : emptyLabel },
+  { label: 'Artifact status', value: data.artifact.status },
+  { label: 'Last checked', value: artifactChecked }
+];
 ---
 <BaseLayout title={`${data.title} — Paper Library`} description={data.summary}>
   <header class="paper-hero wrap">
@@ -61,12 +101,19 @@ const emptyLabel = 'Unknown / not specified';
       <p class="paper-hero-summary">{data.summary}</p>
       <div class="paper-hero-actions">
         <a class="chip dark" href="/" data-atlas-back>Back to atlas</a>
-        {data.links?.paper && <a class="chip dark" href={data.links.paper}>Paper source</a>}
-        {data.artifact?.url && <a class="chip dark" href={data.artifact.url}>Artifact</a>}
+        {linkEntries.map((entry) => <a class="chip dark" href={entry.url}>{entry.label}</a>)}
       </div>
     </div>
   </header>
   <main class="wrap paper-detail">
+    <section class="provenance-strip" aria-label="Source provenance summary">
+      {provenanceSummary.map((item) => (
+        <div class="provenance-item">
+          <span>{item.label}</span>
+          <strong>{item.value}</strong>
+        </div>
+      ))}
+    </section>
     <section class="detail-overview" aria-label="Paper metadata overview">
       <div class="detail-panel">
         <h2>Taxonomy placement</h2>
@@ -181,9 +228,20 @@ const emptyLabel = 'Unknown / not specified';
           <h2>Sources</h2>
           <div class="source-list">
             {linkEntries.length
-              ? linkEntries.map(({ kind, url }) => <a class="source-link" href={url}>{kind}</a>)
+              ? linkEntries.map((entry) => (
+                <a class="source-link" href={entry.url}>
+                  <span>
+                    <b>{entry.label}</b>
+                    <small>{entry.description}</small>
+                  </span>
+                  <em>{entry.host}</em>
+                </a>
+              ))
               : <span class="subtle">No external links recorded in frontmatter.</span>}
           </div>
+          <p class="source-note">
+            Source links are descriptive frontmatter metadata. Artifact status and last-checked date reflect the latest recorded corpus pass, not a live availability monitor.
+          </p>
         </div>
         <div class="panel pad">
           <h2>Context</h2>

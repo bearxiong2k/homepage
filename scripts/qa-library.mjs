@@ -55,6 +55,12 @@ function printList(title, values, formatter = (value) => value) {
   for (const value of values) console.log(`  - ${formatter(value)}`);
 }
 
+function printSampleList(title, values, limit = 20, formatter = (value) => value) {
+  console.log(`\n${title}: ${values.length}`);
+  for (const value of values.slice(0, limit)) console.log(`  - ${formatter(value)}`);
+  if (values.length > limit) console.log(`  ... ${values.length - limit} more`);
+}
+
 function hasPublicArtifact(status) {
   return !hasNoPublicArtifact(status) && /public[_ -]artifact[_ -]found|public artifact found/i.test(status);
 }
@@ -85,7 +91,19 @@ const typoWatchHits = [];
 const artifactStatusUrlMismatches = [];
 const nullYears = [];
 const blankArtifactUrls = [];
+const missingPaperLinks = [];
+const missingLastChecked = [];
+const artifactUrlOnly = [];
+const artifactLinkDisagrees = [];
+const noSourceLinks = [];
 const unknownRepro = [];
+const sourceCoverage = {
+  paper: 0,
+  artifactLink: 0,
+  docs: 0,
+  code: 0,
+  artifactUrl: 0
+};
 
 const typoWatch = [
   /learncnm2predic(?!t)/i,
@@ -117,6 +135,11 @@ for (const file of files) {
   const year = scalar(frontmatter, 'year');
   const artifactStatus = nestedScalar(frontmatter, 'artifact', 'status');
   const artifactUrl = nestedScalar(frontmatter, 'artifact', 'url');
+  const artifactLastChecked = nestedScalar(frontmatter, 'artifact', 'last_checked');
+  const linkPaper = nestedScalar(frontmatter, 'links', 'paper');
+  const linkArtifact = nestedScalar(frontmatter, 'links', 'artifact');
+  const linkDocs = nestedScalar(frontmatter, 'links', 'docs');
+  const linkCode = nestedScalar(frontmatter, 'links', 'code');
   const reproducibility = scalar(frontmatter, 'reproducibility_level');
   const expectedFile = `${slug}.md`;
 
@@ -128,6 +151,18 @@ for (const file of files) {
   if (slug && file !== expectedFile) slugFileMismatches.push(`${file} declares slug ${slug}`);
   if (!year) nullYears.push(`${file}: ${title}`);
   if (!artifactUrl) blankArtifactUrls.push(`${file}: ${title}`);
+  if (!linkPaper) missingPaperLinks.push(`${file}: ${title}`);
+  if (!artifactLastChecked) missingLastChecked.push(`${file}: ${title}`);
+  if (artifactUrl && !linkArtifact) artifactUrlOnly.push(`${file}: artifact.url is recorded but links.artifact is blank`);
+  if (artifactUrl && linkArtifact && artifactUrl !== linkArtifact) {
+    artifactLinkDisagrees.push(`${file}: links.artifact (${linkArtifact}) differs from artifact.url (${artifactUrl})`);
+  }
+  if (![linkPaper, linkArtifact, linkDocs, linkCode, artifactUrl].some(Boolean)) noSourceLinks.push(`${file}: ${title}`);
+  if (linkPaper) sourceCoverage.paper += 1;
+  if (linkArtifact) sourceCoverage.artifactLink += 1;
+  if (linkDocs) sourceCoverage.docs += 1;
+  if (linkCode) sourceCoverage.code += 1;
+  if (artifactUrl) sourceCoverage.artifactUrl += 1;
   if (hasPublicArtifact(artifactStatus) && !artifactUrl) {
     artifactStatusUrlMismatches.push(`${file}: artifact status says public artifact found but url is blank`);
   }
@@ -171,6 +206,17 @@ printList('Typo-watch hits', typoWatchHits);
 printList('Null or blank years', nullYears);
 printList('Blank artifact URLs', blankArtifactUrls);
 printList('Artifact status/url mismatches', artifactStatusUrlMismatches);
+console.log('\nSource/provenance coverage (informational):');
+console.log(`  - links.paper populated: ${sourceCoverage.paper}/${rows.length}`);
+console.log(`  - links.artifact populated: ${sourceCoverage.artifactLink}/${rows.length}`);
+console.log(`  - artifact.url populated: ${sourceCoverage.artifactUrl}/${rows.length}`);
+console.log(`  - links.docs populated: ${sourceCoverage.docs}/${rows.length}`);
+console.log(`  - links.code populated: ${sourceCoverage.code}/${rows.length}`);
+printSampleList('Missing paper source links (informational)', missingPaperLinks);
+printSampleList('Missing artifact last_checked dates', missingLastChecked);
+printSampleList('Artifact URL only in artifact.url (informational)', artifactUrlOnly);
+printSampleList('Artifact link/url disagreements', artifactLinkDisagrees);
+printSampleList('No recorded source links', noSourceLinks);
 printList('Unknown reproducibility levels', unknownRepro);
 printList('Generated-marker hits', generatedMarkerHits);
 printList('Value-trajectory mentions (informational)', valueTrajectoryMentions);

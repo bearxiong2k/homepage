@@ -8,8 +8,8 @@ authors_or_group: "Yannan N. Wu, Peiyu Y. Chen, H. H. Li, Yiran Chen, Yingyan Li
 summary: >-
   Gibbon is best read as a memristor/RRAM PIM hardware-software co-exploration framework rather than as an explicit CIM compiler IR stack. Its contribution is a PIM-oriented neural-network/hardware search space, an entropy-and-intensity guided evolutionary search method called ESAPP, and an RNN-based surrogate predictor trained from MNSIM 2.0 simulator results. The demonstrated workload setting is static CNN inference on CIFAR-10 and CIFAR-100 over a MultiPrecision-style memristor PIM accelerator parameter space, including crossbar size, ADC/DAC resolution, memristor precision, and quantization choices. For CIM compiler/IR research, Gibbon is useful because it exposes which design-choice variables and metric-provenance fields become important when NN structure, precision, and PIM hardware are optimized together, even though its reusable boundary is more clearly a search candidate/configuration interface than a typed, serializable compiler IR. ([dai.sjtu.edu.cn](https://dai.sjtu.edu.cn/my_file/pdf/f8091be3-32b0-486b-a2a8-c738f07e0d0f.pdf))
 links:
-  paper:
-  artifact:
+  paper: https://dai.sjtu.edu.cn/my_file/pdf/f8091be3-32b0-486b-a2a8-c738f07e0d0f.pdf
+  artifact: https://sites.google.com/view/nas-nicsefc/home/application-on-efficiency/gibbon
   docs:
   code:
 technology:

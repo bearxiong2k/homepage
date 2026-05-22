@@ -8,8 +8,8 @@ authors_or_group: "Jinfan Chen, Juan Gómez-Luna, Izzat El Hajj, Yuxin Guo, Onur
 summary: >-
   **SimplePIM** is a C-level programming framework for UPMEM-style processing-in-memory systems that makes PIM-resident arrays, host-managed metadata, communication collectives, and array iterators the primary reusable objects. Its contribution is clearest as a runtime/programming layer: users register or create arrays, move them with scatter/gather/broadcast/allreduce/allgather, and invoke map, general reduction, or zip iterators through host-side calls while the framework handles DPU allocation, alignment, per-DPU partitioning, scratchpad-aware execution, and DPU binary loading. The paper demonstrates this stack on real UPMEM hardware across reduction, vector addition, histogram, linear regression, logistic regression, and K-means, reporting both LoC reduction and runtime comparisons against hand-optimized UPMEM baselines. For CIM compiler/IR research, SimplePIM is most useful as an example of a “hidden IR” embedded in runtime metadata and DPU argument structs: the stack does not center on an explicit graph or dialect, but it does expose a concrete backend contract for naming PIM arrays, preserving placement state, and lowering high-level array operations to real PIM execution. ([arXiv](https://arxiv.org/html/2310.01893v1))
 links:
-  paper:
-  artifact:
+  paper: https://arxiv.org/html/2310.01893v1
+  artifact: https://github.com/CMU-SAFARI/SimplePIM
   docs:
   code:
 technology:

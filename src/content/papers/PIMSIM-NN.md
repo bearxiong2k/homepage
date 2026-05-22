@@ -8,8 +8,8 @@ authors_or_group: "Xinyu Wang, Xiaotian Sun, Yinhe Han, Xiaoming Chen"
 summary: >-
   PIMSIM-NN is best read as an ISA-centered simulation framework for crossbar-based PIM neural-network inference. The paper’s main contribution is the instruction-sequence boundary between software mapping/code generation and a configurable SystemC simulator: DNNs are compiled into per-core instructions, then evaluated against hardware and NoC configuration files for latency, power, energy, and throughput. The demonstrated paper scope is static DNN inference on memristor/RRAM-style crossbar accelerators, with experiments over CNN workloads such as AlexNet, GoogLeNet, ResNet-18, SqueezeNet, VGG-8, and VGG-16; the public simulator artifact is clearest for precompiled instruction streams and JSON hardware configs, while ONNX-to-instruction compilation is documented through the companion PIMCOMP-NN repository. For CIM compiler/IR research, PIMSIM-NN is valuable less as a general-purpose IR stack and more as a concrete backend contract: it shows which CIM details must be named at the ISA/config boundary for simulator-backed exploration. ([arXiv](https://arxiv.org/html/2402.18089v1))
 links:
-  paper:
-  artifact:
+  paper: https://arxiv.org/html/2402.18089v1
+  artifact: https://github.com/wangxy-2000/pimsim-nn
   docs:
   code:
 technology:

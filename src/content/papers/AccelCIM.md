@@ -8,7 +8,7 @@ authors_or_group: "Chenhao Xue, Yukun Wang, An Guo, Yuhui Shi, Jinwei Zhou, Xipi
 summary: >-
   **AccelCIM** contributes a systematic design-space exploration framework for SRAM compute-in-memory accelerator dataflows, with particular emphasis on the coupling between CIM macro parameters and macro-array organizations. Its strongest stack contribution is in hardware-aware mapping and backend evaluation: the paper models weight-stationary versus output-stationary dataflows, broadcast versus systolic interconnect, macro capacity, pipeline level, and compute-I/O overlap, then ranks candidate designs using cycle-accurate simulation and post-layout PPA extraction through an SRAM-CIM macro compiler, SPICE characterization, RTL generation, Cadence synthesis, and place-and-route. The demonstrated workloads are GEMM-like LLM inference cases, including Qwen3-0.6B, LLaMA-3-8B/70B, and GPT-3 175B, under W8A8 integer computation and prefill/time-to-first-token evaluation. For CIM compiler/IR research, AccelCIM is best read as a **config-and-schedule-centered mapping stack**: it makes hardware dataflow options and macro-array resources first-class, while upstream graph IR, explicit ISA lowering, runtime state, and serialized reusable intermediate states remain outside the demonstrated public interface. ([arXiv](https://arxiv.org/pdf/2604.17692))
 links:
-  paper:
+  paper: https://arxiv.org/pdf/2604.17692
   artifact:
   docs:
   code:

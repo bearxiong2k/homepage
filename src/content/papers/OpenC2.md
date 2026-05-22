@@ -9,7 +9,7 @@ summary: >-
   OpenC² contributes an open-source, template-based hardware generation and physical-design flow for digital SRAM compute-in-memory macros. Its strongest demonstrated stack layer is the backend macro generator: from top-level macro parameters, customized cells, and 45 nm FreePDK technology/library inputs, it emits Verilog and SPICE front-end netlists plus DEF/GDSII layout artifacts through open-source EDA tools. The paper demonstrates this flow for DCIM macro construction, including a 64×64, 4-bit-by-4-bit example and macro-level area, power, and energy-efficiency comparisons. For CIM compiler/IR research, OpenC² is best read as a backend-plugin case study: it makes macro shape, precision fields, hardware hierarchy, and physical layout generation concrete, while the effective intermediate semantics are distributed across configuration values, Python templates, generated netlists, Yosys scripts, and DEF/LEF/GDS metadata rather than a standalone CIM IR. ([zyh0911.github.io](https://zyh0911.github.io/assets/pdf/OpenC2.pdf))
 links:
   paper:
-  artifact:
+  artifact: https://github.com/OpenC2-official/OpenC2_V1.0
   docs:
   code:
 technology:

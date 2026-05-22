@@ -8,8 +8,8 @@ authors_or_group: "Steve Rhyner, Haocong Luo, Juan Gómez-Luna, Mohammad Sadrosa
 summary: >-
   PIM-Opt is a real-hardware UPMEM PIM study and reproducible evaluation framework for distributed optimization in linear ML training. Its main contribution is the implementation and measurement of MA-SGD, GA-SGD, and ADMM for logistic regression and SVM training on YFCC100M-HNfc6 and Criteo, including UPMEM execution, CPU/GPU baselines, preprocessing/postprocessing scripts, and figure-generation artifacts. The stack contribution is strongest at the runtime, benchmarking, and hardware-software co-design boundary: the paper makes host–DPU data movement, parameter-server synchronization, DPU/tasklet parallelism, and fixed-point backend constraints visible as performance-critical objects. For CIM compiler/IR research, PIM-Opt is most useful as a real-system backend and benchmark corpus rather than as an explicit IR stack: its reusable semantics are distributed across C structs, Makefiles, experiment scripts, timing logs, and host aggregation code. ([arXiv](https://arxiv.org/pdf/2404.07164v2))
 links:
-  paper:
-  artifact:
+  paper: https://arxiv.org/pdf/2404.07164v2
+  artifact: https://github.com/CMU-SAFARI/PIM-Opt
   docs:
   code:
 technology:

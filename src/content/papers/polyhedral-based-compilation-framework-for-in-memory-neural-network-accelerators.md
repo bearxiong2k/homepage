@@ -8,8 +8,8 @@ authors_or_group: "Jianhui Han, Xiang Fei, Zhaolin Li, Youhui Zhang"
 summary: >-
   **Polyhedral-Based Compilation Framework for In-Memory Neural Network Accelerators** presents PolyXB, a source-to-source compiler that uses the polyhedral model to recognize affine C loop nests implementing NN operators and rewrite them into calls or generated schedule regions for memristor-based neural-network accelerators. Its most relevant contribution for CIM compiler/IR research is the shift from single-kernel MV/MM offload toward a narrow vertical flow that also recognizes convolution, pooling, and fused initialization/activation patterns, then optionally forms a pipeline and allocates PE resources across matched operators. The demonstrated stack slice is static C/PET/ISL compilation for dense, affine NN inference kernels, with paper-level evaluation over synthetic kernels and NN benchmarks and case studies for ISAAC- and FPSA-like architectures; the public artifact exposes the compiler, options, tests, and benchmark kernels, while the reusable IR boundary is clearest in the schedule-tree marks, `ast_info` metadata, tiling options, and emitted accelerator API calls. ([CRAFT Lab](https://craft.cs.tsinghua.edu.cn/publication/polyhedral-based-compilation-framework-for-in-memory-neural-network-accelerators/))
 links:
-  paper:
-  artifact:
+  paper: https://dl.acm.org/doi/fullHtml/10.1145/3469847
+  artifact: https://github.com/Jianhui-Han/polyxb
   docs:
   code:
 technology:

@@ -8,8 +8,8 @@ authors_or_group: "Indranil Chakraborty, Mustafa Fayez Ali, Dong Eun Kim, Aayush
 summary: >-
   GENIEx is best read as a calibrated nonideality-modeling layer for analog memristive-crossbar CIM, coupled to a PyTorch functional simulator for DNN accuracy studies. Its central technical contribution is a learned surrogate for data-dependent MVM nonidealities: the model consumes an input-voltage vector and conductance matrix, predicts a per-column current correction ratio, and is trained from HSPICE-generated crossbar data. The demonstrated stack path replaces selected PyTorch convolution and linear layers with tiled, bit-sliced MVM execution, injects GENIEx nonideal current behavior, reconstructs digital outputs through ADC and shift-add operations, and evaluates classification accuracy on ResNet-style image-classification workloads. For CIM compiler/IR research, the reusable boundary is clearest as a backend accuracy plugin and as a concrete example of how bit-slice, tile, ADC, and parasitic parameters can be carried through functional simulation, while compiler-facing IR, pass interfaces, instruction streams, runtime scheduling, memory/communication timing, and energy/area modeling are outside the demonstrated abstraction. ([arXiv](https://arxiv.org/pdf/2003.06902))
 links:
-  paper:
-  artifact:
+  paper: https://arxiv.org/pdf/2003.06902
+  artifact: https://github.com/Aayush-Ankit/puma-functional-model
   docs:
   code:
 technology:
