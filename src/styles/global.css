@@ -180,6 +180,12 @@ button.secondary { background: #fff; color: #22304a; border-color: var(--line); 
 .atlas-node.is-muted { transition: opacity .12s ease; }
 .atlas-node.is-muted:hover,
 .atlas-node.is-muted:focus { opacity: .9; }
+.atlas-node .clicked-ring {
+  transition: opacity .12s ease, stroke-width .12s ease;
+}
+.atlas-node.is-clicked:not(.is-hovered) .clicked-ring {
+  filter: drop-shadow(0 2px 5px rgba(17, 26, 51, .16));
+}
 .legend { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
 .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .swatch { width: 12px; height: 12px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0,0,0,0.15); }
@@ -249,6 +255,13 @@ button.secondary { background: #fff; color: #22304a; border-color: var(--line); 
 .cloud-node.rewrite { border-color: #ffd5b5; background: #fff5ed; color: #8f420f; }
 .cloud-node.context { border-color: #f6c5cf; background: #fff2f4; color: #8e3345; }
 .cloud-node.more { color: var(--muted); background: #f8fafc; }
+.facet-link { text-decoration: none; }
+.facet-link:hover,
+.facet-link:focus-visible {
+  border-color: #8aa7ff;
+  box-shadow: 0 0 0 3px rgba(51, 92, 255, .12);
+  outline: none;
+}
 .cloud-note { margin: 0; color: var(--muted); font-size: 12px; }
 .atlas-tooltip {
   position: fixed;

@@ -33,8 +33,11 @@ const linkEntries = Object.entries(data.links ?? {})
 if (data.artifact?.url && !linkEntries.some((entry) => entry.url === data.artifact.url)) {
   linkEntries.push({ kind: 'artifact', url: data.artifact.url });
 }
-const contextTerms = [...data.technology, ...data.workloads];
 const normalizedAxes = normalizePaperAxes(data, taxonomy);
+const atlasFacetHref = (params: Record<string, string>) => {
+  const search = new URLSearchParams({ paper: data.slug, ...params });
+  return `/?${search.toString()}#atlas-section`;
+};
 const noteOutline = headings.filter((heading) => heading.depth === 2 || heading.depth === 3);
 type NoteHeading = typeof noteOutline[number];
 type NoteSection = NoteHeading & { children: NoteHeading[] };
@@ -107,7 +110,7 @@ const emptyLabel = 'Unknown / not specified';
             <h3>Normalized Axis C categories</h3>
             <div class="cloud-nodes detail-cloud">
               {normalizedAxes.axis_C_object_vocab.length
-                ? normalizedAxes.axis_C_object_vocab.map((item) => <span class="cloud-node object">{item}</span>)
+                ? normalizedAxes.axis_C_object_vocab.map((item) => <a class="cloud-node object facet-link" href={atlasFacetHref({ layout: 'cd', c: item })}>{item}</a>)
                 : <span class="cloud-node more">{emptyLabel}</span>}
             </div>
           </section>
@@ -123,7 +126,7 @@ const emptyLabel = 'Unknown / not specified';
             <h3>Normalized Axis D types</h3>
             <div class="cloud-nodes detail-cloud">
               {normalizedAxes.axis_D_rewrite_types.length
-                ? normalizedAxes.axis_D_rewrite_types.map((item) => <span class="cloud-node rewrite">{item}</span>)
+                ? normalizedAxes.axis_D_rewrite_types.map((item) => <a class="cloud-node rewrite facet-link" href={atlasFacetHref({ layout: 'cd', d: item })}>{item}</a>)
                 : <span class="cloud-node more">{emptyLabel}</span>}
             </div>
           </section>
@@ -185,8 +188,13 @@ const emptyLabel = 'Unknown / not specified';
         <div class="panel pad">
           <h2>Context</h2>
           <div class="cloud-nodes detail-cloud">
-            {contextTerms.length
-              ? contextTerms.map((item) => <span class="cloud-node context">{item}</span>)
+            {data.technology.length || data.workloads.length
+              ? (
+                <>
+                  {data.technology.map((item) => <a class="cloud-node context facet-link" href={atlasFacetHref({ tech: item })}>{item}</a>)}
+                  {data.workloads.map((item) => <a class="cloud-node context facet-link" href={atlasFacetHref({ workload: item })}>{item}</a>)}
+                </>
+              )
               : <span class="cloud-node more">{emptyLabel}</span>}
           </div>
         </div>
