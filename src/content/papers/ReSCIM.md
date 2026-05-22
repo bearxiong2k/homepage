@@ -8,7 +8,7 @@ authors_or_group: "Xiaomeng Wang, Jingyu He, Kunming Shao, Jiakun Zheng, Fengshi
 summary: >-
   **ReSCIM** contributes a fine-grained hybrid CIM architecture that integrates compact MLC ReRAM storage with SRAM-CIM computation, using local ReRAM-to-SRAM weight loading, differential sensing, and folded weight mapping to improve storage density and variation resilience for DNN inference. Its strongest contribution is at the device/cell/macro/accelerator boundary: the paper names a ReSCIM array segment, embeds a 1T1R ReRAM crossbar with an SRAM cell, supports both analog- and digital-based SRAM-CIM computation, and evaluates accelerator-level energy, latency, area efficiency, and inference accuracy, including AlexNet-reported improvements. For CIM compiler/IR research, ReSCIM is best read as a hardware-software co-design case whose “middle representation” is an implicit combination of weight-placement state, MLC encoding, sensing assumptions, and accelerator simulation parameters rather than an explicit graph/loop/ISA compiler stack. ([ACM Digital Library](https://dl.acm.org/doi/epdf/10.1145/3676536.3676751?utm_source=chatgpt.com))
 links:
-  paper:
+  paper: https://researchportal.hkust.edu.hk/en/publications/rescim-variation-resilient-high-weight-loading-bandwidth-in-memor-2
   artifact:
   docs:
   code:

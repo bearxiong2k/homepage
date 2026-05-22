@@ -8,7 +8,7 @@ authors_or_group: "Hamid Farzaneh; João Paulo C. de Lima; Ali Nezhadi Khelejani
 summary: >-
   **SHERLOCK** is a mapping and scheduling framework for bulk bitwise logic in memristive NVM compute-in-memory systems. Its main compiler contribution is to treat a bulk-bitwise program as a DAG of operand and operation nodes, cluster dependent operations so their operands fit NVM array columns, bind those clusters to row/column resources, and generate simulator-compatible read/write/shift/CIM instructions while accounting for the latency–energy–reliability tradeoff of multi-row activation. The demonstrated flow starts from C bulk-bitwise kernels parsed with pycparser, targets scouting-logic-style ReRAM and STT-MRAM arrays, and evaluates BitWeaving, bit-sliced Sobel, and Usuba-generated bit-sliced AES through an extended gem5 + NVSim + SPICE/statistical-modeling backend. For CIM compiler/IR research, SHERLOCK is best read as a graph-to-hardware-layout compiler whose reusable semantics are clearest in the DAG, cluster/layout state, instruction format, and reliability-aware MRA model. ([cfaed.tu-dresden.de](https://cfaed.tu-dresden.de/files/Images/people/chair-cc/publications/2406_Farzaneh_DAC.pdf))
 links:
-  paper:
+  paper: https://publikationen.bibliothek.kit.edu/1000178608
   artifact:
   docs:
   code:

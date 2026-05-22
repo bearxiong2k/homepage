@@ -8,7 +8,7 @@ authors_or_group: "Xiuping Cui, Size Zheng, Tianyu Jia, Le Ye, Yun Liang"
 summary: >-
   ARES is a compiler-mapping framework for placing static DNN tensor operators onto multiple PIM/CIM-like hardware classes. Its main contribution is a pair of reusable abstractions: a compute abstraction that describes a PIM primitive as a tensorized compute equation, and a memory abstraction that encodes bit-level operand placement through mapping matrices and offsets. These abstractions are used to derive a mapping space over tensor binding, loop binding, loop sizes, resource allocation, execution order, and data movement. The demonstrated setting is simulator-backed DNN inference mapping on four adapted platforms: logic-DRAM, logic-SRAM, MVM-ReRAM, and near-DRAM / PIM-HBM-like hardware.
 links:
-  paper:
+  paper: https://sizezheng.github.io/files/ARES_A_Mapping_Framework_of_DNNs_Towards_Diverse_PIMs_with_General_Abstractions.pdf
   artifact:
   docs:
   code:

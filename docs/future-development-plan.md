@@ -86,10 +86,10 @@ Implemented:
 
 Current mechanical audit reading:
 
-- `links.paper` is now populated for 45/62 entries after high-confidence backfill from checked body citations.
+- `links.paper` is now populated for 61/62 entries after high-confidence backfill from checked body citations and source records.
 - `links.artifact` is now populated for 38/62 entries and aligned with the existing `artifact.url` coverage.
-- 17 entries still need manual source checking before adding a paper link.
-- 7 entries currently have no recorded frontmatter source link at all.
+- `pim-eda.md` is the only remaining entry without `links.paper`; it is a suite/toolchain entry composed from several related papers, so leave it blank unless a canonical suite paper is identified.
+- no entries currently lack all frontmatter source links.
 - `artifact.last_checked` is complete across the current corpus.
 - artifact status and artifact URL fields currently have no contradiction according to the QA script.
 - artifact URL-only entries and `links.artifact` / `artifact.url` disagreements are currently zero.
@@ -102,7 +102,7 @@ Remaining priority work:
 
 1. Improve the long-note reading layout on `/papers/[slug]/`.
 2. Make metadata easier to scan without duplicating the full note.
-3. Continue source/provenance backfill for the remaining missing `links.paper` entries, but only when the exact source is clear from checked evidence.
+3. Continue source/provenance backfill for `pim-eda.md` only if checked evidence identifies a canonical paper for the suite/toolchain as a whole.
 4. Preserve alignment between `links.artifact` and `artifact.url` unless a future schema change intentionally separates source-card links from artifact-status URLs.
 5. Audit normalized Axis C/D categories for false positives or overly broad buckets; keep them descriptive.
 6. Consider whether normalized technology/workload metadata needs a controlled vocabulary beyond the current separate selectors.

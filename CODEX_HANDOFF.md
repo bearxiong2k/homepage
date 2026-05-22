@@ -43,10 +43,10 @@ Static Astro paper library for CIM compiler/IR-stack research.
   - disagreement between `links.artifact` and `artifact.url`;
   - entries with no recorded source links.
 - Provenance backfill progress:
-  - `links.paper` is populated for 45/62 entries after high-confidence backfill from existing body citations;
+  - `links.paper` is populated for 61/62 entries after high-confidence backfill from existing body citations and checked source records;
   - `links.artifact` is populated for 38/62 entries after mirroring existing `artifact.url` values;
-  - 17 entries still need manual source checking before adding a paper link;
-  - 7 entries currently have no recorded frontmatter source link at all;
+  - `pim-eda.md` is the only remaining entry without `links.paper`; it is a suite/toolchain entry composed from several related papers, so leave it blank unless a canonical suite paper is identified;
+  - no entries currently lack all frontmatter source links;
   - artifact `last_checked` remains complete;
   - artifact status/url contradictions, artifact URL-only entries, and `links.artifact` / `artifact.url` disagreements remain at zero.
 
@@ -65,7 +65,7 @@ All were green after the latest detail-page provenance work.
 Primary focus: backfill and normalize provenance metadata carefully.
 
 - Use existing paper-body citations and checked sources to populate `links.paper` for representative papers first.
-- Continue with the remaining 17 missing `links.paper` entries only when the body citation or checked source clearly identifies the exact paper.
+- Continue with `pim-eda.md` only if a checked source identifies a canonical paper for the suite/toolchain as a whole.
 - Keep future `links.artifact` and `artifact.url` values aligned unless there is a clear reason to distinguish source-card link from artifact status URL.
 - Do not invent paper, code, docs, or artifact links; leave blank fields blank when uncertain.
 - Keep artifact status, license, and last-checked conservative.

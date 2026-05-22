@@ -8,7 +8,7 @@ authors_or_group: "Zhuojun Han, Siqi He, Chixiao Chen, Haozhe Zhu"
 summary: >-
   CIM-Pruner is publicly described as an ISCAS 2026 paper proposing a dual-mode Compute-in-Memory macro for efficient Vision-Language Models through in-memory token pruning and token merging. Its strongest public evidence places the contribution at the CIM macro and narrow hardware-software co-design layer: it targets the token-reduction behavior of VLM inference and appears to make intra-chunk pruning/merging a hardware-visible operation. For CIM compiler/IR research, the main value is not an exposed frontend, IR, mapper, ISA, or reusable backend interface, but the set of dynamic objects it motivates: token masks, merge groups, chunk boundaries, macro mode switches, and token lineage. Those objects are important because a future VLM-oriented CIM backend would need to name, preserve, verify, and lower them across the boundary between token-level algorithms and CIM macro execution. ([Haozhe's Blog](https://zhutmost.com/publication))
 links:
-  paper:
+  paper: https://epapers2.org/iscas2026/ESR/paper_details.php?paper_id=2510
   artifact:
   docs:
   code:

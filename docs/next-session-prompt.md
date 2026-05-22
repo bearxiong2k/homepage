@@ -39,17 +39,17 @@ Recently completed:
   - missing paper-source links and entries with no recorded source links are informational audit items;
   - artifact last_checked coverage and links.artifact vs artifact.url disagreements are checked separately.
 - Backfilled high-confidence links.paper values from existing body citations:
-  - links.paper is now populated for 45/62 entries;
+  - links.paper is now populated for 61/62 entries;
   - links.artifact is now populated for 38/62 entries and aligned with artifact.url coverage;
-  - 17 entries remain missing paper links and should be checked manually before editing;
-  - 7 entries still have no recorded frontmatter source link;
+  - pim-eda.md is the only remaining entry without links.paper; it is a suite/toolchain entry composed from several related papers, so leave it blank unless a canonical suite paper is identified;
+  - no entries currently lack all frontmatter source links;
   - artifact.last_checked remains complete;
   - artifact status/url contradictions, artifact URL-only entries, and links.artifact vs artifact.url disagreements remain at zero.
 - Updated CODEX_HANDOFF.md and docs/future-development-plan.md with the latest state.
 
 Good next steps:
 1. Audit Axis C/D normalization quality against a handful of papers from different families; tune rules only when evidence clearly supports it.
-2. Continue provenance backfill for the remaining missing links.paper entries, but only when the exact paper source is clear from body citations or checked sources; leave ambiguous entries blank.
+2. Continue provenance backfill for pim-eda.md only if checked evidence identifies a canonical paper for the suite/toolchain as a whole; otherwise leave links.paper blank.
 3. Preserve links.artifact and artifact.url alignment unless a future schema change intentionally separates those concepts.
 4. Audit rendered note content for Markdown display edge cases, formula/math notation, escaped symbols, tables, and code blocks.
 5. Consider whether technology/workload raw terms need controlled vocabularies after the current separate filters.

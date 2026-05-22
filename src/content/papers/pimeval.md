@@ -8,7 +8,7 @@ authors_or_group: "University of Virginia LavaLab / Siddique et al."
 summary: >-
   **PIMeval / PIMbench** contributes a public modeling and benchmarking stack for **digital DRAM-PIM**, centered on a C++ PIM API, a configurable performance/energy model, and a benchmark suite spanning vector, linear algebra, graph, image, security, machine-learning, and DNN inference kernels. The demonstrated hardware scope covers three DRAM-PIM styles: DRAM-AP-style subarray bit-serial PIM, Fulcrum-style subarray bit-parallel PIM, and bank-level bit-parallel PIM. Its strongest contribution to a CIM compiler/IR corpus is not an explicit compiler IR, but a reusable evaluation boundary: PIM data objects, layout choices, target device configs, PIM API commands, and command-level timing/energy accounting. For compiler/IR research, PIMeval is useful as a backend-facing reference model and benchmark harness that exposes the kinds of objects a future CIM IR would need to preserve when lowering higher-level tensor or graph programs into digital DRAM-PIM execution. ([University of Virginia Computer Science](https://www.cs.virginia.edu/~skadron/Papers/PIMbench_PIMeval_iiswc2024.pdf))
 links:
-  paper:
+  paper: https://www.cs.virginia.edu/venkat/papers/iiswc2024.pdf
   artifact: https://github.com/UVA-LavaLab/PIMeval-PIMbench
   docs:
   code:

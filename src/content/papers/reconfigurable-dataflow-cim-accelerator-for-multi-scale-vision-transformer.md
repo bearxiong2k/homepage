@@ -8,7 +8,7 @@ authors_or_group: "Zhiyuan Chen; Yufei Ma; Keyi Li; Yifan Jia; Guoxiang Li; Meng
 summary: >-
   This DAC 2024 paper contributes a digital SRAM-CIM accelerator architecture and reconfigurable dataflow for static-shape, image-domain multi-scale Vision Transformers whose topology mixes convolutional layers with multi-head attention. Its strongest CIM-stack contribution is at the hardware-mapping and backend-dataflow boundary: the paper highlights MHA pipeline reordering, a two-stage softmax strategy, fused attention matrix multiplication to reduce quadratic intermediate traffic, reconfigurable IMC engines, a distributor network, reuse buffers, accumulation, and post-processing paths. The demonstrated scope is a TSMC 22 nm evaluation against a baseline IMC accelerator, reporting 2.20×–2.52× MHA speedup, 40.6%–74.8% MHA energy reduction, and 44.1%–55.9% EDP reduction for typical multi-scale ViTs. ([ACM Digital Library](https://dl.acm.org/doi/epdf/10.1145/3649329.3658244?utm_source=chatgpt.com)) For CIM compiler/IR research, the paper is most useful as a hardware-software co-design case where the practical “IR-like” object is a reconfigurable dataflow and resource-binding state, rather than a public frontend, verifier, serializable dialect, ISA, or compiler API.
 links:
-  paper:
+  paper: https://ir.pku.edu.cn/handle/20.500.11897/739001
   artifact:
   docs:
   code:

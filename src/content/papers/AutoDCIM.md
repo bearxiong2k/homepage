@@ -8,7 +8,7 @@ authors_or_group: "Jia Chen, Fengbin Tu, Kunming Shao, Fengshi Tian, Xiao Huo, C
 summary: >-
   AutoDCIM is best classified as a digital-CIM macro compiler rather than a workload compiler or explicit IR stack. Its public contribution is a spec-to-layout hardware generation flow that takes user macro specifications, builds a DCIM macro architecture, and produces an optimized physical layout using template-based generation plus a layout exploration loop over array partitioning choices. The demonstrated stack slice is the hardware-EDA layer: customized SRAM-based digital CIM cells, compute/peripheral structures, array partitioning, and layout generation.
 links:
-  paper:
+  paper: https://researchportal.hkust.edu.hk/en/publications/autodcim-an-automated-digital-cim-compiler/
   artifact:
   docs:
   code:
