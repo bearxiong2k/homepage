@@ -12,11 +12,11 @@ const FALLBACK_OBJECT = 'Uncategorized object';
 const FALLBACK_REWRITE = 'Uncategorized rewrite';
 
 const objectRules: Array<[string, RegExp]> = [
-  ['macro template', /\b(macro|template|rtl|netlist|verilog|subcircuit|layout|eda|apr|lef|lib)\b/],
+  ['macro template', /\b(macro|template|rtl|netlist|verilog|subcircuit|eda|apr|lef|lib)\b|\b(physical layout|macro layout|layout generation|layout artifact)\b/],
   ['hardware hierarchy', /\b(chip|tile|core|bank|subarray|mat|node|hierarchy|level|dpu|mram|wram|alu|interconnect|buffer|noc|h tree|memory hierarchy)\b/],
   ['crossbar / array', /\b(crossbar|array|xb|mvmu|ou|rram|reram|pcm|sram|bitcell|1t1r|wordline|bitline|compute lookup)\b/],
-  ['operator graph', /\b(graph|operator|op|dag|onnx|torch|layer|activation|conv|matmul|gemm|gemv|model|topology)\b/],
-  ['loop / tensor schedule', /\b(loop|tensor|schedule|tile|tiling|partition|linalg|affine|polyhedral|dataflow|scatter|gather|einsum)\b/],
+  ['operator graph', /\b(graph|operator|op|dag|onnx|torch|layer|conv|matmul|gemm|gemv)\b|\b(model graph|neural network|network topology)\b/],
+  ['loop / tensor schedule', /\b(loop|tensor|schedule|tiling|partition|linalg|affine|polyhedral|dataflow|scatter|gather|einsum)\b|\b(loop tile|tensor tile)\b/],
   ['instruction stream', /\b(instruction|command|isa|microprogram|trace|meta op|program|kernel|launch|code|stream)\b/],
   ['numeric format', /\b(bit|precision|quant|numeric|fixed|float|bf16|int\d*|format|shift|compressor|approx|exponent|fraction|significance|cell precision)\b/],
   ['ADC / DAC / peripherals', /\b(adc|dac|peripheral|sense|sensing|mux|driver|accumulator|adder|shift add|post processing|reduction path)\b/],
@@ -29,9 +29,9 @@ const objectRules: Array<[string, RegExp]> = [
 ];
 
 const rewriteRules: Array<[string, RegExp]> = [
-  ['hardware-template', /\b(template|macro|architecture|hardware configuration|eda|rtl|netlist|layout|subcircuit|design candidate|generated backend flow)\b/],
-  ['graph', /\b(graph|operator|fusion|split|segmentation|conv|matmul|edge|topology|boolean)\b/],
-  ['loop', /\b(loop|tensor|schedule|tiling|tile|dataflow|affine|polyhedral|partition)\b/],
+  ['hardware-template', /\b(template|macro|architecture|hardware configuration|eda|rtl|netlist|subcircuit|design candidate|generated backend flow)\b|\b(physical layout|macro layout|layout generation|layout artifact)\b/],
+  ['graph', /\b(graph|operator|fusion|split|segmentation|conv|matmul|edge|boolean)\b|\bgraph topology\b/],
+  ['loop', /\b(loop|tensor|schedule|tiling|dataflow|affine|polyhedral|partition)\b|\b(loop tile|tensor tile)\b/],
   ['mapping', /\b(mapping|placement|allocation|binding|layout|resource|array|core|memory layout|data placement|replication)\b/],
   ['mode', /\b(mode|compute memory|access mode|buffering|analog digital|device mode)\b/],
   ['instruction', /\b(instruction|command|trace|microprogram|code generation|api sequence|meta op|backend api)\b/],
