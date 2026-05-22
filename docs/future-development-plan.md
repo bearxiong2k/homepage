@@ -9,6 +9,8 @@ This is a static Astro paper library for CIM compiler/IR-stack research.
 - The active metadata contract is descriptive. It does not include coverage scores, ranking scores, or `trajectory_IR_relevance`.
 - `/library/` is the primary public atlas route.
 - `/papers/[slug]/` renders individual long-form corpus notes.
+- Axis C first-class objects and Axis D rewrite objects are normalized at render time from `src/data/taxonomy.json` vocabulary, without adding new required frontmatter fields.
+- The atlas supports both Axis A x Axis B and normalized Axis C x Axis D layouts.
 - Keep the site static and suitable for personal hosting. Do not add PDF hosting, backend services, or a database unless the project direction changes.
 
 Keep these checks green while changing UI or content:
@@ -42,26 +44,36 @@ Implemented:
 - responsive controls and mobile horizontal graph scroll;
 - paper detail page CSS improvements for long notes, tables, code blocks, and mobile wrapping.
 
+## Completed Focus -- Detail Pages and Atlas Scoping, First Pass
+
+Implemented:
+
+- render-time Axis C/D normalization using `src/data/taxonomy.json` object and rewrite vocabularies;
+- separate Axis C and Axis D atlas filters;
+- atlas layout switch between Axis A x Axis B and normalized Axis C x Axis D;
+- URL state for `layout=cd`, `c=`, `d=`, exact scoped cells through `cx=` / `cy=`, plus existing `tech=` and `workload=`;
+- detail-page normalized Axis C/D chips and context chips that link back into scoped atlas views;
+- atlas selected-paper card split from hover preview, so click pins a paper while hover previews the active object/rewrite cloud;
+- responsive atlas profiles with larger nodes and tighter labels for A/B and C/D views;
+- expandable object/rewrite/context clouds for long metadata lists;
+- dense-cell summary under the atlas with one-click exact scoping for the plotted cell.
+
 Do not rebuild the atlas from scratch. Future atlas work should be incremental and should use current frontmatter plus `src/data/taxonomy.json` as source of truth.
 
 ## Next Focus -- Detail Pages and Atlas Scoping
 
 The next product milestone should treat paper detail pages and atlas scoping as one connected improvement loop. The detail page is where users inspect evidence and vocabulary; the atlas is where the same vocabulary becomes navigable. Improve them together so metadata refinements, controlled facets, back-links, and rendering fixes reinforce the same browsing workflow.
 
-Priority work:
+Remaining priority work:
 
 1. Improve the long-note reading layout on `/papers/[slug]/`.
 2. Make metadata easier to scan without duplicating the full note.
-3. Surface Axis C and Axis D content clearly, since these are now the most useful detail-page anchors.
-4. Normalize Axis C first-class objects and Axis D rewrite objects into controlled vocabulary fields, then use that vocabulary both on detail pages and in atlas filtering/layout.
-5. Add an atlas layout switch that can render either the current Axis A x Axis B view or a normalized Axis C x Axis D view.
-6. Normalize technology and workload metadata into separate controlled facets, then expose clean, separate technology and workload selectors instead of relying on raw phrase search.
-7. Preserve atlas filter/selection context through detail-page back-links or query parameters.
-8. Add source/provenance affordances if they improve public trust.
-9. Add scoped atlas views for dense clusters or selected cells when they help users move from overview to detail.
-10. Improve mobile behavior for long titles, tables, code blocks, metadata panels, and atlas/detail transitions.
-11. Refine rendered note content: audit Markdown display edge cases, formula/math notation, escaped symbols, and table/code rendering so corpus notes display faithfully instead of exposing raw Markdown or unrendered formulas.
-12. Consider compact paper lists/cards and an optional static search index only after the detail-page and metadata scanability path is stable.
+3. Improve source/provenance affordances if they help public trust.
+4. Audit normalized Axis C/D categories for false positives or overly broad buckets; keep them descriptive.
+5. Consider whether normalized technology/workload metadata needs a controlled vocabulary beyond the current separate selectors.
+6. Improve mobile behavior for long titles, tables, code blocks, metadata panels, and atlas/detail transitions.
+7. Refine rendered note content: audit Markdown display edge cases, formula/math notation, escaped symbols, and table/code rendering so corpus notes display faithfully instead of exposing raw Markdown or unrendered formulas.
+8. Consider compact paper lists/cards and an optional static search index only after the detail-page and metadata scanability path is stable.
 
 The atlas should remain descriptive. Do not introduce coverage, quality, ranking, or relevance scores.
 

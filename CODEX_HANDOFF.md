@@ -17,15 +17,22 @@ Static Astro paper library for CIM compiler/IR-stack research.
 - No raw long-form corpus notes remain in `src/content/papers/`.
 - `/library/` atlas core is substantially done.
 - Current atlas behavior:
-  - large Axis A x Axis B graph;
+  - large graph with layout switch between Axis A x Axis B and normalized Axis C x Axis D;
   - deterministic node spreading;
-  - hover/focus summaries;
+  - hover/focus previews with a hover footprint cloud;
   - click and picker selection;
-  - filters and reset controls;
-  - selected-paper Axis A x Axis B coverage cloud rendered on the atlas background;
-  - right panel prioritizes Axis C first-class objects and Axis D rewrite objects;
+  - separate filters for Axis A, Axis B, normalized Axis C, normalized Axis D, technology, and workload;
+  - URL state for `layout=cd`, `c=`, `d=`, exact scoped cells through `cx=` / `cy=`, `tech=`, `workload=`, and selected `paper=`;
+  - selected-paper footprint rendered on the atlas background, while hover previews another paper without changing the pinned selection;
+  - selected-paper card prioritizes title/summary and opens the paper detail page with atlas state preserved;
+  - object/rewrite/context cloud uses expandable groups for long metadata lists;
+  - dense-cell summary under the atlas shows the largest plotted cells and can scope exactly to a cell;
   - responsive layout and mobile graph scroll.
-- Paper detail pages have initial CSS improvements for long notes, tables, code blocks, and mobile wrapping.
+- Axis C/D normalization is render-time only and comes from `src/lib/axisNormalization.ts` plus `src/data/taxonomy.json`; the content schema has not been weakened.
+- Paper detail pages have:
+  - initial CSS improvements for long notes, tables, code blocks, and mobile wrapping;
+  - normalized Axis C/D chips;
+  - detail-page facet/context chips that link back into scoped atlas views.
 
 Latest known checks:
 
@@ -39,19 +46,19 @@ All were green after the latest atlas coverage-cloud work.
 
 ## Next Work
 
-Primary focus: improve individual paper detail pages.
+Primary focus: improve individual paper detail pages and provenance.
 
 - Make long notes easier to read and scan.
 - Improve metadata panels and Axis C / Axis D presentation.
 - Add source/provenance affordances if they improve public trust.
 - Keep mobile behavior robust for long titles, tables, code blocks, and sidebars.
 
-Secondary focus: improve atlas scoping/filtering after detail pages are clearer.
+Secondary focus: refine atlas scoping/filtering after the current C/D pass.
 
-- Do not add raw string-search filters for Axis C and Axis D. First normalize Axis C first-class objects and Axis D rewrite objects into controlled vocabulary fields, then add an atlas layout switch between the current Axis A x Axis B view and a normalized Axis C x Axis D view.
-- Normalize technology and workload metadata into separate controlled facets, then expose clean separate selectors.
-- Consider selected-cell or dense-cluster scoped views.
-- Consider preserving atlas state between `/library/` and paper detail pages.
+- Audit the render-time Axis C/D rules for false positives and overly broad buckets.
+- Consider normalized controlled vocabularies for technology/workload if the raw terms become noisy.
+- Keep selected-cell and dense-cluster views descriptive; do not turn them into scores.
+- Keep preserving atlas state between `/`, `/library/`, and paper detail pages.
 
 ## References
 

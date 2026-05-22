@@ -86,14 +86,15 @@ const axisCategories = axisCategorySets(taxonomy);
   </div>
   <div class="viz-grid">
     <div class="panel viz-card atlas-box">
-      <svg id="atlas" viewBox="0 0 1600 820" role="img" aria-label="CIM taxonomy atlas"></svg>
+      <svg id="atlas" viewBox="0 0 1180 660" preserveAspectRatio="xMidYMid meet" role="img" aria-label="CIM taxonomy atlas"></svg>
       <div class="legend" id="familyLegend"></div>
     </div>
-    <aside class="panel viz-card selected-panel" aria-live="polite">
+    <aside class="selected-panel" aria-live="polite">
       <div id="workDetails" class="empty">Select a paper.</div>
       <div id="workMore"></div>
     </aside>
   </div>
+  <div id="clusterSummary" class="cluster-summary" aria-live="polite"></div>
   <div id="atlasTooltip" class="atlas-tooltip" role="status" aria-hidden="true"></div>
 </section>
 
@@ -167,12 +168,57 @@ const axisCategories = axisCategorySets(taxonomy);
   const objectCategories = axisCategories.objectCategories;
   const rewriteCategories = axisCategories.rewriteCategories;
   const svgNS = 'http://www.w3.org/2000/svg';
+  const atlasProfiles = {
+    ab: {
+      width: 1180,
+      height: 660,
+      xLeft: 126,
+      xRight: 1110,
+      yTop: 105,
+      yBottom: 592,
+      xLabelY: 34,
+      xSubLabelY: 58,
+      yCodeX: 24,
+      yLabelX: 62,
+      gridTop: 76,
+      gridBottom: 615,
+      gridLeft: 100,
+      gridRight: 1136,
+      fontCode: 20,
+      fontLabel: 16,
+      nodeR: 12,
+      hoverR: 20,
+      nodeFont: 12,
+      hoverFont: 13
+    },
+    cd: {
+      width: 1240,
+      height: 720,
+      xLeft: 190,
+      xRight: 1182,
+      yTop: 128,
+      yBottom: 646,
+      xLabelY: 92,
+      yLabelX: 18,
+      gridTop: 108,
+      gridBottom: 675,
+      gridLeft: 160,
+      gridRight: 1202,
+      fontCode: 15,
+      fontLabel: 15,
+      nodeR: 12,
+      hoverR: 20,
+      nodeFont: 12,
+      hoverFont: 13
+    }
+  };
   let selectedSlug = papers[0]?.slug ?? null;
   let hoveredSlug = null;
   let filtered = [...papers];
   let activeTooltipPaper = null;
   let currentNodeHits = [];
   let atlasLayout = 'ab';
+  let scopedCell = null;
 
   const $ = (id) => document.getElementById(id);
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
@@ -211,17 +257,50 @@ const axisCategories = axisCategorySets(taxonomy);
     if (text) el.textContent = text;
     return el;
   };
-  const category = (label, items, cls, limit = 8) => `
-    <section class="cloud-group">
-      <h4>${esc(label)}</h4>
-      <div class="cloud-nodes">
-        ${(items ?? []).filter(Boolean).length
-          ? (items ?? []).filter(Boolean).slice(0, limit).map((item) => `<span class="cloud-node ${cls}">${esc(item)}</span>`).join('')
-          : '<span class="cloud-node more">Not specified</span>'}
-        ${(items ?? []).filter(Boolean).length > limit ? `<span class="cloud-node more">+${(items ?? []).length - limit}</span>` : ''}
-      </div>
-    </section>
-  `;
+  const atlasProfile = () => atlasProfiles[atlasLayout];
+  const splitLabel = (label, limit = 13) => {
+    const words = String(label ?? '').split(/\s+/).filter(Boolean);
+    if (!words.length || label.length <= limit) return [label];
+    const lines = [];
+    let current = '';
+    words.forEach((word) => {
+      const next = current ? `${current} ${word}` : word;
+      if (next.length <= limit || !current) current = next;
+      else {
+        lines.push(current);
+        current = word;
+      }
+    });
+    if (current) lines.push(current);
+    return lines.slice(0, 2);
+  };
+  const appendText = (parent, attrs = {}, text = '', lines = null) => {
+    const el = node('text', attrs);
+    const textLines = lines ?? [text];
+    textLines.forEach((line, index) => {
+      const tspan = node('tspan', { x: attrs.x, dy: index === 0 ? 0 : 15 }, line);
+      el.append(tspan);
+    });
+    parent.append(el);
+    return el;
+  };
+  const category = (label, items, cls, limit = 8) => {
+    const values = (items ?? []).filter(Boolean);
+    const visible = values.slice(0, limit);
+    const hidden = values.slice(limit);
+    return `
+      <section class="cloud-group">
+        <h4>${esc(label)}</h4>
+        <div class="cloud-nodes">
+          ${values.length
+            ? visible.map((item) => `<span class="cloud-node ${cls}">${esc(item)}</span>`).join('')
+            : '<span class="cloud-node more">Not specified</span>'}
+          ${hidden.map((item) => `<span class="cloud-node ${cls} is-hidden">${esc(item)}</span>`).join('')}
+          ${hidden.length ? `<button class="cloud-node more cloud-toggle" type="button" aria-expanded="false" data-more-count="${hidden.length}">+${hidden.length}</button>` : ''}
+        </div>
+      </section>
+    `;
+  };
 
   function cellKey(paper) {
     return atlasLayout === 'cd'
@@ -267,10 +346,25 @@ const axisCategories = axisCategorySets(taxonomy);
     const workloads = uniqueTerms(papers.map((p) => p.workloads ?? []));
     technologyFilter.innerHTML = `<option value="">All technologies</option>` + technologies.map((tag) => `<option value="${esc(tag)}">${esc(tag)}</option>`).join('');
     workloadFilter.innerHTML = `<option value="">All workloads</option>` + workloads.map((tag) => `<option value="${esc(tag)}">${esc(tag)}</option>`).join('');
-    ['search', 'familyFilter', 'middleFilter', 'objectFilter', 'rewriteFilter', 'technologyFilter', 'workloadFilter'].forEach((id) => $(id).addEventListener('input', applyFilters));
+    ['search', 'familyFilter', 'middleFilter', 'objectFilter', 'rewriteFilter', 'technologyFilter', 'workloadFilter'].forEach((id) => $(id).addEventListener('input', () => {
+      scopedCell = null;
+      applyFilters();
+    }));
     document.querySelectorAll('[data-layout]').forEach((button) => button.addEventListener('click', () => setLayout(button.dataset.layout)));
     $('paperPicker').addEventListener('change', (event) => selectPaper(event.target.value));
     $('resetFilters').addEventListener('click', resetFilters);
+    $('workMore').addEventListener('click', toggleCloudGroup);
+    $('clusterSummary').addEventListener('click', scopeCluster);
+  }
+
+  function toggleCloudGroup(event) {
+    const button = event.target.closest('.cloud-toggle');
+    if (!button) return;
+    const group = button.closest('.cloud-group');
+    if (!group) return;
+    const isExpanded = group.classList.toggle('is-expanded');
+    button.setAttribute('aria-expanded', String(isExpanded));
+    button.textContent = isExpanded ? 'Show less' : `+${button.dataset.moreCount}`;
   }
 
   function hydrateFromUrl() {
@@ -279,6 +373,9 @@ const axisCategories = axisCategorySets(taxonomy);
     if (selected && papers.some((paper) => paper.slug === selected)) selectedSlug = selected;
     const requestedLayout = params.get('layout');
     if (requestedLayout === 'cd') atlasLayout = 'cd';
+    const scopedX = params.get('cx');
+    const scopedY = params.get('cy');
+    if (scopedX && scopedY) scopedCell = { layout: atlasLayout, x: scopedX, y: scopedY };
     const legacyTarget = params.get('target') ?? '';
     const legacyTargetParts = legacyTarget.split(':');
     const legacyTargetKind = legacyTargetParts[0];
@@ -311,6 +408,10 @@ const axisCategories = axisCategorySets(taxonomy);
     if ($('rewriteFilter').value) params.set('d', $('rewriteFilter').value);
     if ($('technologyFilter').value) params.set('tech', $('technologyFilter').value);
     if ($('workloadFilter').value) params.set('workload', $('workloadFilter').value);
+    if (scopedCell?.layout === atlasLayout) {
+      params.set('cx', scopedCell.x);
+      params.set('cy', scopedCell.y);
+    }
     if (selectedSlug) params.set('paper', selectedSlug);
     const query = params.toString();
     const next = `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`;
@@ -333,7 +434,9 @@ const axisCategories = axisCategorySets(taxonomy);
       const technologyMatch = !technology || (paper.technology ?? []).includes(technology);
       const workloadMatch = !workload || (paper.workloads ?? []).includes(workload);
       const searchMatch = !q || textBlob(paper).includes(q);
-      return familyMatch && middleMatch && objectMatch && rewriteMatch && technologyMatch && workloadMatch && searchMatch;
+      const cluster = clusterForPaper(paper);
+      const cellMatch = !scopedCell || scopedCell.layout !== atlasLayout || (cluster.x === scopedCell.x && cluster.y === scopedCell.y);
+      return familyMatch && middleMatch && objectMatch && rewriteMatch && technologyMatch && workloadMatch && searchMatch && cellMatch;
     });
     if (!filtered.some((p) => p.slug === selectedSlug)) selectedSlug = filtered[0]?.slug ?? null;
     if (!filtered.some((p) => p.slug === hoveredSlug)) hoveredSlug = null;
@@ -352,34 +455,49 @@ const axisCategories = axisCategorySets(taxonomy);
     filtered = [...papers];
     if (!filtered.some((p) => p.slug === selectedSlug)) selectedSlug = filtered[0]?.slug ?? papers[0]?.slug ?? null;
     hoveredSlug = null;
+    scopedCell = null;
     updateUrlState();
     renderAll();
   }
 
+  function scopeCluster(event) {
+    const button = event.target.closest('[data-scope-x]');
+    if (!button) return;
+    if (atlasLayout === 'cd') {
+      $('objectFilter').value = button.dataset.scopeX ?? '';
+      $('rewriteFilter').value = button.dataset.scopeY ?? '';
+    } else {
+      $('familyFilter').value = button.dataset.scopeX ?? '';
+      $('middleFilter').value = button.dataset.scopeY ?? '';
+    }
+    scopedCell = {
+      layout: atlasLayout,
+      x: button.dataset.scopeX ?? '',
+      y: button.dataset.scopeY ?? ''
+    };
+    applyFilters();
+  }
+
   function xForFamily(code) {
-    const left = 160;
-    const right = 1490;
+    const { xLeft: left, xRight: right } = atlasProfile();
     const i = Math.max(0, familyCodes.indexOf(code));
     return left + (right - left) * (i / Math.max(1, familyCodes.length - 1));
   }
 
   function yForMiddle(code) {
-    const top = 110;
-    const bottom = 720;
+    const { yTop: top, yBottom: bottom } = atlasProfile();
     const i = Math.max(0, middleCodes.indexOf(code));
     return top + (bottom - top) * (i / Math.max(1, middleCodes.length - 1));
   }
 
   function xForObject(category) {
-    const left = 160;
-    const right = 1500;
+    const { xLeft: left, xRight: right } = atlasProfile();
     const i = Math.max(0, objectCategories.indexOf(category));
     return left + (right - left) * (i / Math.max(1, objectCategories.length - 1));
   }
 
   function yForRewrite(category) {
-    const top = 120;
-    const bottom = 720;
+    const { yTop: top, yBottom: bottom } = atlasProfile();
     const i = Math.max(0, rewriteCategories.indexOf(category));
     return top + (bottom - top) * (i / Math.max(1, rewriteCategories.length - 1));
   }
@@ -462,36 +580,39 @@ const axisCategories = axisCategorySets(taxonomy);
 
   function drawAtlas() {
     const svg = $('atlas');
+    const profile = atlasProfile();
     clear(svg);
     currentNodeHits = [];
-    svg.append(node('rect', { x: 0, y: 0, width: 1600, height: 820, rx: 16, fill: '#fbfcff' }));
+    svg.setAttribute('viewBox', `0 0 ${profile.width} ${profile.height}`);
+    svg.append(node('rect', { x: 0, y: 0, width: profile.width, height: profile.height, rx: 16, fill: '#fbfcff' }));
     if (atlasLayout === 'cd') {
       objectCategories.forEach((category) => {
         const x = xForObject(category);
-        svg.append(node('line', { x1: x, y1: 88, x2: x, y2: 748, stroke: '#dce4ef', 'stroke-width': 1 }));
-        svg.append(node('text', { x, y: 74, transform: `rotate(-32 ${x} 74)`, 'text-anchor': 'end', 'font-size': 11, 'font-weight': 900, fill: '#24364f' }, shortCategory(category)));
+        const label = shortCategory(category);
+        svg.append(node('line', { x1: x, y1: profile.gridTop, x2: x, y2: profile.gridBottom, stroke: '#dce4ef', 'stroke-width': 1 }));
+        appendText(svg, { x, y: profile.xLabelY, transform: `rotate(-28 ${x} ${profile.xLabelY})`, 'text-anchor': 'end', 'font-size': profile.fontLabel, 'font-weight': 900, fill: '#24364f' }, label, splitLabel(label, 11));
       });
       rewriteCategories.forEach((category) => {
         const y = yForRewrite(category);
-        svg.append(node('line', { x1: 118, y1: y, x2: 1548, y2: y, stroke: '#dce4ef', 'stroke-width': 1 }));
-        svg.append(node('text', { x: 22, y: y + 4, 'font-size': 12, 'font-weight': 900, fill: '#24364f' }, shortCategory(category)));
+        svg.append(node('line', { x1: profile.gridLeft, y1: y, x2: profile.gridRight, y2: y, stroke: '#dce4ef', 'stroke-width': 1 }));
+        appendText(svg, { x: profile.yLabelX, y: y + 5, 'font-size': profile.fontCode, 'font-weight': 900, fill: '#24364f' }, shortCategory(category));
       });
     } else {
       familyCodes.forEach((code) => {
         const x = xForFamily(code);
-        svg.append(node('line', { x1: x, y1: 70, x2: x, y2: 748, stroke: '#dce4ef', 'stroke-width': 1 }));
-        svg.append(node('text', { x, y: 32, 'text-anchor': 'middle', 'font-size': 15, 'font-weight': 900, fill: '#24364f' }, code));
-        svg.append(node('text', { x, y: 53, 'text-anchor': 'middle', 'font-size': 13, fill: '#607086' }, families[code].short));
+        svg.append(node('line', { x1: x, y1: profile.gridTop, x2: x, y2: profile.gridBottom, stroke: '#dce4ef', 'stroke-width': 1 }));
+        appendText(svg, { x, y: profile.xLabelY, 'text-anchor': 'middle', 'font-size': profile.fontCode, 'font-weight': 900, fill: '#24364f' }, code);
+        appendText(svg, { x, y: profile.xSubLabelY, 'text-anchor': 'middle', 'font-size': profile.fontLabel, fill: '#607086' }, families[code].short);
       });
       middleCodes.forEach((code) => {
         const y = yForMiddle(code);
-        svg.append(node('line', { x1: 104, y1: y, x2: 1548, y2: y, stroke: '#dce4ef', 'stroke-width': 1 }));
-        svg.append(node('text', { x: 26, y: y + 5, 'font-size': 15, 'font-weight': 900, fill: '#24364f' }, code));
-        svg.append(node('text', { x: 62, y: y + 5, 'font-size': 13, fill: '#607086' }, middles[code].short));
+        svg.append(node('line', { x1: profile.gridLeft, y1: y, x2: profile.gridRight, y2: y, stroke: '#dce4ef', 'stroke-width': 1 }));
+        appendText(svg, { x: profile.yCodeX, y: y + 5, 'font-size': profile.fontCode, 'font-weight': 900, fill: '#24364f' }, code);
+        appendText(svg, { x: profile.yLabelX, y: y + 5, 'font-size': profile.fontLabel, fill: '#607086' }, middles[code].short);
       });
     }
     if (!filtered.length) {
-      svg.append(node('text', { x: 800, y: 410, 'text-anchor': 'middle', fill: '#607086', 'font-size': 17 }, 'No papers match the current filters.'));
+      appendText(svg, { x: profile.width / 2, y: profile.height / 2, 'text-anchor': 'middle', fill: '#607086', 'font-size': 18 }, 'No papers match the current filters.');
       return;
     }
     drawHoveredFootprint(svg);
@@ -500,11 +621,11 @@ const axisCategories = axisCategorySets(taxonomy);
       const baseX = atlasLayout === 'cd' ? xForObject(paper.axis_C_object_vocab?.[0]) : xForFamily(paper.axis_A.primary);
       const baseY = atlasLayout === 'cd' ? yForRewrite(paper.axis_D_rewrite_types?.[0]) : yForMiddle(firstMiddle(paper));
       const offset = offsets.get(paper.slug) ?? { dx: 0, dy: 0 };
-      const x = Math.max(128, Math.min(1554, baseX + offset.dx));
-      const y = Math.max(92, Math.min(760, baseY + offset.dy));
+      const x = Math.max(profile.gridLeft + 18, Math.min(profile.gridRight - 18, baseX + offset.dx));
+      const y = Math.max(profile.gridTop + 18, Math.min(profile.gridBottom - 18, baseY + offset.dy));
       const isSelected = paper.slug === selectedSlug;
       const isHovered = paper.slug === hoveredSlug;
-      const r = isHovered ? 18 : 10;
+      const r = isHovered ? profile.hoverR : profile.nodeR;
       const color = families[paper.axis_A.primary]?.color ?? '#335cff';
       const className = [
         'atlas-node',
@@ -513,11 +634,11 @@ const axisCategories = axisCategorySets(taxonomy);
       ].filter(Boolean).join(' ');
       const g = node('g', { class: className, tabindex: 0, role: 'button', 'aria-label': `Select ${paper.title}`, style: 'cursor:pointer' });
       if (isSelected) {
-        g.append(node('circle', { class: 'clicked-ring', cx: x, cy: y, r: isHovered ? r + 10 : r + 8, fill: 'none', stroke: '#111a33', 'stroke-width': isHovered ? 2.5 : 2, 'stroke-dasharray': '5 4', opacity: isHovered ? 0.78 : 0.86 }));
+        g.append(node('circle', { class: 'clicked-ring', cx: x, cy: y, r: isHovered ? r + 11 : r + 9, fill: 'none', stroke: '#111a33', 'stroke-width': isHovered ? 2.75 : 2.25, 'stroke-dasharray': '5 4', opacity: isHovered ? 0.78 : 0.86 }));
       }
       g.append(node('circle', { cx: x, cy: y, r: r + 6, fill: color, opacity: isHovered ? 0.2 : isSelected ? 0.12 : 0.035 }));
       g.append(node('circle', { cx: x, cy: y, r, fill: color, opacity: isHovered ? 0.95 : isSelected ? 0.56 : 0.34, stroke: isHovered ? '#111a33' : isSelected ? color : '#ffffff', 'stroke-width': isHovered ? 3 : isSelected ? 2.25 : 1.25 }));
-      g.append(node('text', { x, y: y + 4, 'text-anchor': 'middle', 'font-size': isHovered ? 10 : 9, 'font-weight': 900, fill: isHovered ? '#fff' : '#f4f7fb', opacity: isHovered ? 1 : isSelected ? 0.9 : 0.72, 'pointer-events': 'none' }, initials(paper)));
+      appendText(g, { x, y: y + 4, 'text-anchor': 'middle', 'font-size': isHovered ? profile.hoverFont : profile.nodeFont, 'font-weight': 900, fill: isHovered ? '#fff' : '#f4f7fb', opacity: isHovered ? 1 : isSelected ? 0.9 : 0.72, 'pointer-events': 'none' }, initials(paper));
       g.addEventListener('click', () => selectPaper(paper.slug));
       g.addEventListener('mousemove', (event) => showTooltip(event, paper));
       g.addEventListener('mouseenter', (event) => {
@@ -556,17 +677,31 @@ const axisCategories = axisCategorySets(taxonomy);
       const matrix = svg.getScreenCTM();
       if (!matrix) return;
       const svgPoint = point.matrixTransform(matrix.inverse());
-      const hit = [...currentNodeHits].reverse().find((candidate) => {
-        const dx = svgPoint.x - candidate.x;
-        const dy = svgPoint.y - candidate.y;
-        return Math.hypot(dx, dy) <= candidate.radius;
-      });
+      const hit = hitTestAtlasNode(svgPoint.x, svgPoint.y);
       if (hit) setHoveredPaper(hit.slug);
       else clearHoveredPaper();
+    });
+    svg.addEventListener('click', (event) => {
+      const point = svg.createSVGPoint();
+      point.x = event.clientX;
+      point.y = event.clientY;
+      const matrix = svg.getScreenCTM();
+      if (!matrix) return;
+      const svgPoint = point.matrixTransform(matrix.inverse());
+      const hit = hitTestAtlasNode(svgPoint.x, svgPoint.y);
+      if (hit) selectPaper(hit.slug);
     });
     svg.addEventListener('pointerleave', () => {
       clearHoveredPaper();
       hideTooltip();
+    });
+  }
+
+  function hitTestAtlasNode(x, y) {
+    return [...currentNodeHits].reverse().find((candidate) => {
+      const dx = x - candidate.x;
+      const dy = y - candidate.y;
+      return Math.hypot(dx, dy) <= candidate.radius;
     });
   }
 
@@ -637,6 +772,70 @@ const axisCategories = axisCategorySets(taxonomy);
     ].map(([label, value]) => `<div class="mini-stat"><strong>${esc(value)}</strong><span>${esc(label)}</span></div>`).join('');
   }
 
+  function clusterForPaper(paper) {
+    if (atlasLayout === 'cd') {
+      const x = paper.axis_C_object_vocab?.[0] ?? 'Uncategorized object';
+      const y = paper.axis_D_rewrite_types?.[0] ?? 'Uncategorized rewrite';
+      return {
+        x,
+        y,
+        label: `${shortCategory(x)} x ${shortCategory(y)}`
+      };
+    }
+    const x = paper.axis_A.primary;
+    const y = firstMiddle(paper);
+    return {
+      x,
+      y,
+      label: `${x} ${families[x]?.short ?? x} x ${y} ${middles[y]?.short ?? y}`
+    };
+  }
+
+  function renderClusterSummary() {
+    const container = $('clusterSummary');
+    if (!filtered.length) {
+      container.innerHTML = '';
+      return;
+    }
+    const groups = new Map();
+    filtered.forEach((paper) => {
+      const cluster = clusterForPaper(paper);
+      const key = `${cluster.x}:::${cluster.y}`;
+      if (!groups.has(key)) groups.set(key, { ...cluster, papers: [] });
+      groups.get(key).papers.push(paper);
+    });
+    const denseClusters = [...groups.values()]
+      .sort((a, b) => b.papers.length - a.papers.length || a.label.localeCompare(b.label))
+      .slice(0, 4);
+
+    container.innerHTML = `
+      <div class="cluster-head">
+        <h3>Dense cells in this view</h3>
+        <span>${esc(filtered.length)} paper${filtered.length === 1 ? '' : 's'} across ${esc(groups.size)} cell${groups.size === 1 ? '' : 's'}</span>
+      </div>
+      <div class="cluster-grid">
+        ${denseClusters.map((cluster) => {
+          const examples = cluster.papers
+            .slice()
+            .sort((a, b) => a.title.localeCompare(b.title))
+            .slice(0, 3)
+            .map((paper) => `<li>${esc(shortTitle(paper))}</li>`)
+            .join('');
+          return `
+            <article class="cluster-card">
+              <div>
+                <b>${esc(cluster.label)}</b>
+                <span>${cluster.papers.length} paper${cluster.papers.length === 1 ? '' : 's'}</span>
+              </div>
+              <ul>${examples}</ul>
+              <button type="button" class="secondary" data-scope-x="${esc(cluster.x)}" data-scope-y="${esc(cluster.y)}">Scope cell</button>
+            </article>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
   function renderPicker() {
     const picker = $('paperPicker');
     picker.disabled = filtered.length === 0;
@@ -668,6 +867,7 @@ const axisCategories = axisCategorySets(taxonomy);
 
   function setLayout(layout) {
     atlasLayout = layout === 'cd' ? 'cd' : 'ab';
+    if (scopedCell?.layout !== atlasLayout) scopedCell = null;
     document.querySelectorAll('[data-layout]').forEach((button) => {
       const isActive = button.dataset.layout === atlasLayout;
       button.setAttribute('aria-pressed', String(isActive));
@@ -692,12 +892,14 @@ const axisCategories = axisCategorySets(taxonomy);
   function renderDetails() {
     const paper = selectedPaper();
     if (!paper) {
+      $('workDetails').classList.add('empty');
       $('workDetails').innerHTML = papers.length
         ? '<div class="empty">No papers match the current filters.</div>'
         : '<div class="empty">Add Markdown files in <code>src/content/papers</code> to populate the atlas.</div>';
       $('workMore').innerHTML = '';
       return;
     }
+    $('workDetails').classList.remove('empty');
     $('workDetails').innerHTML = `
       <div class="work-title">
         <div>
@@ -720,14 +922,14 @@ const axisCategories = axisCategorySets(taxonomy);
       $('workMore').innerHTML = '';
       return;
     }
-    const contextTerms = [...(paper.technology ?? []), ...(paper.workloads ?? [])];
     $('workMore').innerHTML = `
       <div class="coverage-cloud" aria-label="Active paper object and rewrite cloud">
         ${category('Axis C first-class objects', paper.axis_C_first_class_objects ?? [], 'object', 6)}
         ${category('Normalized Axis C categories', paper.axis_C_object_vocab ?? [], 'object', 6)}
         ${category('Axis D rewrite objects', paper.axis_D_rewrite_objects ?? [], 'rewrite', 6)}
         ${category('Normalized Axis D types', paper.axis_D_rewrite_types ?? [], 'rewrite', 6)}
-        ${contextTerms.length ? category('Technology / workloads', contextTerms, 'context', 6) : ''}
+        ${category('Technology', paper.technology ?? [], 'context', 6)}
+        ${category('Workloads', paper.workloads ?? [], 'context', 6)}
         <p class="cloud-note">Axis C/D categories are derived from the controlled vocabulary in taxonomy.json. This cloud is descriptive metadata only; it is not a score or ranking.</p>
       </div>
     `;
@@ -739,6 +941,7 @@ const axisCategories = axisCategorySets(taxonomy);
     renderStats();
     renderPicker();
     renderDetails();
+    renderClusterSummary();
     if (activeTooltipPaper) hideTooltip();
   }
 
