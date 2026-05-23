@@ -10,7 +10,9 @@ This is a static Astro paper library for CIM compiler/IR-stack research.
 - `/` is the merged personal homepage/profile page.
 - `/projects/` and `/projects/cim-library/` form the static project shell around the atlas.
 - `/library/` is the stable full atlas route.
+- `/clusters/` is the first-pass static cluster and coarse working-group route.
 - `/papers/[slug]/` renders individual long-form corpus notes.
+- `src/data/clusters.json` is the hand-authored cluster source. It is deliberately separate from paper frontmatter so the public paper metadata contract stays descriptive and unchanged.
 - Axis C/D normalization is render-time only through `src/lib/axisNormalization.ts` and `src/data/taxonomy.json`.
 - `src/data/profile.json` contains linked selected publications, including ASMA 2025, the ACPEE 2024 nano-channel paper, the Sensors 2024 solid-state nanopore article, and verified PRAB/NIM-A DOI links.
 - The website integration kit has been initialized. Remaining website-integration files are contract and maintenance docs, not active scaffolding.
@@ -32,7 +34,7 @@ Latest known good baseline:
 - `npm run qa`: 62 files, 62 structured, 0 raw files; source/provenance coverage is informational audit output.
 - `npm run contract:website`: OK.
 - `npm run check`: `0 errors, 0 warnings, 0 hints`.
-- `npm run build`: 66 static pages.
+- `npm run build`: 67 static pages.
 
 ## Completed Website-Shell Iteration
 
@@ -55,18 +57,48 @@ The brief archive for this iteration is `docs/archive/personal-website-integrati
 
 ## Next Focus -- Cluster Analysis and Working Groups
 
-The next iteration returns to the archived cluster-analysis and academic-working-group direction. Use `docs/archive/cluster-analysis-working-groups.md` as the seed plan.
+The first-pass cluster-analysis and academic-working-group layer has been reactivated from `docs/archive/cluster-analysis-working-groups.md`.
 
-The goal is not a detailed affiliation or author-connection map. The desired layer should identify vague research/work groups that produced clusters of works and may have cooperated with other groups on some works.
+Implemented first pass:
 
-Likely first moves:
+- route: `/clusters/`, as a sibling research view to `/library/`;
+- data: `src/data/clusters.json`, hand-authored and inspectable;
+- UI: static cluster panels with binding theme, representative/supporting papers, shared objects, rewrite objects, evidence, uncertainty, coarse working-group notes, and scoped atlas links;
+- deeper group investigations: selected clusters now carry working-group investigation notes with scope, coherence rationale, continuity evidence, boundaries, next checks, and source links;
+- links: `/projects/cim-library/` and `/library/` now point to the cluster route.
 
-1. Decide whether the cluster view should live at `/clusters/` or under `/projects/cim-library/clusters/`.
-2. Prototype a small hand-curated cluster data shape, likely `src/data/clusters.json`, before deriving anything automatically.
-3. Define a coarse working-group annotation model with evidence fields and uncertainty labels.
-4. Use existing paper metadata first: Axis A/B, normalized Axis C/D, technology, workloads, baselines, artifact links, authors/groups, venues, and note text.
-5. Build one or two high-confidence clusters before broadening the visualization.
-6. Link clusters back into scoped atlas views rather than duplicating the atlas.
+Current cluster hypotheses:
+
+1. Crossbar DNN compiler and simulator toolchain line.
+2. Digital SRAM-CIM macro generation and precision specialization.
+3. Analog CIM modeling, nonideality, and calibrated cost baselines.
+4. UPMEM real-hardware runtime and benchmark layer.
+5. PIMeval/PIMsynth DRAM-PIM API and bit-serial compiler line.
+6. LLM-oriented PIM memory-hierarchy mapping and runtime-state modeling.
+7. Full-stack IR, ISA, and serialized backend boundaries.
+
+The PIMeval/PIMsynth cluster is intentionally narrow. HARMONI is related through UVA LavaLab and DRAM-PIM modeling, but it now belongs to the LLM memory-hierarchy cluster because its central object is a Transformer DFG plus tensor placement and hierarchy mapping, not the PIM API / bit-serial compiler boundary.
+
+Working-group investigation depth has started for:
+
+- Xiaoming Chen / Yinhe Han crossbar-PIM compiler/simulator toolchain artifacts;
+- HKUST / digital-CIM macro compiler and physical-backend artifacts;
+- NeuroSim-centered analog CIM modeling artifacts;
+- SAFARI / UPMEM real-hardware runtime and benchmark artifacts;
+- UVA LavaLab PIMeval-to-PIMsynth API/compiler artifacts;
+- HARMONI as the public LLM memory-hierarchy modeling anchor.
+- LLM serving and near-memory runtime-state comparison set;
+- public full-stack artifact boundary comparison set.
+
+These are intentionally coarse groups or comparison sets with deeper evidence notes, not collaboration graphs.
+
+Good next moves:
+
+1. Continue adding in-depth investigation notes cluster-by-cluster, prioritizing groups where official artifacts expose file formats or execution flows.
+2. Strengthen each investigation by checking representative paper notes against official artifacts where the current evidence is thin.
+3. Keep the single `/clusters/` page unless a cluster accumulates enough checked evidence to justify a separate detail page.
+4. Keep using scoped `/library/` links rather than duplicating the atlas.
+5. Avoid deriving clusters automatically until the hand-authored layer has been reviewed.
 
 Guardrails:
 

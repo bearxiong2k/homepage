@@ -26,7 +26,7 @@ const topWorkloads = cimManifest.stats.top_workloads.slice(0, 6);
       <p class="eyebrow eyebrow--dark">{project.kind} / {project.status}</p>
       <h1>{project.title}</h1>
       <p>{project.summary}</p>
-      <p class="entry-links"><a href="/library/">Open full atlas</a> / <a href="/library/?layout=cd">Axis C/D view</a> / <a href={project.repo}>Repository</a></p>
+      <p class="entry-links"><a href="/library/">Open full atlas</a> / <a href="/clusters/">Cluster notes</a> / <a href="/library/?layout=cd">Axis C/D view</a> / <a href={project.repo}>Repository</a></p>
     </header>
 
     <section class="landing-grid" aria-label="CIM Library overview">
@@ -34,6 +34,7 @@ const topWorkloads = cimManifest.stats.top_workloads.slice(0, 6);
         <p class="eyebrow eyebrow--dark">Purpose</p>
         <h2>A paper corpus for asking what CIM stacks make first-class</h2>
         <p>The library tracks what each stack names, types, rewrites, verifies, serializes, and eventually hands to the backend. It is built as Markdown content plus a static Astro atlas, so the corpus can be inspected, versioned, and hosted without a database.</p>
+        <p><a class="inline-link" href="/clusters/">Open the first-pass cluster and working-group layer</a></p>
       </article>
       <aside class="stat-board stat-board--landing">
         <div>

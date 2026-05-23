@@ -1,0 +1,502 @@
+{
+  "schema_version": "0.1",
+  "route": "/clusters/",
+  "scope_note": "First-pass, hand-curated cluster layer over the existing CIM Library corpus. Clusters are descriptive working hypotheses backed by current paper metadata and notes; they are not rankings, coverage scores, or affiliation graphs.",
+  "methodology": [
+    "Use existing paper metadata first: Axis A/B placement, technologies, workloads, first-class objects, rewrite objects, artifact status, author/group fields, and public note summaries.",
+    "Prefer coarse families with repeated stack objects or visible tool lineage over fine-grained author-network claims.",
+    "Keep narrow clusters narrow when the binding object changes, even if the papers share a repository family or technology label.",
+    "Mark uncertain boundaries directly and link back to scoped atlas views for inspection."
+  ],
+  "clusters": [
+    {
+      "id": "crossbar-dnn-compiler-simulator-line",
+      "label": "Crossbar DNN compiler and simulator toolchain line",
+      "short_label": "Crossbar DNN toolchains",
+      "status": "high-confidence descriptive cluster",
+      "summary": "A set of NVM/RRAM crossbar PIM stacks where ONNX-style DNN graphs, array groups, PIM functional units, pseudo-instructions, and simulator configurations become the reusable compiler/backend boundary.",
+      "binding_theme": "Graph-to-array-group mapping plus instruction/configuration artifacts for crossbar PIM DNN inference.",
+      "representative_papers": ["pimcomp", "pimsim-nn", "pimsyn-nn"],
+      "supporting_papers": ["pim-eda", "pimacc"],
+      "atlas_query": {
+        "a": "A3",
+        "b": "B5",
+        "tech": "crossbar-PIM"
+      },
+      "shared_first_class_objects": ["crossbar / array", "hardware hierarchy", "instruction stream", "memory service properties", "ADC / DAC / peripherals"],
+      "shared_rewrite_objects": ["operator graph transformation", "mapping, placement, tiling, or allocation", "instruction, microprogram, or trace generation", "numeric format, precision, quantization, or approximation"],
+      "evidence": [
+        "PIMCOMP, PIMSIM-NN, PIMSYN/PIMSYN-NN, PIMACC, and PIM EDA entries all expose crossbar/PIM resources and compiler or simulator boundaries rather than only circuit-level macro data.",
+        "The corpus notes repeatedly name array groups, PIMFUs, per-core instructions, hardware configuration files, or simulator-facing instruction/config artifacts.",
+        "The author/group fields and artifacts indicate a visible Xiaoming Chen / Yinhe Han related toolchain family across several entries, but the cluster label is based on stack artifacts rather than an affiliation map."
+      ],
+      "uncertainty": "Treat this as a toolchain-line cluster. It should not be read as a complete institutional or collaboration graph, and PIM EDA is repository-centered rather than a single paper entry.",
+      "working_groups": [
+        {
+          "label": "Xiaoming Chen / Yinhe Han PIM toolchain family",
+          "relationship": "recurring compiler/simulator artifact lineage",
+          "representative_papers": ["pimcomp", "pimsim-nn", "pimsyn-nn", "pim-eda"],
+          "evidence": "The entries list overlapping authors/groups and public repositories around PIMCOMP-NN, PIMSIM-NN, PIMSYN-NN, and PIM-Toolchain.",
+          "uncertainty": "Coarse family label only; no claim about all contributors, affiliations, or internal project structure."
+        }
+      ],
+      "working_group_investigations": [
+        {
+          "label": "Xiaoming Chen / Yinhe Han PIM compiler-simulator toolchain",
+          "status": "started",
+          "scope": "Treat as a toolchain lineage around crossbar-PIM DNN compilation, synthesis, simulation, and verification artifacts, not as a department-level affiliation or full author network.",
+          "why_coherent": "The shared object is a deployable crossbar-DNN stack boundary: ONNX or JSON model input, crossbar/core/chip configuration, weight replication and pipeline choices, instruction or pseudo-instruction outputs, verification files, and simulator-facing artifacts.",
+          "continuity_evidence": [
+            "PIMCOMP-NN documents ONNX-to-JSON conversion, backend compilation from JSON models, weight-replication strategies, pipeline granularity choices, and optional saved verification, intermediate, and simulation outputs.",
+            "PIMSIM-NN and PIMACC entries reuse the same broad backend vocabulary: array groups, core mapping, hardware configs, instruction streams, DAC/ADC parameters, and simulator evaluation.",
+            "The corpus also has a repository-centered PIM EDA entry for the same broad toolchain area, but it should remain supporting evidence because it aggregates artifacts rather than representing one paper."
+          ],
+          "boundary": "Do not merge all crossbar or RRAM papers into this group. The group is about visible compiler/simulator artifact continuity, not merely shared technology.",
+          "next_checks": [
+            "Check whether PIMSIM-NN and PIMSYN-NN artifact READMEs define file formats compatible with PIMCOMP-NN outputs.",
+            "Separate paper-specific compiler objects such as PIMCOMP array groups from broader repository-suite objects if this becomes a detail page."
+          ],
+          "source_links": [
+            {
+              "label": "PIMCOMP-NN repository",
+              "url": "https://github.com/sunxt99/PIMCOMP-NN"
+            }
+          ]
+        }
+      ],
+      "related_cluster_ids": ["full-stack-ir-isa-boundaries", "analog-nonideality-modeling"]
+    },
+    {
+      "id": "digital-sram-macro-generation",
+      "label": "Digital SRAM-CIM macro generation and precision specialization",
+      "short_label": "SRAM macro generation",
+      "status": "high-confidence descriptive cluster",
+      "summary": "A lower-stack family centered on DCIM macro templates, precision fields, subcircuit choices, BIST or EDA flows, and physical or macro-level backend artifacts rather than whole-model compiler IR.",
+      "binding_theme": "Config-as-IR for macro templates, numeric formats, and backend generation constraints.",
+      "representative_papers": ["autodcim", "arctic", "syndcim"],
+      "supporting_papers": ["openc2", "openacmv2"],
+      "atlas_query": {
+        "a": "A1",
+        "b": "B1",
+        "tech": "SRAM-CIM"
+      },
+      "shared_first_class_objects": ["macro template", "numeric format", "crossbar / array", "ADC / DAC / peripherals", "nonideality / faults"],
+      "shared_rewrite_objects": ["hardware template / macro choice", "numeric format, precision, quantization, or approximation", "mapping, placement, tiling, or allocation", "fault, variation, calibration, or accuracy handling"],
+      "evidence": [
+        "AutoDCIM, ARCTIC, SynDCIM, OpenC2, and OpenACMv2 are all classified around SRAM/digital-CIM macro or approximate-DCIM generation and optimization.",
+        "Their frontmatter foregrounds macro topology, numeric precision, sub-array or cell-level structures, BIST/test flow, EDA flow, or approximate hardware choices.",
+        "The entries repeatedly place the work in Axis A1 or A1-adjacent roles with B1/B4/B6 middle-layer styles."
+      ],
+      "uncertainty": "The cluster intentionally groups by stack object and backend surface. It does not assert that every entry shares one project lineage, and some supporting entries are broader co-optimization frameworks.",
+      "working_groups": [
+        {
+          "label": "HKUST / digital-CIM macro compiler line",
+          "relationship": "repeated macro-compiler and precision-oriented DCIM entries",
+          "representative_papers": ["autodcim", "openc2", "arctic", "syndcim"],
+          "evidence": "The current author/group fields mention HKUST or overlapping Cheng/Tsui digital-CIM macro compiler contributors across several entries.",
+          "uncertainty": "Tentative coarse label; use the paper pages for exact author lists and institutional context."
+        }
+      ],
+      "working_group_investigations": [
+        {
+          "label": "HKUST / digital-CIM macro compiler line",
+          "status": "started",
+          "scope": "Treat as a DCIM macro-generation and physical-backend line centered on spec/config-to-RTL/netlist/layout flows, not as a DNN workload compiler lineage.",
+          "why_coherent": "The common object is the macro/backend configuration: rows and columns, input and weight precision, SRAM bitcell and compute-cell choices, multiplier, mux, adder and accumulator structures, subcircuit libraries, BIST/test modes, and EDA layout artifacts.",
+          "continuity_evidence": [
+            "AutoDCIM is positioned in the notes as a spec-to-layout DCIM macro compiler with array partitioning and template-based generation.",
+            "OpenC2 exposes the public macro-generator side of the line: top-level macro parameters and technology/library inputs generate Verilog, SPICE, DEF, and GDSII artifacts.",
+            "ARCTIC and SynDCIM deepen the precision, subcircuit, and BIST side of the same lower-stack question, while OpenACMv2 is related as an accuracy-constrained approximate-DCIM optimization flow rather than the same lineage."
+          ],
+          "boundary": "Keep application-level CIM compilers out of this group unless their first-class output is the macro/backend flow. Keep OpenACMv2 as supporting evidence when discussing approximate arithmetic DSE rather than as a core HKUST lineage claim.",
+          "next_checks": [
+            "Inspect OpenC2 output examples and generator scripts before writing a detail page about generated artifact formats.",
+            "Check whether ARCTIC and SynDCIM expose reusable spec fields beyond the paper descriptions; current evidence is mostly paper-level."
+          ],
+          "source_links": [
+            {
+              "label": "OpenC2 repository",
+              "url": "https://github.com/OpenC2-official/OpenC2_V1.0"
+            },
+            {
+              "label": "OpenACM repository",
+              "url": "https://github.com/ShenShan123/OpenACM"
+            }
+          ]
+        }
+      ],
+      "related_cluster_ids": ["full-stack-ir-isa-boundaries"]
+    },
+    {
+      "id": "analog-nonideality-modeling",
+      "label": "Analog CIM modeling, nonideality, and calibrated cost baselines",
+      "short_label": "Analog modeling baselines",
+      "status": "high-confidence descriptive cluster",
+      "summary": "A simulator and modeling cluster where the first-class objects are device/circuit/array hierarchies, ADC/sensing precision, operand distributions, nonidealities, calibration state, and mapping-aware cost estimates.",
+      "binding_theme": "Backend contracts and cost models for analog or hybrid CIM evaluation.",
+      "representative_papers": ["neurosim", "cimloop", "geniex"],
+      "supporting_papers": ["nax", "ns-cache"],
+      "atlas_query": {
+        "a": "A2",
+        "b": "B6",
+        "tech": "analog-CIM"
+      },
+      "shared_first_class_objects": ["hardware hierarchy", "crossbar / array", "numeric format", "ADC / DAC / peripherals", "nonideality / faults"],
+      "shared_rewrite_objects": ["mapping, placement, tiling, or allocation", "numeric format, precision, quantization, or approximation", "fault, variation, calibration, or accuracy handling"],
+      "evidence": [
+        "NeuroSIM and CiMLoop are explicitly classified as simulator/cost-model entries with reusable hardware-resource and configuration boundaries.",
+        "GENIEx and NAX add accuracy, variation, and co-design concerns around memristive crossbar inference.",
+        "The shared vocabulary is not a single compiler IR; it is a repeated backend model surface naming array hierarchy, peripheral precision, numeric format, and nonideality state."
+      ],
+      "uncertainty": "This is a methodological cluster, not one working group. The entries come from several research lines and should remain separated when discussing authorship.",
+      "working_groups": [
+        {
+          "label": "NeuroSim-centered modeling family",
+          "relationship": "device/circuit/architecture simulator lineage",
+          "representative_papers": ["neurosim", "ns-cache"],
+          "evidence": "The notes identify NeuroSIM / DNN+NeuroSim and NS-Cache as NeuroSim-family artifacts or extensions.",
+          "uncertainty": "Limited to visible artifact and note evidence."
+        },
+        {
+          "label": "Timeloop/Accelergy CIM modeling extension",
+          "relationship": "mapping and component-model extension line",
+          "representative_papers": ["cimloop"],
+          "evidence": "CiMLoop is described as a Timeloop+Accelergy based CIM modeling extension with public MIT artifact metadata.",
+          "uncertainty": "Single-entry group in the current corpus, listed because it is a strong modeling baseline rather than a broad author family."
+        }
+      ],
+      "working_group_investigations": [
+        {
+          "label": "NeuroSim-centered CIM modeling family",
+          "status": "started",
+          "scope": "Treat as a backend modeling family around device/circuit/array/chip cost and accuracy reports, with DNN wrappers as a bounded frontend path.",
+          "why_coherent": "The common object is a simulator contract: hardware hierarchy, subarray dimensions, memory-cell/device parameters, ADC/sensing precision, buffers/interconnect, nonideality settings, traces, and CSV/report outputs.",
+          "continuity_evidence": [
+            "NeuroSIM / DNN+NeuroSim combines a C++ device/circuit/architecture model with DNN wrappers that map topology, traces, precision, and nonidealities onto chip, tile, processing-element, and synaptic-array hierarchy.",
+            "NS-Cache extends the NeuroSim-adjacent modeling style to cache-memory and backend exploration, exposing bank, subarray, mat hierarchy, access mode, refresh timing, interconnect, and Gem5/Ruby bridge parameters.",
+            "GENIEx and NAX are related methodologically through analog crossbar nonideality and accuracy-cost feedback, but they should remain separate from a strict NeuroSim artifact lineage."
+          ],
+          "boundary": "This is a modeling lineage and methodology cluster, not one unified compiler stack. Keep CiMLoop separate as a Timeloop/Accelergy extension unless discussing shared cost-model abstractions.",
+          "next_checks": [
+            "Inspect NeuroSim and NS-Cache config/report formats before claiming a stable shared schema.",
+            "Compare CiMLoop's YAML/Timeloop boundary with NeuroSim's C++/trace/report boundary as a separate modeling-method contrast."
+          ],
+          "source_links": [
+            {
+              "label": "NeuroSim repository",
+              "url": "https://github.com/neurosim/NeuroSim"
+            },
+            {
+              "label": "NS-Cache repository",
+              "url": "https://github.com/neurosim/NS-Cache"
+            },
+            {
+              "label": "CiMLoop repository",
+              "url": "https://github.com/mit-emze/cimloop"
+            }
+          ]
+        }
+      ],
+      "related_cluster_ids": ["crossbar-dnn-compiler-simulator-line"]
+    },
+    {
+      "id": "upmem-real-hardware-runtime",
+      "label": "UPMEM real-hardware runtime and benchmark layer",
+      "short_label": "UPMEM runtime layer",
+      "status": "high-confidence descriptive cluster",
+      "summary": "A real-system PIM cluster where the central objects are DPUs, MRAM/WRAM state, host-device batches, runtime array metadata, tasklets, graph partitions, and benchmark harnesses.",
+      "binding_theme": "Runtime-state and memory-layout abstractions for commercial UPMEM DRAM-PIM execution.",
+      "representative_papers": ["prim", "simplepim", "pim-opt"],
+      "supporting_papers": ["pim-tc"],
+      "atlas_query": {
+        "a": "A6",
+        "b": "B7",
+        "tech": "UPMEM"
+      },
+      "shared_first_class_objects": ["hardware hierarchy", "runtime state", "memory service properties", "loop / tensor schedule"],
+      "shared_rewrite_objects": ["runtime scheduling, placement, batching, or data movement", "mapping, placement, tiling, or allocation", "loop or tensor-schedule transformation"],
+      "evidence": [
+        "PrIM, SimplePIM, PIM-Opt, and PIM-TC all target UPMEM or real DRAM-PIM execution rather than analog crossbar simulation.",
+        "Their notes foreground DPU resources, host/DPU transfer state, MRAM/WRAM placement, tasklets, array or graph partitions, and measured real-system workloads.",
+        "The cluster is primarily Axis A6 and B7/B4, making runtime state the reusable object family."
+      ],
+      "uncertainty": "The working-group label should remain broad. The entries involve recurring SAFARI/Mutlu-linked real-PIM work, but individual papers have distinct coauthor sets and application domains.",
+      "working_groups": [
+        {
+          "label": "SAFARI / real-PIM benchmarking and runtime family",
+          "relationship": "recurring UPMEM benchmark, runtime, and workload studies",
+          "representative_papers": ["prim", "simplepim", "pim-opt", "pim-tc"],
+          "evidence": "The author/group fields and artifacts repeatedly reference CMU-SAFARI, Onur Mutlu, or related real-PIM repositories across the UPMEM entries.",
+          "uncertainty": "Coarse visible-publication family only; not a full author or affiliation map."
+        }
+      ],
+      "working_group_investigations": [
+        {
+          "label": "SAFARI / UPMEM real-hardware runtime and benchmark line",
+          "status": "started",
+          "scope": "Treat as a real-system UPMEM runtime/benchmark family where the reusable object is host-DPU execution state, not an explicit compiler dialect.",
+          "why_coherent": "The common object is a host/DPU runtime boundary: DPU sets, tasklets, MRAM/WRAM staging, CPU-DPU transfers, per-DPU partitions, benchmark inputs, host merges, collectives, and timing/energy scripts.",
+          "continuity_evidence": [
+            "PrIM establishes the benchmark and characterization baseline with host code, DPU kernels, Makefile parameters, datasets, and profiling outputs.",
+            "SimplePIM raises the abstraction to PIM-resident arrays, array IDs, collectives, map/reduce/zip iterators, and management-table state.",
+            "PIM-Opt and PIM-TC show workload-specific deepening of the same backend boundary for distributed optimization and graph triangle counting."
+          ],
+          "boundary": "Do not treat this as an author-network map. The group label is about repeated real-UPMEM backend objects and public artifacts, and individual papers remain distinct in workload and algorithm scope.",
+          "next_checks": [
+            "Compare artifact CLI and Makefile knobs across PrIM, SimplePIM, PIM-Opt, and PIM-TC to see whether a shared UPMEM backend contract can be summarized.",
+            "Separate general runtime abstractions from workload-specific mapping objects such as color triplets or ADMM synchronization if this becomes a detail page."
+          ],
+          "source_links": [
+            {
+              "label": "PrIM benchmarks repository",
+              "url": "https://github.com/CMU-SAFARI/prim-benchmarks"
+            },
+            {
+              "label": "SimplePIM repository",
+              "url": "https://github.com/CMU-SAFARI/SimplePIM"
+            },
+            {
+              "label": "PIM-Opt repository",
+              "url": "https://github.com/CMU-SAFARI/PIM-Opt"
+            },
+            {
+              "label": "PIM-TC repository",
+              "url": "https://github.com/CMU-SAFARI/PIM-TC"
+            }
+          ]
+        }
+      ],
+      "related_cluster_ids": ["dram-pim-api-bitserial"]
+    },
+    {
+      "id": "dram-pim-api-bitserial",
+      "label": "PIMeval/PIMsynth DRAM-PIM API and bit-serial compiler line",
+      "short_label": "DRAM-PIM API/compiler",
+      "status": "medium-high-confidence descriptive cluster",
+      "summary": "A narrow digital DRAM-PIM cluster in which PIM data-object APIs, benchmark kernels, simulator commands, and bit-serial operation DAGs define the backend-facing programming boundary.",
+      "binding_theme": "PIM API objects and bit-serial instruction generation for digital or mixed DRAM-PIM targets, with PIMeval acting as a benchmark/simulator boundary and PIMsynth compiling into that boundary.",
+      "representative_papers": ["pimeval", "pimsynth"],
+      "supporting_papers": [],
+      "atlas_query": {
+        "a": "A4",
+        "b": "B5",
+        "tech": "DRAM-PIM"
+      },
+      "shared_first_class_objects": ["instruction stream", "benchmark API", "numeric format", "hardware hierarchy", "operator graph"],
+      "shared_rewrite_objects": ["instruction, microprogram, or trace generation", "benchmark, API, or workload-porting pattern", "mapping, placement, tiling, or allocation"],
+      "evidence": [
+        "PIMeval/PIMbench exposes a public C++ PIM API, PIM object IDs, hardware configs, command statistics, and benchmark kernels for modeled digital DRAM-PIM targets.",
+        "PIMsynth exposes a public compiler path from Verilog and GenLib-defined bit-serial PIM operations through graph/IR stages to PIMeval-backed microprogram validation.",
+        "The entries are distinct from UPMEM runtime studies because they center on simulator/API/compiler boundaries, not commercial host-DPU execution."
+      ],
+      "uncertainty": "Medium-high confidence for the narrow PIMeval/PIMsynth line. Keep the cluster small until additional papers expose the same API/compiler boundary; do not fold in graph-only LLM mapping simulators just because they share DRAM-PIM or LavaLab labels.",
+      "working_groups": [
+        {
+          "label": "UVA LavaLab PIM API and compiler artifacts",
+          "relationship": "public benchmark/API/compiler artifact family",
+          "representative_papers": ["pimeval", "pimsynth"],
+          "evidence": "The entries list UVA LavaLab repositories for PIMeval/PIMbench and PIMsynth, and the notes describe PIMsynth code generation through PIMeval APIs.",
+          "uncertainty": "Coarse artifact-family label only. HARMONI remains related through LavaLab and DRAM-PIM modeling, but its central object is an LLM task graph plus memory hierarchy rather than the PIM API/bit-serial compiler boundary."
+        }
+      ],
+      "working_group_investigations": [
+        {
+          "label": "UVA LavaLab PIM API to bit-serial compiler line",
+          "status": "started",
+          "scope": "Treat as a narrow public-artifact line joining a PIM API/benchmark simulator boundary to a bit-serial compiler that targets that boundary.",
+          "why_coherent": "The common object is the simulator-facing PIM command/program boundary: PIMeval names PIM objects, device configs, API commands, micro-ops, and statistics, while PIMsynth lowers Verilog and GenLib-defined bit-serial operations through IR stages to PIMeval simulation.",
+          "continuity_evidence": [
+            "PIMeval-PIMbench describes libpimeval as the simulation framework and PIMbench as the benchmark suite, with architecture-independent APIs, low-level micro-ops, performance/energy modeling, and detailed statistics.",
+            "PIMsynth explicitly lists PIMeval-PIMbench as a third-party dependency and documents a flow from Verilog through BLIF, GenLib, IR-1, LLVM scheduling, IR-2 assembly, a bit-serial microprogram, test generation, and PIMeval simulation.",
+            "The contact and citation metadata overlap around UVA LavaLab/Skadron/Venkat-linked artifacts, but the cluster claim rests on the tool boundary rather than authorship."
+          ],
+          "boundary": "HARMONI should stay adjacent but outside this narrow group: it uses DRAM-PIM modeling and LavaLab infrastructure, but its central object is a Transformer DFG and tensor-placement hierarchy, not PIMeval API command compilation.",
+          "next_checks": [
+            "Inspect PIMsynth generated .hpp or test output examples to determine how much PIMeval command provenance survives after code generation.",
+            "Check PIMeval wiki/API pages for stable command names before promoting this from cluster note to a detail page."
+          ],
+          "source_links": [
+            {
+              "label": "PIMeval-PIMbench repository",
+              "url": "https://github.com/UVA-LavaLab/PIMeval-PIMbench"
+            },
+            {
+              "label": "PIMsynth repository",
+              "url": "https://github.com/UVA-LavaLab/PIMsynth"
+            }
+          ]
+        }
+      ],
+      "related_cluster_ids": ["upmem-real-hardware-runtime", "llm-memory-hierarchy-mapping"]
+    },
+    {
+      "id": "llm-memory-hierarchy-mapping",
+      "label": "LLM-oriented PIM memory-hierarchy mapping and runtime-state modeling",
+      "short_label": "LLM memory hierarchy",
+      "status": "medium-confidence descriptive cluster",
+      "summary": "A broad LLM/Transformer PIM cluster where the binding object is not a single ISA or API, but model-phase metadata, tensor placement, KV/runtime state, hierarchy binding, and host/PIM or near-memory data movement.",
+      "binding_theme": "Mapping Transformer/LLM execution onto memory hierarchies by naming tensor locations, phases, hierarchy resources, runtime state, and communication or batching decisions.",
+      "representative_papers": ["harmoni", "papi", "hermes"],
+      "supporting_papers": ["unindp", "ouroboros", "cim-mxu"],
+      "atlas_query": {
+        "a": "A5",
+        "b": "B7",
+        "q": "LLM"
+      },
+      "shared_first_class_objects": ["hardware hierarchy", "runtime state", "memory service properties", "loop / tensor schedule", "instruction stream"],
+      "shared_rewrite_objects": ["runtime scheduling, placement, batching, or data movement", "mapping, placement, tiling, or allocation", "loop or tensor-schedule transformation", "instruction, microprogram, or trace generation"],
+      "evidence": [
+        "HARMONI exposes a public DFG, HarmoniTensor placement metadata, memory-system hierarchy, logic-unit binding, communication edges, sync/aggregation nodes, and LLM model presets.",
+        "PAPI and Hermes foreground LLM decoding or GPU/NDP-DIMM execution state, where runtime placement, batching, and memory movement are the operative middle objects.",
+        "UniNDP, Ouroboros, and CIM-MXU are included as supporting papers because their metadata links LLM or Transformer workloads to near-DRAM/SRAM-CIM mapping, simulation, or accelerator co-design surfaces."
+      ],
+      "uncertainty": "Medium confidence because this is a workload-and-state cluster rather than one artifact lineage. HARMONI is the strongest public modeling artifact; several supporting entries are architecture proposals or have no public artifact.",
+      "working_groups": [
+        {
+          "label": "HARMONI / UVA LavaLab hierarchy-modeling artifact",
+          "relationship": "public LLM memory-hierarchy mapping and cost-model artifact",
+          "representative_papers": ["harmoni"],
+          "evidence": "The HARMONI note identifies a public UVA LavaLab repository with DFG construction, tensor allocation, task mapping, DRAM/model/network configs, performance models, traces, and AE scripts.",
+          "uncertainty": "Single-entry group in the current corpus. It should be compared with, not merged into, the PIMeval/PIMsynth API/compiler line."
+        },
+        {
+          "label": "LLM serving and near-memory comparison set",
+          "relationship": "coarse workload-family comparison, not a collaboration claim",
+          "representative_papers": ["papi", "hermes", "unindp", "ouroboros", "cim-mxu"],
+          "evidence": "The entries share LLM/Transformer workloads and runtime or hierarchy mapping concerns, but differ in technology, artifact status, and backend visibility.",
+          "uncertainty": "Comparison set only; do not read as a research-group lineage."
+        }
+      ],
+      "working_group_investigations": [
+        {
+          "label": "HARMONI as a hierarchy-modeling anchor",
+          "status": "started",
+          "scope": "Treat HARMONI as the strongest public artifact anchor for this cluster because it exposes the internal modeling stack. Use the surrounding LLM papers as comparison cases for similar runtime-state and memory-hierarchy questions.",
+          "why_coherent": "The common object is not an ISA. It is a placement-aware execution model: Transformer phase/layer/head metadata, tensor locations, weight/KV rank placement, logic-unit support tables, communication edges, sync/aggregation nodes, and latency/energy traces.",
+          "continuity_evidence": [
+            "The HARMONI repository describes a main CLI, simulation driver, core modeling modules for DFG/mapping/memory/tensor/model allocation, performance estimators, trace generators, report dumpers, visualization, configs, parameter presets, and cached graph/task-mapping artifacts.",
+            "The HARMONI note identifies tensor-location metadata and task-to-logic-unit mapping as the core reusable IR lesson: mapping can rewrite the graph by creating subtasks, sync nodes, and aggregation nodes.",
+            "PAPI, Hermes, UniNDP, Ouroboros, and CIM-MXU share LLM or Transformer workloads and runtime/hierarchy mapping concerns, but they should be compared case-by-case because their public artifact depth and backend boundaries differ."
+          ],
+          "boundary": "Keep this as a workload/state cluster, not a collaboration group. Do not collapse it with the PIMeval/PIMsynth group merely because both involve UVA LavaLab or DRAM-PIM modeling.",
+          "next_checks": [
+            "Check official artifacts or papers for PAPI, Hermes, UniNDP, Ouroboros, and CIM-MXU before writing stronger group claims.",
+            "Decide whether HARMONI deserves a future detail section on graph rewrite objects: DFG nodes, HarmoniTensor metadata, logic-unit mapping, sync/aggregation insertion, and traces."
+          ],
+          "source_links": [
+            {
+              "label": "HARMONI repository",
+              "url": "https://github.com/UVA-LavaLab/HARMONI"
+            }
+          ]
+        },
+        {
+          "label": "LLM serving and near-memory runtime-state comparison set",
+          "status": "started",
+          "scope": "Treat as a coarse comparison set for LLM-oriented PIM/NDP papers where runtime state, tensor or neuron placement, KV/cache behavior, and memory-hierarchy binding are the common objects. Do not treat it as one research lineage.",
+          "why_coherent": "The common object is a serving-time or model-phase mapping state: request/token parallelism, hot/cold neuron placement, DRAM/NDP hierarchy assignment, wafer/core coordinates, KV page tables, and device-specific scheduling decisions.",
+          "continuity_evidence": [
+            "PAPI makes RLP, TLP, FC-vs-attention kernel class, FC-PIM, Attn-PIM, and PU assignment the scheduler-facing state for heterogeneous HBM/DRAM-PIM decoding.",
+            "Hermes makes per-neuron hot/cold status, neuron state and correlation tables, GPU-vs-NDP-DIMM placement, and windowed DIMM remapping the visible runtime object.",
+            "UniNDP and Ouroboros provide two contrasting backend surfaces: UniNDP exposes DRAM hierarchy configs, partition/mapping tuples, NDP instructions, and simulator issue state, while Ouroboros exposes wafer/core mapping, token pipeline stages, KV page tables, bitmaps, and fault-remap state."
+          ],
+          "boundary": "This is a workload/runtime-state comparison set. HARMONI remains the strongest public graph-and-hierarchy modeling anchor; PAPI, Hermes, and Ouroboros are largely paper-level or partial-artifact evidence; UniNDP is a DRAM-NDP mapping/simulation tool rather than specifically an LLM-serving runtime.",
+          "next_checks": [
+            "Check whether PAPI, Hermes, Ouroboros, and CIM-MXU expose reproducible simulator configs or traces beyond paper-level descriptions.",
+            "Separate LLM serving runtime-state objects from general DRAM-NDP mapping objects before promoting this into a detail page.",
+            "Compare HARMONI's tensor-placement graph with Hermes/PAPI/Ouroboros runtime-state tables to avoid conflating static model mapping with serving-time scheduling."
+          ],
+          "source_links": [
+            {
+              "label": "PAPI paper",
+              "url": "https://arxiv.org/pdf/2502.15470v2"
+            },
+            {
+              "label": "Hermes paper",
+              "url": "https://arxiv.org/abs/2502.16963"
+            },
+            {
+              "label": "UniNDP repository",
+              "url": "https://github.com/godfather991/UniNDP"
+            },
+            {
+              "label": "Ouroboros paper",
+              "url": "https://arxiv.org/abs/2603.02737"
+            }
+          ]
+        }
+      ],
+      "related_cluster_ids": ["dram-pim-api-bitserial", "upmem-real-hardware-runtime", "full-stack-ir-isa-boundaries"]
+    },
+    {
+      "id": "full-stack-ir-isa-boundaries",
+      "label": "Full-stack IR, ISA, and serialized backend boundaries",
+      "short_label": "IR/ISA boundaries",
+      "status": "medium-confidence descriptive cluster",
+      "summary": "A cross-cutting cluster for public or near-public stacks that make the compiler/backend boundary visible through graph IRs, MLIR/DSL fragments, instruction streams, JSON/YAML contracts, ISA-like commands, or chip/emulator addresses.",
+      "binding_theme": "The stack object becomes explicit enough to inspect as a serialized compiler, simulator, or chip-facing contract.",
+      "representative_papers": ["cimflow", "puma", "opencimtc"],
+      "supporting_papers": ["cim-mlc", "pimcomp"],
+      "atlas_query": {
+        "a": "A4",
+        "b": "B5"
+      },
+      "shared_first_class_objects": ["operator graph", "instruction stream", "hardware hierarchy", "runtime state", "chip / emulator address"],
+      "shared_rewrite_objects": ["operator graph transformation", "instruction, microprogram, or trace generation", "mapping, placement, tiling, or allocation", "runtime scheduling, placement, batching, or data movement"],
+      "evidence": [
+        "CIMFlow, PUMA, and OpenCIMTC expose graph-to-backend or chip/emulator-facing boundaries more explicitly than macro-only or benchmark-only entries.",
+        "The corpus notes name serialized objects such as CG JSON, hardware/config JSON, per-core ISA JSON, PUMA instruction/compiler artifacts, OpenCIMTC YAML-style CIM-IR, or chip/emulator address state.",
+        "This cluster intentionally crosses research groups because the binding theme is representational visibility."
+      ],
+      "uncertainty": "Medium confidence because the grouped systems differ substantially in technology, maturity, and artifact scope. Use this as an inspection path, not a single research lineage.",
+      "working_groups": [
+        {
+          "label": "Public full-stack artifact examples",
+          "relationship": "representational boundary comparison set",
+          "representative_papers": ["cimflow", "puma", "opencimtc"],
+          "evidence": "Each representative paper has public artifact or documentation evidence in the corpus and exposes backend-facing compiler objects.",
+          "uncertainty": "Comparison set only; no shared authorship implied."
+        }
+      ],
+      "working_group_investigations": [
+        {
+          "label": "Public full-stack artifact boundary comparison",
+          "status": "started",
+          "scope": "Treat as a cross-cutting comparison of public or near-public stack boundaries where compiler state survives as JSON, YAML, assembly, meta-operators, simulator inputs, or generated scripts.",
+          "why_coherent": "The common object is not a shared technology or group. It is representational visibility: a graph, mapping, resource assignment, instruction stream, calculation parameter set, or simulator contract becomes inspectable outside one monolithic backend.",
+          "continuity_evidence": [
+            "CIMFlow exposes a vertical digital-SRAM-CIM path through ONNX input, hardware/config data, graph partitioning, OP-level MLIR/DSL lowering, per-core ISA JSON, synchronization IDs, and SystemC-backed simulation.",
+            "PUMA exposes a PUMA-specific backend contract through compiler-built model graphs, hardware mapping, per-core/per-tile assembly, XbarIn/XbarOut register classes, FIFO and shared-memory synchronization, and PUMAsim traces.",
+            "OpenCIMTC exposes a YAML CIM-IR split into Attribute, Mapping, and Calculation regions, carrying layer attributes, physical array placement, ADC/integration-time and quantization parameters, and generated simulator or hardware-oriented scripts.",
+            "CIM-MLC is supporting evidence because its semantics are distributed across ONNX annotations, architecture Python configs, tiered scheduling passes, and Core/Crossbar/Wordline meta-operator flows rather than a single stable dialect."
+          ],
+          "boundary": "This comparison should not be read as one artifact lineage, and it should not absorb macro-only generators or benchmark-only runtimes unless they expose a similarly inspectable compiler/backend boundary.",
+          "next_checks": [
+            "Inspect representative generated files from CIMFlow, PUMA, OpenCIMTC, and CIM-MLC before asserting compatible schema fields.",
+            "Build a small comparison table only after checking artifact examples: source graph object, mapping object, backend object, simulator contract, and mutable parameter surface.",
+            "Keep this as an inspection path unless enough checked examples justify a separate full-stack-boundaries detail page."
+          ],
+          "source_links": [
+            {
+              "label": "CIMFlow documentation",
+              "url": "https://www.cimflow.org/docs/Compiler/Pipeline-Overview"
+            },
+            {
+              "label": "PUMA compiler repository",
+              "url": "https://github.com/illinois-impact/puma-compiler"
+            },
+            {
+              "label": "OpenCIMTC repository",
+              "url": "https://github.com/Tsinghua-LEMON-Lab/OpenCIMTC"
+            },
+            {
+              "label": "CIM-MLC repository",
+              "url": "https://github.com/Zhaoshixin-sky/CIM-MLC"
+            }
+          ]
+        }
+      ],
+      "related_cluster_ids": ["crossbar-dnn-compiler-simulator-line", "digital-sram-macro-generation"]
+    }
+  ]
+}
