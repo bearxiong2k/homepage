@@ -11,7 +11,7 @@ This is a static Astro paper library for CIM compiler/IR-stack research.
 - `/papers/[slug]/` renders individual long-form corpus notes.
 - Axis C first-class objects and Axis D rewrite objects are normalized at render time from `src/data/taxonomy.json` vocabulary, without adding new required frontmatter fields.
 - The atlas supports both Axis A x Axis B and normalized Axis C x Axis D layouts.
-- The current atlas/detail-page base is good enough for the next phase; future work should shift toward cluster analysis and visualization rather than more minor atlas polish.
+- The personal website dev kit is installed as the active next development context. The CIM Library should become a first-class static project module inside a personal website shell.
 - Keep the site static and suitable for personal hosting. Do not add PDF hosting, backend services, or a database unless the project direction changes.
 
 Keep these checks green while changing UI or content:
@@ -115,25 +115,44 @@ This iteration also cleaned up context for future work:
 - condensed `docs/next-session-prompt.md` into a current-state restart prompt instead of a long historical changelog;
 - updated `AGENTS.md` so it reflects the completed raw-note migration and current atlas architecture.
 
-## Next Focus -- Cluster Analysis and Visualization
+## Archived Focus -- Cluster Analysis and Working Groups
 
-The next product milestone should make the corpus useful as a map of research clusters, not only as a paper-by-paper atlas. The existing close-group behavior is a good base; future work should explain why papers sit near each other, what stack object or workflow binds them, and which families of work form recognizable lines of research.
+The previous cluster-analysis and academic-working-group roadmap is archived at `docs/archive/cluster-analysis-working-groups.md`.
 
-Likely direction:
+It is intentionally inactive for the current website-integration iteration. Reinitialize it later only if the project direction returns to cluster visualization after the personal website shell stabilizes.
 
-1. Add a new cluster-focused page, likely a static route such as `/clusters/`, rather than overloading the current atlas.
-2. Derive clusters from existing descriptive metadata first: Axis A/B, normalized Axis C/D, technology, workloads, artifacts, baselines, notes, and source links.
-3. Provide cluster cards or panels that name the binding theme, list representative papers, show shared first-class objects/rewrite objects, and link back into scoped atlas views.
-4. Add a vague academic working-group layer where evidence supports it: repeated author groups, lab/project names, repository owners, or visible publication families. This should describe broad working groups that produced clusters of works and occasional cross-group cooperation.
-5. Avoid a detailed affiliation map, author connection graph, or fine-grained collaboration network. The goal is orientation, not bibliometric authority.
-6. Keep the implementation static and inspectable. Prefer hand-authored or lightly derived cluster metadata over opaque automatic clustering until the desired view is clearer.
+## Next Focus -- Personal Website Integration
 
-Open design questions for the next session:
+The next product milestone is to initialize the static website shell around the CIM atlas using the installed dev kit in `docs/website-integration/`.
 
-- Should cluster metadata live in a new `src/data/clusters.json`, in frontmatter, or as derived data from existing entries?
-- Should academic working groups be manually curated labels, inferred from `authors_or_group`, or introduced only as optional cluster annotations?
-- Should the first version be a list/card view, a graph, or a hybrid with cards plus a compact visualization?
-- How much evidence should be shown for a cluster assignment without making the page feel like a citation audit?
+Target architecture:
+
+```text
+personal website shell
+├── /                         personal homepage
+├── /projects/                project index from src/data/project-registry.json
+├── /projects/cim-library/    narrative landing page for this atlas
+├── /library/                 full CIM atlas app
+└── /papers/[slug]/           paper notes
+```
+
+Installed integration surface:
+
+- `docs/website-integration/`: route map, plan, content/UI harness, ADR, schemas, templates, and agent addendum.
+- `src/data/project-registry.json`: website project registry, initialized with the CIM Library entry.
+- `scripts/export-atlas-manifest.mjs`: static manifest exporter for `public/cim-library.manifest.json`.
+- `scripts/check-website-contract.mjs`: route/file/registry/manifest contract checker.
+- `scripts/website-devkit-smoke.mjs`: repeatable website-integration smoke harness.
+- `npm run export:atlas`, `npm run contract:website`, and `npm run smoke:website`.
+
+Remaining priority work:
+
+1. Run and keep green the website loop: `npm run qa`, `npm run validate`, `npm run export:atlas`, `npm run contract:website`, `npm run check`, and `npm run build`.
+2. Add or polish `/` as a personal homepage. The homepage should introduce the person/research focus and route visitors to projects; it should not embed the whole atlas UI.
+3. Add `/projects/` as a project index sourced from `src/data/project-registry.json`.
+4. Add `/projects/cim-library/` as the narrative project landing page that explains the atlas, links to `/library/`, and highlights representative paper notes.
+5. Keep `/library/` and `/papers/[slug]/` stable.
+6. Use `public/cim-library.manifest.json` for project stats and summaries rather than copying counts by hand.
 
 The atlas should remain descriptive. Do not introduce coverage, quality, ranking, or relevance scores.
 
@@ -157,10 +176,9 @@ Use `scripts/promote-raw-note.mjs` only for future imported raw notes. The regul
 Later research-facing improvements:
 
 - explicit source provenance fields for paper, artifact, docs, and checked date if cluster/group views need stronger evidence display;
-- cluster pages for families such as ONNX-to-ISA stacks, UPMEM runtime stacks, macro generators, simulator/cost-model frameworks, PIM EDA/PIMCOMP/PIMSYN/PIMSIM-related work, and SRAM/digital-CIM compiler lines;
-- vague academic working-group annotations for recognizable families of work, kept intentionally coarse and evidence-based;
+- archived cluster-analysis and working-group ideas can be reactivated from `docs/archive/cluster-analysis-working-groups.md` after website integration stabilizes;
 - controlled vocabulary for `integration_roles`;
-- tag pages or Axis A/B detail pages only if they support cluster navigation.
+- tag pages or Axis A/B detail pages only if they support website/project navigation.
 
 ## Non-Goals
 

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/project-registry.schema.json",
+  "title": "Personal Website Project Registry",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["id", "title", "kind", "status", "summary", "route"],
+    "additionalProperties": true,
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      },
+      "title": {
+        "type": "string",
+        "minLength": 1
+      },
+      "kind": {
+        "type": "string",
+        "minLength": 1
+      },
+      "status": {
+        "type": "string",
+        "minLength": 1
+      },
+      "summary": {
+        "type": "string",
+        "minLength": 1
+      },
+      "route": {
+        "type": "string",
+        "pattern": "^/"
+      },
+      "landing_route": {
+        "type": "string",
+        "pattern": "^/"
+      },
+      "repo": {
+        "type": "string"
+      },
+      "source_manifest": {
+        "type": "string",
+        "pattern": "^/"
+      },
+      "tags": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "featured": {
+        "type": "boolean"
+      },
+      "integration_role": {
+        "type": "string"
+      }
+    }
+  }
+}

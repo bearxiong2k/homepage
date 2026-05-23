@@ -1,0 +1,16 @@
+[
+  {
+    "id": "cim-library",
+    "title": "CIM Compiler/IR Paper Library",
+    "kind": "research-atlas",
+    "status": "active",
+    "summary": "A static Compute-in-Memory compiler and IR paper taxonomy atlas with Markdown-backed paper notes and an interactive Axis A/B/C/D browsing model.",
+    "route": "/library/",
+    "landing_route": "/projects/cim-library/",
+    "repo": "https://github.com/lonelygodss/CIM-library",
+    "source_manifest": "/cim-library.manifest.json",
+    "tags": ["Compute-in-Memory", "compiler", "IR", "paper atlas", "Astro"],
+    "featured": true,
+    "integration_role": "Primary research atlas module for the personal website"
+  }
+]

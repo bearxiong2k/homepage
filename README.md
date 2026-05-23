@@ -9,6 +9,8 @@ Paper library
 ├── taxonomy vocabulary in src/data/taxonomy.json
 ├── one Markdown file per paper in src/content/papers/
 ├── public atlas pages at / and /library/
+├── project registry in src/data/project-registry.json
+├── website integration docs in docs/website-integration/
 └── static hosting on a personal website
 ```
 
@@ -29,8 +31,10 @@ scripts/validate-library.mjs frontmatter/reference checks
 scripts/scaffold-paper.mjs   create a new paper stub
 AGENTS.md                    project instructions for future Codex runs
 docs/corpus-note-harness.md  paper-note conversion harness
+docs/website-integration/    personal website dev kit
 docs/legacy-source-map.md    where to recover legacy atlas/source details
 docs/next-session-prompt.md  concise restart context
+public/cim-library.manifest.json generated atlas manifest
 ```
 
 ## Run locally
@@ -44,6 +48,8 @@ npm run dev
 Build for static hosting:
 
 ```bash
+npm run export:atlas
+npm run contract:website
 npm run build
 ```
 
@@ -68,4 +74,14 @@ If raw notes are imported in the future, use `docs/future-development-plan.md` b
 
 The atlas supports Axis A x Axis B and normalized Axis C x Axis D views. The selected-paper panel and paper detail pages expose summary metadata, provenance, normalized object/rewrite categories, context facets, and links into scoped atlas views. The active schema does not use coverage scores or ranking metrics.
 
-The next planned visualization direction is a separate cluster-analysis layer: clusters of related works, coarse working-group labels where evidence supports them, and links back into scoped atlas/detail views. This should stay static and descriptive, not a detailed author-affiliation network.
+## Website integration
+
+The active development direction is a personal static website shell that treats the CIM Library as a first-class project module. The installed dev kit defines the registry/manifest contract:
+
+```bash
+npm run export:atlas
+npm run contract:website
+npm run smoke:website -- --fast
+```
+
+The archived cluster-analysis roadmap is in `docs/archive/cluster-analysis-working-groups.md` and should not guide current work unless reactivated.

@@ -6,5 +6,6 @@
       "@/*": ["src/*"]
     },
     "resolveJsonModule": true
-  }
+  },
+  "exclude": ["cim-library-website-devkit"]
 }
