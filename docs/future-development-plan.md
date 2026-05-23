@@ -86,6 +86,7 @@ Working-group investigation depth has started for:
 - Xiaoming Chen / Yinhe Han crossbar-PIM compiler/simulator toolchain artifacts;
 - HKUST / digital-CIM macro compiler and physical-backend artifacts;
 - NeuroSim-centered analog CIM modeling artifacts;
+- CiMLoop as a Timeloop/Accelergy CIM modeling extension;
 - SAFARI / UPMEM real-hardware runtime and benchmark artifacts;
 - UVA LavaLab PIMeval-to-PIMsynth API/compiler artifacts;
 - HARMONI as the public LLM memory-hierarchy modeling anchor;

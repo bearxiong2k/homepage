@@ -14,7 +14,7 @@ Current default state:
 - /library/ and /papers/[slug]/ must remain stable.
 - src/data/clusters.json is the hand-authored cluster source, separate from paper frontmatter.
 - /clusters/ is the active cluster and coarse working-group route.
-- The cluster layer currently has 7 cluster hypotheses and 8 deeper investigation cards.
+- The cluster layer currently has 7 cluster hypotheses and 9 deeper investigation cards.
 - Working-group labels must remain coarse and evidence-based; LLM-serving and full-stack-boundary cards are comparison sets, not lineage claims.
 - Do not add coverage scores, ranking scores, quality scores, or trajectory_IR_relevance.
 

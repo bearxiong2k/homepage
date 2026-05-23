@@ -32,7 +32,7 @@ Current route:
 Current cluster page shape:
 
 - 7 hand-authored cluster hypotheses.
-- 8 deeper investigation cards.
+- 9 deeper investigation cards.
 - Working-group labels remain coarse and evidence-based.
 - LLM-serving and full-stack-boundary cards are comparison sets, not lineage claims.
 - `/library/` and `/projects/cim-library/` link to `/clusters/`.
@@ -66,4 +66,4 @@ Known baseline:
 - Website contract OK.
 - `astro check`: 0 errors, 0 warnings, 0 hints.
 - Static build: 67 pages.
-- `/clusters/` smoke check: 7 clusters, 8 investigation cards, no horizontal overflow on desktop or mobile.
+- `/clusters/` smoke check: 7 clusters, 9 investigation cards, no horizontal overflow on desktop or mobile.

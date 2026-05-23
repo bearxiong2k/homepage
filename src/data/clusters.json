@@ -195,6 +195,37 @@
               "url": "https://github.com/mit-emze/cimloop"
             }
           ]
+        },
+        {
+          "label": "CiMLoop as a Timeloop/Accelergy CIM modeling extension",
+          "status": "started",
+          "scope": "Treat as a single-artifact modeling baseline around Timeloop+Accelergy extensions for CIM, not as a broad working-group lineage.",
+          "why_coherent": "The common object is a config-and-modeling contract: YAML/Jinja architecture hierarchy, component definitions, workload/problem dimensions, mapper settings, reuse/coalescing directives, encoding and slicing functions, operand distributions, and Accelergy plug-in component models.",
+          "continuity_evidence": [
+            "The CiMLoop note identifies the reusable boundary as Timeloop-style YAML/Jinja configs plus Python helper functions for architecture hierarchy, components, variables, workload, mapper settings, and encoding/slicing.",
+            "CiMLoop exposes CIM-specific modeling objects that are not just cost-table entries: memory cells, CIM units, row and column drivers, ADCs, DACs, shift-add units, bit slicing, tensor-specific reuse, coalescing, bypass, operand distributions, and calibration scales.",
+            "The paper-note evidence positions CiMLoop as adjacent to NeuroSim, MNSIM, and fixed accelerator simulators, but its boundary is different: Timeloop mappings and Accelergy component actions rather than a C++ device/circuit simulator or PyTorch nonideality wrapper."
+          ],
+          "boundary": "Keep this separate from the NeuroSim-centered lineage. CiMLoop belongs in the same analog modeling cluster because it names overlapping hardware and nonideality objects, but its artifact contract is a Timeloop/Accelergy configuration and mapping-search surface.",
+          "next_checks": [
+            "Inspect representative CiMLoop YAML/Jinja examples before claiming stable field names beyond the current paper note.",
+            "Compare CiMLoop's per-component reuse/coalescing directives with NeuroSim/GENIEx modeling boundaries to identify which abstractions could become a cross-tool comparison table.",
+            "Check whether CiMLoop reproduction notebooks expose generated result schemas suitable for future detail-page evidence."
+          ],
+          "source_links": [
+            {
+              "label": "CiMLoop repository",
+              "url": "https://github.com/mit-emze/cimloop"
+            },
+            {
+              "label": "CiMLoop project page",
+              "url": "https://emze.csail.mit.edu/cimloop"
+            },
+            {
+              "label": "CiMLoop paper",
+              "url": "https://arxiv.org/abs/2405.07259"
+            }
+          ]
         }
       ],
       "related_cluster_ids": ["crossbar-dnn-compiler-simulator-line"]
