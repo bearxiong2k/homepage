@@ -67,7 +67,7 @@ npm run smoke:website -- --fast
 - `/library/` is the full atlas app.
 - `/papers/[slug]/` are paper notes.
 
-The next active research direction is cluster analysis and coarse academic working-group investigation. See `docs/archive/cluster-analysis-working-groups.md`.
+The current active research direction is tracked in `docs/active-context.md`. The original cluster-analysis seed is archived at `docs/archive/2026-05-cluster-analysis-working-groups-seed.md`.
 
 ## Non-goals
 

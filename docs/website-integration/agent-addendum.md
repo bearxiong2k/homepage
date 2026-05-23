@@ -1,6 +1,6 @@
 # Agent Addendum: Website Integration Contract
 
-Read this after `AGENTS.md` and `docs/future-development-plan.md`.
+Read this only for website-integration work. Start with `AGENTS.md`, `docs/active-context.md`, and `docs/website-integration/README.md`; then read this addendum if implementation details are needed.
 
 ## Product status
 
@@ -8,7 +8,7 @@ This repository is now a personal static website that contains the CIM Library a
 
 The shell direction is quiet academic: serif type, plain rules, restrained green/blue links, and a clear route hierarchy. The homepage is the merged profile/about page and should stay concise. Project detail starts at `/projects/`; the atlas and future project routes can keep distinct project-specific UI styles when that improves reader expectations.
 
-The active next research direction is cluster analysis and coarse academic working-group investigation. See `docs/archive/cluster-analysis-working-groups.md`.
+The active research direction is tracked in `docs/active-context.md`. The original cluster-analysis seed is archived at `docs/archive/2026-05-cluster-analysis-working-groups-seed.md`.
 
 ## Constraints
 

@@ -24,7 +24,7 @@ This project began as a generated standalone HTML atlas plus compact source note
 - Do not restore the old visual totals as quality rankings.
 - If a future task asks for "original paper overview", first check the embedded records in the legacy HTML, then cross-check the matching compact note.
 - If a future task asks for "coverage score", treat it as a legacy-atlas request unless the user explicitly asks to reintroduce coverage metadata.
-- The raw-note migration and atlas-core milestones are complete. Current product focus lives in `docs/future-development-plan.md`.
+- The raw-note migration and atlas-core milestones are complete. Compact current state lives in `docs/active-context.md`; detailed roadmap context lives in `docs/future-development-plan.md`.
 
 ## Future Paper Import Order
 

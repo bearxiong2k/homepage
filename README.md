@@ -32,6 +32,9 @@ src/lib/rehypeMathDelimiters.mjs note math display cleanup
 scripts/validate-library.mjs frontmatter/reference checks
 scripts/scaffold-paper.mjs   create a new paper stub
 AGENTS.md                    project instructions for future Codex runs
+docs/README.md               documentation map and context routing
+docs/active-context.md       compact current project state
+docs/iteration-docs-playbook.md docs maintenance workflow
 docs/corpus-note-harness.md  paper-note conversion harness
 docs/website-integration/    static website integration contract
 docs/legacy-source-map.md    where to recover legacy atlas/source details
@@ -70,7 +73,7 @@ npm run new:paper -- cim-mlc "CIM-MLC"
 
 For full note conversion, use `docs/corpus-note-harness.md`. Legacy seed material is intentionally preserved in `src/content/legacy/`; `docs/legacy-source-map.md` explains which file to consult for compact notes, original overview text, and old atlas behavior.
 
-If raw notes are imported in the future, use `docs/future-development-plan.md` before running full build checks. Raw notes must be promoted to frontmatter-backed content entries before `npm run validate` can pass.
+If raw notes are imported in the future, use `docs/corpus-note-harness.md` and `docs/metadata-template.md` before running full build checks. Raw notes must be promoted to frontmatter-backed content entries before `npm run validate` can pass.
 
 ## Visualization behavior
 
@@ -86,6 +89,8 @@ npm run contract:website
 npm run smoke:website -- --fast
 ```
 
-The next development direction returns to cluster analysis and broad academic working-group investigation. The seed roadmap is in `docs/archive/cluster-analysis-working-groups.md`.
+The active development direction is cluster analysis and broad academic working-group investigation. Use `docs/active-context.md` for the compact current state. The original seed roadmap is archived at `docs/archive/2026-05-cluster-analysis-working-groups-seed.md`.
 
 The active visual direction is a quiet academic homepage with one small top nav. The homepage is the merged profile/about page; project detail starts at `/projects/`. Project modules can use their own visual surfaces, and the CIM atlas intentionally keeps its card/control/graph-heavy interface inside `/library/`.
+
+For docs maintenance, use `docs/iteration-docs-playbook.md`. New sessions should not bulk-read all docs; use `docs/README.md` to select task-specific context.

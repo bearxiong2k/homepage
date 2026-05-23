@@ -2,6 +2,8 @@
 
 Status: archived seed, reactivated for the next iteration.
 
+Default-context policy: Do not read by default. Read when recovering the original cluster-analysis idea, checking guardrails, or extending the current `/clusters/` layer beyond the implemented data in `src/data/clusters.json`.
+
 This roadmap was archived during the website-integration pass. The next iteration should re-open it as the seed for a concrete cluster-analysis and coarse academic working-group plan.
 
 ## Archived Goal

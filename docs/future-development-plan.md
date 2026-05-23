@@ -1,5 +1,7 @@
 # Future Development Plan
 
+Default-context policy: Do not read by default. Use `docs/active-context.md` for compact session state and read this file only when changing roadmap, cluster-analysis scope, or active project direction.
+
 ## Current State
 
 This is a static Astro paper library for CIM compiler/IR-stack research.
@@ -53,11 +55,11 @@ Implemented:
 - wider desktop paper-note reading layout;
 - static atlas manifest export and website contract checks.
 
-The brief archive for this iteration is `docs/archive/personal-website-integration-iteration.md`.
+The brief archive for this iteration is `docs/archive/2026-05-personal-website-integration-iteration.md`.
 
 ## Next Focus -- Cluster Analysis and Working Groups
 
-The first-pass cluster-analysis and academic-working-group layer has been reactivated from `docs/archive/cluster-analysis-working-groups.md`.
+The first-pass cluster-analysis and academic-working-group layer has been reactivated from `docs/archive/2026-05-cluster-analysis-working-groups-seed.md`.
 
 Implemented first pass:
 
@@ -86,7 +88,7 @@ Working-group investigation depth has started for:
 - NeuroSim-centered analog CIM modeling artifacts;
 - SAFARI / UPMEM real-hardware runtime and benchmark artifacts;
 - UVA LavaLab PIMeval-to-PIMsynth API/compiler artifacts;
-- HARMONI as the public LLM memory-hierarchy modeling anchor.
+- HARMONI as the public LLM memory-hierarchy modeling anchor;
 - LLM serving and near-memory runtime-state comparison set;
 - public full-stack artifact boundary comparison set.
 

@@ -2,7 +2,7 @@
 
 Use this harness when converting one CIM stack paper into a public corpus note.
 
-The 62-entry raw-note migration is complete. Use this harness only when adding a new paper or substantially revising an existing note. Use `docs/future-development-plan.md` for product/UI work.
+The 62-entry raw-note migration is complete. Use this harness only when adding a new paper or substantially revising an existing note. Use `docs/README.md` to choose context for product, UI, cluster, or website work.
 
 ## Input Contract
 

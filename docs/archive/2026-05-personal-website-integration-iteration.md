@@ -2,6 +2,8 @@
 
 Status: largely done.
 
+Default-context policy: Do not read by default. Read when changing website shell, project routes, registry/manifest contract, homepage structure, or project-page structure.
+
 This iteration moved the CIM Library from a standalone atlas scaffold into a static personal website shell.
 
 Completed:
