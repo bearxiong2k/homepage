@@ -170,45 +170,45 @@ const axisCategories = axisCategorySets(taxonomy);
   const svgNS = 'http://www.w3.org/2000/svg';
   const atlasProfiles = {
     ab: {
-      width: 1180,
-      height: 660,
-      xLeft: 126,
-      xRight: 1110,
-      yTop: 105,
-      yBottom: 592,
-      xLabelY: 34,
-      xSubLabelY: 58,
-      yCodeX: 24,
-      yLabelX: 62,
-      gridTop: 76,
-      gridBottom: 615,
-      gridLeft: 100,
-      gridRight: 1136,
-      fontCode: 20,
-      fontLabel: 16,
-      nodeR: 12,
-      hoverR: 20,
-      nodeFont: 12,
+      width: 1320,
+      height: 720,
+      xLeft: 158,
+      xRight: 1248,
+      yTop: 126,
+      yBottom: 648,
+      xLabelY: 38,
+      xSubLabelY: 63,
+      yCodeX: 58,
+      yLabelX: 58,
+      gridTop: 86,
+      gridBottom: 680,
+      gridLeft: 120,
+      gridRight: 1278,
+      fontCode: 18,
+      fontLabel: 13,
+      nodeR: 10.5,
+      hoverR: 17,
+      nodeFont: 10.5,
       hoverFont: 13
     },
     cd: {
-      width: 1240,
-      height: 720,
-      xLeft: 190,
-      xRight: 1182,
-      yTop: 128,
-      yBottom: 646,
-      xLabelY: 92,
-      yLabelX: 18,
-      gridTop: 108,
-      gridBottom: 675,
-      gridLeft: 160,
-      gridRight: 1202,
-      fontCode: 15,
-      fontLabel: 15,
-      nodeR: 12,
-      hoverR: 20,
-      nodeFont: 12,
+      width: 1380,
+      height: 780,
+      xLeft: 226,
+      xRight: 1308,
+      yTop: 148,
+      yBottom: 704,
+      xLabelY: 54,
+      yLabelX: 24,
+      gridTop: 124,
+      gridBottom: 742,
+      gridLeft: 190,
+      gridRight: 1338,
+      fontCode: 13,
+      fontLabel: 13,
+      nodeR: 10.5,
+      hoverR: 17,
+      nodeFont: 10.5,
       hoverFont: 13
     }
   };
@@ -274,11 +274,11 @@ const axisCategories = axisCategorySets(taxonomy);
     if (current) lines.push(current);
     return lines.slice(0, 2);
   };
-  const appendText = (parent, attrs = {}, text = '', lines = null) => {
+  const appendText = (parent, attrs = {}, text = '', lines = null, lineDy = 15) => {
     const el = node('text', attrs);
     const textLines = lines ?? [text];
     textLines.forEach((line, index) => {
-      const tspan = node('tspan', { x: attrs.x, dy: index === 0 ? 0 : 15 }, line);
+      const tspan = node('tspan', { x: attrs.x, dy: index === 0 ? 0 : lineDy }, line);
       el.append(tspan);
     });
     parent.append(el);
@@ -322,7 +322,7 @@ const axisCategories = axisCategorySets(taxonomy);
       sorted.forEach((paper, index) => {
         const ring = Math.ceil(Math.sqrt(index + 1));
         const angle = (index * 2.399963229728653) % (Math.PI * 2);
-        const scale = n > 10 ? 10 : 13;
+        const scale = n > 14 ? 8.5 : n > 8 ? 10 : 11.5;
         positions.set(paper.slug, {
           dx: Math.cos(angle) * ring * scale,
           dy: Math.sin(angle) * ring * scale
@@ -586,11 +586,12 @@ const axisCategories = axisCategorySets(taxonomy);
     svg.setAttribute('viewBox', `0 0 ${profile.width} ${profile.height}`);
     svg.append(node('rect', { x: 0, y: 0, width: profile.width, height: profile.height, rx: 16, fill: '#fbfcff' }));
     if (atlasLayout === 'cd') {
-      objectCategories.forEach((category) => {
+      objectCategories.forEach((category, index) => {
         const x = xForObject(category);
         const label = shortCategory(category);
+        const labelY = profile.xLabelY + (index % 2) * 34;
         svg.append(node('line', { x1: x, y1: profile.gridTop, x2: x, y2: profile.gridBottom, stroke: '#dce4ef', 'stroke-width': 1 }));
-        appendText(svg, { x, y: profile.xLabelY, transform: `rotate(-28 ${x} ${profile.xLabelY})`, 'text-anchor': 'end', 'font-size': profile.fontLabel, 'font-weight': 900, fill: '#24364f' }, label, splitLabel(label, 11));
+        appendText(svg, { x, y: labelY, 'text-anchor': 'middle', 'font-size': profile.fontLabel, 'font-weight': 900, fill: '#24364f' }, label, splitLabel(label, 10), 12);
       });
       rewriteCategories.forEach((category) => {
         const y = yForRewrite(category);
@@ -607,8 +608,8 @@ const axisCategories = axisCategorySets(taxonomy);
       middleCodes.forEach((code) => {
         const y = yForMiddle(code);
         svg.append(node('line', { x1: profile.gridLeft, y1: y, x2: profile.gridRight, y2: y, stroke: '#dce4ef', 'stroke-width': 1 }));
-        appendText(svg, { x: profile.yCodeX, y: y + 5, 'font-size': profile.fontCode, 'font-weight': 900, fill: '#24364f' }, code);
-        appendText(svg, { x: profile.yLabelX, y: y + 5, 'font-size': profile.fontLabel, fill: '#607086' }, middles[code].short);
+        appendText(svg, { x: profile.yCodeX, y: y - 8, 'text-anchor': 'middle', 'font-size': profile.fontCode, 'font-weight': 900, fill: '#24364f' }, code);
+        appendText(svg, { x: profile.yLabelX, y: y + 11, 'text-anchor': 'middle', 'font-size': profile.fontLabel, fill: '#607086' }, middles[code].short, splitLabel(middles[code].short, 12), 12);
       });
     }
     if (!filtered.length) {

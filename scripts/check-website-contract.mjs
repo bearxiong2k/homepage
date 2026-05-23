@@ -97,7 +97,7 @@ if (exists('src/data/project-registry.json')) {
     }
   }
 } else {
-  warn('src/data/project-registry.json not found. Run node scripts/install-website-devkit.mjs.');
+  warn('src/data/project-registry.json not found. Add the static project registry before extending the website shell.');
 }
 
 const manifestPath = 'public/cim-library.manifest.json';

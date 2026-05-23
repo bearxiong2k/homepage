@@ -28,20 +28,47 @@
   ],
   "publications": [
     {
+      "title": "ASMA: An Anisotropy Scaling Memristor-Based Accelerator for LLM Inference",
+      "venue": "IEEE International Conference on Computer Design",
+      "year": 2025,
+      "pages": "562-565",
+      "role": "first author",
+      "url": "https://doi.org/10.1109/ICCD65941.2025.00086"
+    },
+    {
+      "title": "Detection of Biomolecules Using Solid-State Nanopores Fabricated by Controlled Dielectric Breakdown",
+      "authors": [
+        "Peng Cheng",
+        "Candong Zhao",
+        "Qinjie Pan",
+        "Zijian Xiong",
+        "Qi Chen",
+        "Xiangshui Miao",
+        "Yuhui He"
+      ],
+      "venue": "Sensors",
+      "year": 2024,
+      "details": "24(8), Article 2420",
+      "url": "https://doi.org/10.3390/s24082420"
+    },
+    {
       "title": "Advances in nano-channel energy harvesting and computing system",
       "venue": "IEEE Asia Conference on Power and Electrical Engineering",
       "year": 2024,
-      "role": "first author"
+      "role": "first author",
+      "url": "https://ieeexplore.ieee.org/document/10532757"
     },
     {
       "title": "Simulation and optimization of a miniaturized ion source for a neutron tube",
       "venue": "Physical Review Accelerators and Beams",
-      "year": 2022
+      "year": 2022,
+      "url": "https://doi.org/10.1103/PhysRevAccelBeams.25.103501"
     },
     {
       "title": "Thermal research of a single crystal tungsten target positron source for the STCF project in China",
       "venue": "Nuclear Instruments and Methods in Physics Research, Section A",
-      "year": 2022
+      "year": 2022,
+      "url": "https://doi.org/10.1016/j.nima.2022.167107"
     }
   ]
 }

@@ -42,7 +42,8 @@ For homepage, project index, and project landing pages:
 - The `/library/` link should remain prominent.
 - `/papers/[slug]/` links should remain stable.
 - The homepage should summarize the atlas; it should not try to embed the whole atlas UI.
-- The website shell should use one top nav and one homepage DAG-like index. Avoid adding separate CTA clusters that compete with that index.
+- The website shell should use one top nav and a clear route hierarchy. Avoid explicit graph/index widgets on the homepage unless there is enough site content to justify them.
+- The homepage is currently merged with the profile/about page. Keep project detail on `/projects/` and project landing pages.
 - Project modules may use their own visual systems. Card-heavy atlas/project pages are acceptable when they are entered through the shell and keep stable routes back to the project/index structure.
 
 ## UI viewport checklist

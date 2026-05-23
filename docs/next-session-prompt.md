@@ -5,55 +5,41 @@ Use this prompt to start the next Codex session.
 ```text
 We are in /Users/xiongzijian/coding/CIM-library.
 
-This is a static Astro CIM compiler/IR paper library being initialized as a project module inside a personal website. Read AGENTS.md first, then docs/future-development-plan.md, docs/website-integration/README.md, docs/website-integration/plan.md, docs/website-integration/agent-addendum.md, docs/corpus-note-harness.md, and docs/metadata-template.md.
+This is a static Astro CIM compiler/IR paper library inside a personal website shell. Read AGENTS.md first, then docs/future-development-plan.md, docs/archive/cluster-analysis-working-groups.md, docs/corpus-note-harness.md, and docs/metadata-template.md.
 
 Current state:
 - src/content/papers contains 62 schema-valid Markdown paper entries; no raw corpus notes remain.
-- / is now a personal research homepage for Zijian Xiong, using src/data/profile.json plus project/manifest data.
-- The active visual direction for the website shell is a quiet academic personal site: serif type, plain page rules, restrained green/blue links, and a single DAG-like homepage index.
-- Keep navigation close to the David Tong pattern: one simple top nav plus one main index graph. Internal links are fine, but avoid repeated CTA groups or multiple competing local navigation systems on the same shell page.
-- Project modules may use distinct UI surfaces. The CIM atlas can keep its richer card/control/graph style, and future project pages may use different visual systems when that helps readers know what type of project they are entering.
-- /about/ is the profile page for research focus, education, selected publications, and public contact.
+- / is the concise merged personal homepage/profile page.
 - /projects/ is the project index sourced from src/data/project-registry.json.
 - /projects/cim-library/ is the narrative landing page for the CIM Library project.
 - /library/ is the stable full atlas route and must remain available.
 - /papers/[slug]/ renders individual long-form corpus notes and must remain stable.
+- The website-shell iteration is largely done and archived at docs/archive/personal-website-integration-iteration.md.
+- docs/website-integration/ now records the static registry/manifest contract; its installer/templates/session-report scaffolding has been removed.
+- src/data/profile.json contains linked selected publications, including ASMA 2025, ACPEE 2024, Sensors 2024, PRAB 2022, and NIM-A 2022.
 - The public metadata contract is descriptive. Do not add coverage scores, ranking scores, or trajectory_IR_relevance.
 - Axis C/D normalization is render-time only through src/lib/axisNormalization.ts and src/data/taxonomy.json; do not weaken src/content.config.ts.
-- Detail pages include provenance/source affordances, normalized Axis C/D chips, context chips, note outline, scan metadata, and Markdown math display cleanup through src/lib/rehypeMathDelimiters.mjs.
-- Website dev kit docs are installed under docs/website-integration/.
-- Website integration scripts are installed: export:atlas, contract:website, and smoke:website.
-- src/data/project-registry.json is initialized with the CIM Library project entry.
-- src/data/profile.json contains homepage profile facts distilled from local cv.pdf.
-- Treat cv.pdf as a profile source, not as a deploy asset. Do not move it into public/ or expose phone/address details unless the user explicitly asks for CV publishing.
-- The previous cluster-analysis and academic-working-group roadmap is archived at docs/archive/cluster-analysis-working-groups.md. Do not use it as active context unless the user explicitly reactivates it.
+- /library/ atlas sizing has been tightened: Axis A/B uses a wider coordinate system, smaller node initials, and stacked B-row labels; Axis C/D uses a wider coordinate system with two-row staggered Axis C labels.
+- /papers/[slug]/ note pages use a wider desktop reading column and single-column mobile behavior.
 
 Current goal:
-- Polish and verify the personal website shell around the CIM Library using the website dev kit.
-- Keep the CIM atlas as a first-class project module, not a small embedded widget.
-- Preserve /library/ and /papers/[slug]/ routes.
-- Keep the academic shell and project-module visual systems coherent but not identical.
+- Reactivate the cluster-analysis and academic-working-group investigation from docs/archive/cluster-analysis-working-groups.md.
+- The likely output is a new static cluster page or project subpage, but decide the route before implementation.
+- The working-group layer should be coarse and evidence-based: vague groups that produced clusters of works and occasional cross-group cooperation, not detailed affiliation or author-network maps.
 
 Good next steps:
-1. Run npm run smoke:website -- --fast to confirm the installed dev kit baseline.
-2. Review /, /about/, /projects/, and /projects/cim-library/ in browser viewports and tighten layout/content where needed.
-3. Decide whether to add publication links or a public CV download later; do not expose phone/address details by default.
-4. Add more project-registry entries only when real future projects have a stable route and manifest/story.
-5. Use public/cim-library.manifest.json for atlas stats instead of copying paper counts by hand.
-6. Keep existing atlas/detail-page maintenance incremental and secondary.
-
-Implementation guidance:
-- Use current frontmatter and src/data/taxonomy.json as source of truth for atlas content.
-- Use src/data/project-registry.json as source of truth for website project cards.
-- Use src/data/profile.json for profile/homepage copy.
-- Use public/cim-library.manifest.json, generated by npm run export:atlas, for atlas stats and summaries.
-- Keep the site static and schema-compatible unless there is a clear reason to change the schema.
-- Keep legacy files intact unless explicitly asked to archive or rewrite them.
-- Re-run npm run qa, npm run validate, npm run export:atlas, npm run contract:website, npm run check, and npm run build after edits.
+1. Re-read docs/archive/cluster-analysis-working-groups.md and turn it into a concrete first-pass plan.
+2. Decide the route: /clusters/ or /projects/cim-library/clusters/.
+3. Prototype one or two high-confidence clusters before generalizing.
+4. Decide whether cluster metadata belongs in src/data/clusters.json, derived helpers, or annotations attached to project data.
+5. Define cautious working-group fields: label, evidence, representative papers, uncertainty, related groups.
+6. Link clusters back to scoped /library/ views instead of duplicating the atlas.
+7. Run npm run qa, npm run validate, npm run export:atlas, npm run contract:website, npm run check, and npm run build after edits.
 
 Report:
-- What website-shell, project-registry, manifest, route, or atlas changes were made;
-- Browser viewport checks if UI changed;
-- qa/validate/export:atlas/contract:website/check/build results;
-- Remaining follow-up items.
+- cluster data/model decisions;
+- route and UI changes;
+- evidence limits or uncertain group labels;
+- browser viewport checks if UI changed;
+- qa/validate/export:atlas/contract:website/check/build results.
 ```

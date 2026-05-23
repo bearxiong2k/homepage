@@ -1,31 +1,31 @@
-# Website + Atlas Integration Plan
+# Website + Atlas Integration Record
 
 ## Goal
 
-Make the CIM atlas feel like a polished project inside your personal website while preserving it as a reusable, static, research-facing module.
+Record the completed website-shell integration for the CIM atlas while preserving it as a reusable, static, research-facing module.
 
-The website shell should feel like a quiet academic personal site: serif typography, plain rules, restrained links, and one primary DAG-like index from the homepage. The CIM atlas and future project routes may use distinct UI styles, including card-heavy project surfaces, when that makes the project type clearer.
+The website shell should feel like a quiet academic personal site: serif typography, plain rules, restrained links, and a clear hierarchy. The homepage should stay concise and merged with the profile/about content. Project detail belongs under `/projects/`, and the CIM atlas plus future project routes may use distinct UI styles when that makes the project type clearer.
 
-## Phase 0: protect the current atlas baseline
+## Protect the atlas baseline
 
 - Keep `npm run qa`, `npm run validate`, `npm run check`, and `npm run build` green.
 - Do not weaken `src/content.config.ts` to pass malformed entries.
 - Preserve the current paper corpus and taxonomy vocabulary unless there is a deliberate content change.
 - Keep `/library/` and `/papers/[slug]/` stable so external links do not break.
 
-## Phase 1: add the website shell
+## Completed shell
 
 Target routes:
 
-- `/`: personal homepage with name, research focus, a DAG-like index, featured projects, and selected writing.
+- `/`: concise personal homepage with name, research focus, education, selected publications, contact, and a route to `/projects/`.
 - `/projects/`: grid/list of project cards read from `src/data/project-registry.json`.
 - `/projects/cim-library/`: project landing page explaining why the atlas exists, what it covers, how to use it, and how it is maintained.
 - `/library/`: full atlas app.
 - `/papers/[slug]/`: detail notes.
 
-The homepage should not duplicate the atlas UI. It should introduce the project and route visitors to the full atlas.
+The homepage should not duplicate the atlas UI or the project landing page. It should introduce the person and route visitors to `/projects/`.
 
-## Phase 2: stabilize the project registry
+## Project registry
 
 Create or maintain `src/data/project-registry.json` with one entry per project. A project entry should include:
 
@@ -42,7 +42,7 @@ Create or maintain `src/data/project-registry.json` with one entry per project. 
 
 The registry is for website navigation and project cards. The atlas manifest is for project-specific statistics and content summaries.
 
-## Phase 3: export the CIM atlas manifest
+## Atlas manifest
 
 Run:
 
@@ -61,7 +61,7 @@ The manifest should include:
 
 Use the generated manifest for homepage cards such as "62 papers classified", "Axis A x B atlas", or "active research corpus" without importing Astro content directly into every page.
 
-## Phase 4: improve paper-detail trust and scanability
+## Paper-detail trust and scanability
 
 Prioritize:
 
@@ -72,7 +72,7 @@ Prioritize:
 - mobile behavior for long titles, tables, code blocks, and sidebars;
 - back-links preserving atlas filter/selection context where practical.
 
-## Phase 5: add reusable future-project templates
+## Future project pattern
 
 For every future project, add:
 
@@ -87,6 +87,8 @@ scripts/export-<project-id>-manifest.mjs
 
 A future project does not need to be a paper atlas, but it should be statically exportable and summarized through the same registry.
 
-## Phase 6: only split repositories if necessary
+The old template files and installer were removed after initialization. Use the live CIM Library project files as the reference implementation.
+
+## Repository split guidance
 
 Stay in one Astro repo while the website and atlas are both small enough to maintain together. Split later only if a project needs a different build system, large assets, independent releases, or private work-in-progress history.

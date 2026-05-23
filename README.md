@@ -11,7 +11,7 @@ Paper library
 ├── personal homepage and project shell under src/pages/
 ├── public atlas app at /library/
 ├── project registry in src/data/project-registry.json
-├── website integration docs in docs/website-integration/
+├── completed website integration contract in docs/website-integration/
 └── static hosting on a personal website
 ```
 
@@ -23,7 +23,6 @@ Paper metadata lives in each Markdown file's YAML frontmatter. The Markdown body
 src/content/papers/          paper notes with structured frontmatter
 src/data/taxonomy.json       Axis A/B plus object/rewrite vocabulary
 src/pages/index.astro        personal homepage
-src/pages/about.astro        profile page
 src/pages/projects/          project index and CIM Library landing page
 src/pages/library.astro      stable atlas route
 src/pages/papers/[slug].astro dynamic paper route
@@ -34,7 +33,7 @@ scripts/validate-library.mjs frontmatter/reference checks
 scripts/scaffold-paper.mjs   create a new paper stub
 AGENTS.md                    project instructions for future Codex runs
 docs/corpus-note-harness.md  paper-note conversion harness
-docs/website-integration/    personal website dev kit
+docs/website-integration/    static website integration contract
 docs/legacy-source-map.md    where to recover legacy atlas/source details
 docs/next-session-prompt.md  concise restart context
 public/cim-library.manifest.json generated atlas manifest
@@ -77,9 +76,9 @@ If raw notes are imported in the future, use `docs/future-development-plan.md` b
 
 The atlas supports Axis A x Axis B and normalized Axis C x Axis D views. The selected-paper panel and paper detail pages expose summary metadata, provenance, normalized object/rewrite categories, context facets, and links into scoped atlas views. The active schema does not use coverage scores or ranking metrics.
 
-## Website integration
+## Website integration and next research layer
 
-The active development direction is a personal static website shell that treats the CIM Library as a first-class project module. The installed dev kit defines the registry/manifest contract:
+The personal static website shell now treats the CIM Library as a first-class project module. The retained integration checks define the registry/manifest contract:
 
 ```bash
 npm run export:atlas
@@ -87,6 +86,6 @@ npm run contract:website
 npm run smoke:website -- --fast
 ```
 
-The archived cluster-analysis roadmap is in `docs/archive/cluster-analysis-working-groups.md` and should not guide current work unless reactivated.
+The next development direction returns to cluster analysis and broad academic working-group investigation. The seed roadmap is in `docs/archive/cluster-analysis-working-groups.md`.
 
-The active visual direction is a quiet academic homepage with one top nav and one main DAG-like index. Project modules can use their own visual surfaces; the CIM atlas intentionally keeps its card/control/graph-heavy interface inside `/library/`.
+The active visual direction is a quiet academic homepage with one small top nav. The homepage is the merged profile/about page; project detail starts at `/projects/`. Project modules can use their own visual surfaces, and the CIM atlas intentionally keeps its card/control/graph-heavy interface inside `/library/`.

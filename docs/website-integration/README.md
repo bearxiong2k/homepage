@@ -1,10 +1,10 @@
-# Website Integration Dev Kit
+# Website Integration Contract
 
 ## Purpose
 
-This kit gives the repository a stable integration surface so the CIM paper atlas can become one project inside your personal website, and so future research atlases can follow the same pattern.
+These notes record the stable integration surface that lets the CIM paper atlas behave as one project inside a personal website, and gives future research modules a similar registry/manifest pattern.
 
-The current repo should remain a static Astro site. The atlas content source stays in Markdown frontmatter under `src/content/papers/`; taxonomy vocabulary stays in `src/data/taxonomy.json`; the main atlas route remains `/library/`; individual papers remain under `/papers/[slug]/`.
+The initialization pass is complete. Treat this directory as maintenance context, not as active scaffolding. The repo should remain a static Astro site. The atlas content source stays in Markdown frontmatter under `src/content/papers/`; taxonomy vocabulary stays in `src/data/taxonomy.json`; the main atlas route remains `/library/`; individual papers remain under `/papers/[slug]/`.
 
 ## Recommended architecture
 
@@ -59,13 +59,15 @@ npm run smoke:website -- --fast
 
 `--fast` skips Astro `check` and `build`, but still validates content, exports the manifest, and checks the website contract.
 
-## What to build first
+## Current shell
 
-1. Add or polish `/` as your personal homepage.
-2. Add `/projects/` and `/projects/cim-library/` using the project registry.
-3. Keep `/library/` as the full atlas app.
-4. Improve paper detail pages and provenance affordances.
-5. Add the same registry/manifest pattern for future projects.
+- `/` is the concise merged homepage/profile page.
+- `/projects/` is the project index.
+- `/projects/cim-library/` is the narrative landing page for this atlas.
+- `/library/` is the full atlas app.
+- `/papers/[slug]/` are paper notes.
+
+The next active research direction is cluster analysis and coarse academic working-group investigation. See `docs/archive/cluster-analysis-working-groups.md`.
 
 ## Non-goals
 

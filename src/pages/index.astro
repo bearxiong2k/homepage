@@ -1,15 +1,30 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import ProjectCard from '../components/ProjectCard.astro';
 import profile from '../data/profile.json';
-import projects from '../data/project-registry.json';
-import cimManifest from '../../public/cim-library.manifest.json';
 
-const featuredProjects = projects.filter((project) => project.featured);
+function publicationMeta(publication: {
+  venue: string;
+  year: number;
+  details?: string;
+  pages?: string;
+  role?: string;
+}) {
+  return [
+    publication.venue,
+    publication.year,
+    publication.details,
+    publication.pages ? `pp. ${publication.pages}` : null,
+    publication.role
+  ].filter(Boolean).join(' / ');
+}
+
+function publicationAuthors(publication: { authors?: string[] }) {
+  return publication.authors?.length ? publication.authors.join(', ') : '';
+}
 ---
 
 <BaseLayout
-  title={`${profile.name} | Research and Projects`}
+  title={`${profile.name} | Research`}
   description={`${profile.name} is a Ph.D. student at ${profile.institution} working on Compute-in-Memory architecture, memristor devices, and research tooling.`}
 >
   <main class="site-home">
@@ -18,108 +33,68 @@ const featuredProjects = projects.filter((project) => project.featured);
       <h1>{profile.name}</h1>
       <p class="native-name">{profile.native_name}</p>
       <p>{profile.profile_summary}</p>
+      <div class="profile-contact">
+        <a href={`mailto:${profile.email}`}>{profile.email}</a>
+        <span>{profile.location}</span>
+        <span>{profile.institution}</span>
+      </div>
     </header>
 
-    <nav class="wrap dag-index" aria-labelledby="site-index">
-      <div class="dag-index__head">
-        <h2 id="site-index">Index</h2>
-        <p>Read the site as a small dependency graph: profile context leads into projects, and projects lead into their own tools and notes.</p>
-      </div>
-      <ol class="dag-index__graph">
-        <li class="dag-node dag-node--profile">
-          <span>01 / person</span>
-          <a href="/about/">Profile</a>
-          <p>research focus, education, publications, contact</p>
-        </li>
-        <li class="dag-node dag-node--projects">
-          <span>02 / project registry</span>
-          <a href="/projects/">Projects</a>
-          <p>static research systems and development tools</p>
-        </li>
-        <li class="dag-node dag-node--cim">
-          <span>03 / project module</span>
-          <a href="/projects/cim-library/">CIM Library project</a>
-          <p>why the atlas exists and how it is maintained</p>
-        </li>
-        <li class="dag-node dag-node--atlas">
-          <span>04 / application</span>
-          <a href="/library/">CIM atlas</a>
-          <p>{cimManifest.stats.paper_count} papers classified across Axis A/B/C/D</p>
-        </li>
-        <li class="dag-node dag-node--notes">
-          <span>05 / corpus notes</span>
-          <a href="/papers/cimflow/">Representative paper notes</a>
-          <p>individual Markdown entries under stable slugs</p>
-        </li>
-      </ol>
-    </nav>
-
-    <section class="wrap home-grid" aria-label="Research map">
-      <div class="profile-panel">
-        <p class="eyebrow eyebrow--dark">Research Map</p>
-        <h2>Computing systems from devices to compiler abstractions</h2>
-        <ul class="thread-list">
-          <li>
-            <span>Device behavior</span>
-            <a href="/about/">memristor and 2D-material computing</a>
-          </li>
-          <li>
-            <span>Architecture</span>
-            <a href="/projects/cim-library/">Compute-in-Memory stacks</a>
-          </li>
-          <li>
-            <span>Compiler objects</span>
-            <a href="/library/?layout=cd">first-class objects and rewrites</a>
-          </li>
-          <li>
-            <span>Corpus tooling</span>
-            <a href="/projects/">static atlases and registries</a>
-          </li>
+    <section class="wrap about-grid" aria-label="Profile details">
+      <article class="profile-panel about-panel">
+        <p class="eyebrow eyebrow--dark">Research Focus</p>
+        <h2>Current work</h2>
+        <ul class="focus-list focus-list--single">
+          {profile.research_focus.map((item) => <li>{item}</li>)}
         </ul>
-      </div>
+      </article>
 
-      <aside class="profile-panel profile-panel--compact">
-        <p class="eyebrow eyebrow--dark">Current Base</p>
-        <h2>{profile.institution}</h2>
-        <p>{profile.location}</p>
+      <aside class="profile-panel about-panel">
+        <p class="eyebrow eyebrow--dark">Education</p>
+        <h2>Training</h2>
+        <dl class="compact-facts">
+          {profile.education.map((item) => (
+            <div>
+              <dt>{item.period}</dt>
+              <dd>{item.degree}<span>{item.school} / {item.location}</span></dd>
+            </div>
+          ))}
+        </dl>
       </aside>
     </section>
 
-    <section class="wrap home-section" aria-labelledby="featured-projects">
+    <section class="wrap home-section" aria-labelledby="home-projects">
       <div class="section-title">
-        <h2 id="featured-projects">Featured project</h2>
-        <a class="inline-link" href="/projects/">All projects</a>
-      </div>
-      <div class="project-grid">
-        {featuredProjects.map((project) => <ProjectCard project={project} />)}
-      </div>
-    </section>
-
-    <section class="wrap home-section atlas-summary" aria-labelledby="atlas-summary-heading">
-      <div>
-        <p class="eyebrow eyebrow--dark">CIM Library Snapshot</p>
-        <h2 id="atlas-summary-heading">{cimManifest.stats.paper_count} papers across {cimManifest.stats.year_min}-{cimManifest.stats.year_max}</h2>
-        <p>The atlas organizes Compute-in-Memory compiler and IR work by stack role, middle-layer representation, first-class objects, and rewrite objects. Start from the <a href="/projects/cim-library/">project page</a>, open the <a href="/library/">full atlas</a>, or go directly to the <a href="/library/?layout=cd">Axis C/D view</a>.</p>
-      </div>
-      <div class="stat-board" aria-label="CIM Library statistics">
         <div>
-          <strong>{Object.keys(cimManifest.stats.axis_A_counts).length}</strong>
-          <span>Axis A roles</span>
+          <p class="eyebrow eyebrow--dark">Projects</p>
+          <h2 id="home-projects">Research projects live on the project index</h2>
         </div>
-        <div>
-          <strong>{Object.keys(cimManifest.stats.axis_B_counts).length}</strong>
-          <span>Axis B styles</span>
-        </div>
-        <div>
-          <strong>{Object.keys(cimManifest.stats.axis_C_object_vocab_counts).length}</strong>
-          <span>Object families</span>
-        </div>
-        <div>
-          <strong>{Object.keys(cimManifest.stats.axis_D_rewrite_type_counts).length}</strong>
-          <span>Rewrite families</span>
-        </div>
+        <a class="inline-link" href="/projects/">Open projects</a>
       </div>
     </section>
 
+    <section class="wrap home-section" aria-labelledby="home-publications">
+      <div class="section-title">
+        <div>
+          <p class="eyebrow eyebrow--dark">Selected Publications</p>
+          <h2 id="home-publications">Research record</h2>
+        </div>
+      </div>
+      <div class="publication-list publication-list--about">
+        {profile.publications.map((publication) => (
+          <article>
+            <h3>
+              {publication.url ? (
+                <a href={publication.url}>{publication.title}</a>
+              ) : (
+                publication.title
+              )}
+            </h3>
+            {publicationAuthors(publication) && <p class="publication-authors">{publicationAuthors(publication)}</p>}
+            <p>{publicationMeta(publication)}</p>
+          </article>
+        ))}
+      </div>
+    </section>
   </main>
 </BaseLayout>

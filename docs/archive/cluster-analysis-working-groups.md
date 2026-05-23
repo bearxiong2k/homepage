@@ -1,8 +1,8 @@
 # Archived Roadmap: Cluster Analysis and Working Groups
 
-Status: archived, inactive.
+Status: archived seed, reactivated for the next iteration.
 
-This roadmap is intentionally not part of the current development context. Re-open it only if the project direction returns to research-cluster visualization after the personal website integration work stabilizes.
+This roadmap was archived during the website-integration pass. The next iteration should re-open it as the seed for a concrete cluster-analysis and coarse academic working-group plan.
 
 ## Archived Goal
 

@@ -1,12 +1,14 @@
-# Agent Addendum: Personal Website Integration
+# Agent Addendum: Website Integration Contract
 
 Read this after `AGENTS.md` and `docs/future-development-plan.md`.
 
-## Product direction
+## Product status
 
-This repository should become a personal static website that contains the CIM Library as a first-class project module. The atlas should remain useful on its own, but the website shell should make it discoverable from a homepage, project index, and project landing page.
+This repository is now a personal static website that contains the CIM Library as a first-class project module. The atlas remains useful on its own, and the website shell makes it discoverable from the homepage, project index, and project landing page.
 
-The shell direction is quiet academic: serif type, plain rules, restrained green/blue links, and a single DAG-like homepage index. The atlas and future project routes can keep distinct project-specific UI styles when that improves reader expectations, as long as they remain integrated through the shared route and registry structure.
+The shell direction is quiet academic: serif type, plain rules, restrained green/blue links, and a clear route hierarchy. The homepage is the merged profile/about page and should stay concise. Project detail starts at `/projects/`; the atlas and future project routes can keep distinct project-specific UI styles when that improves reader expectations.
+
+The active next research direction is cluster analysis and coarse academic working-group investigation. See `docs/archive/cluster-analysis-working-groups.md`.
 
 ## Constraints
 

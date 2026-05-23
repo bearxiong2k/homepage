@@ -4,8 +4,7 @@
 
 | Route | Purpose | Notes |
 | --- | --- | --- |
-| `/` | Personal homepage | Should introduce you, your research interests, and featured projects. |
-| `/about/` | Profile page | Research focus, education, selected publications, and public contact. |
+| `/` | Personal homepage | Merged profile/about page: research focus, education, selected publications, contact, and route to projects. |
 | `/projects/` | Project index | Generated from `src/data/project-registry.json`. |
 | `/projects/cim-library/` | CIM Library landing page | Narrative project page; link to `/library/` and representative papers. |
 | `/library/` | Full CIM atlas | Keep this route stable for bookmarks and citations. |
@@ -21,7 +20,8 @@
 
 ## Navigation rules
 
-- Global navigation should be small: Home, Projects, CIM Library, About.
+- Global navigation should be small: Home, Projects, CIM Library.
+- Treat the route hierarchy as the index. Do not add an explicit graph/index widget on the homepage while the site has only one active project.
 - Project-local navigation can be richer: Atlas, Taxonomy, Papers, Sources, Changelog.
 - Do not make every atlas filter a top-level website navigation item.
 - Keep the atlas route independent enough that it can be linked directly from papers, README files, and CV/project pages.
