@@ -104,6 +104,12 @@ function splitFlowStep(step: string) {
     text: step.slice(separator + 1).trim()
   };
 }
+
+function proseList(items: string[]) {
+  if (items.length <= 1) return items.join('');
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+}
 ---
 
 <BaseLayout
@@ -221,121 +227,96 @@ function splitFlowStep(step: string) {
               </ol>
             </section>
 
-            <div class="cluster-cloud-grid">
-              <section>
-                <h3>Shared first-class objects</h3>
-                <div class="cloud-nodes">
-                  {cluster.shared_first_class_objects.map((item) => <span class="cloud-node object">{item}</span>)}
-                </div>
-              </section>
-              <section>
-                <h3>Shared rewrite objects</h3>
-                <div class="cloud-nodes">
-                  {cluster.shared_rewrite_objects.map((item) => <span class="cloud-node rewrite">{item}</span>)}
-                </div>
-              </section>
-            </div>
+            <section class="cluster-vocabulary" aria-label={`Object vocabulary for ${cluster.label}`}>
+              <h3>Object vocabulary</h3>
+              <p><b>First-class objects:</b> {proseList(cluster.shared_first_class_objects)}.</p>
+              <p><b>Rewrite objects:</b> {proseList(cluster.shared_rewrite_objects)}.</p>
+            </section>
 
             {relatedClusters(cluster).length ? (
               <section class="cluster-related" aria-label={`Related clusters for ${cluster.label}`}>
                 <h3>Related cluster notes</h3>
-                <div class="chip-row">
-                  {relatedClusters(cluster).map((related) => <a class="chip" href={`#${related.id}`}>{related.short_label}</a>)}
-                </div>
+                <p>
+                  {relatedClusters(cluster).map((related, index) => (
+                    <>
+                      {index > 0 ? ', ' : ''}
+                      <a href={`#${related.id}`}>{related.short_label}</a>
+                    </>
+                  ))}
+                </p>
               </section>
             ) : null}
 
-            <div class="cluster-lower-grid">
-              <section class="cluster-paper-section">
-                <div class="section-title">
-                  <h3>Representative and supporting papers</h3>
-                </div>
-                <div class="cluster-paper-list">
-                  {papers.map((item) => (
-                    <article class={cluster.representative_papers.includes(item.slug) ? 'is-representative' : undefined}>
-                      <div>
-                        <p>{paperLine(item)}</p>
-                        <h4><a href={item.route}>{item.title}</a></h4>
-                      </div>
-                      <span>{cluster.representative_papers.includes(item.slug) ? 'Representative' : 'Supporting'}</span>
-                    </article>
-                  ))}
-                </div>
-              </section>
-
-              <section class="cluster-detail-stack" aria-label={`Evidence details for ${cluster.label}`}>
-                <details open>
-                  <summary>Evidence in current corpus</summary>
-                  <ul class="plain-list">
-                    {cluster.evidence.map((item) => <li>{item}</li>)}
-                  </ul>
-                </details>
-
-                <details>
-                  <summary>Coarse working-group notes</summary>
-                  <div class="working-group-stack">
-                    {cluster.working_groups.map((group) => (
-                      <article>
-                        <h4>{group.label}</h4>
-                        <p><b>{group.relationship}</b></p>
-                        <p>{group.evidence}</p>
-                        <p class="subtle">{group.uncertainty}</p>
-                        <div class="chip-row">
-                          {group.representative_papers.map((slug) => <a class="chip" href={paper(slug).route}>{paper(slug).title}</a>)}
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                </details>
-
-                {investigationNotes(cluster).length ? (
-                  <details>
-                    <summary>Working-group investigation notes</summary>
-                    <div class="investigation-stack">
-                      {investigationNotes(cluster).map((note) => (
-                        <article>
-                          <div class="investigation-head">
-                            <h4>{note.label}</h4>
-                            <span>{note.status}</span>
-                          </div>
-                          <dl class="investigation-list">
-                            <div>
-                              <dt>Scope</dt>
-                              <dd>{note.scope}</dd>
-                            </div>
-                            <div>
-                              <dt>Why coherent</dt>
-                              <dd>{note.why_coherent}</dd>
-                            </div>
-                            <div>
-                              <dt>Boundary</dt>
-                              <dd>{note.boundary}</dd>
-                            </div>
-                          </dl>
-                          <div class="investigation-columns">
-                            <section>
-                              <h5>Continuity evidence</h5>
-                              <ul class="plain-list">
-                                {note.continuity_evidence.map((item) => <li>{item}</li>)}
-                              </ul>
-                            </section>
-                            <section>
-                              <h5>Next checks</h5>
-                              <ul class="plain-list">
-                                {note.next_checks.map((item) => <li>{item}</li>)}
-                              </ul>
-                            </section>
-                          </div>
-                          <div class="chip-row investigation-sources">
-                            {note.source_links.map((source) => <a class="chip" href={source.url}>{source.label}</a>)}
-                          </div>
-                        </article>
-                      ))}
+            <section class="cluster-paper-section">
+              <div class="section-title">
+                <h3>Representative and supporting papers</h3>
+              </div>
+              <div class="cluster-paper-list">
+                {papers.map((item) => (
+                  <article class={cluster.representative_papers.includes(item.slug) ? 'is-representative' : undefined}>
+                    <div>
+                      <p>{paperLine(item)}</p>
+                      <h4><a href={item.route}>{item.title}</a></h4>
                     </div>
-                  </details>
-                ) : null}
-              </section>
-            </div>
+                    <span>{cluster.representative_papers.includes(item.slug) ? 'Representative' : 'Supporting'}</span>
+                  </article>
+                ))}
+              </div>
+            </section>
+
+            <section class="cluster-article-section" aria-label={`Evidence and working-group analysis for ${cluster.label}`}>
+              <h3>Evidence and working-group analysis</h3>
+              <div class="cluster-prose-block">
+                <h4>Evidence in the current corpus</h4>
+                {cluster.evidence.map((item) => <p>{item}</p>)}
+              </div>
+
+              {cluster.working_groups.map((group) => (
+                <article class="cluster-prose-block working-group-article">
+                  <h4>{group.label}</h4>
+                  <p><b>{group.relationship}.</b> {group.evidence}</p>
+                  <p>{group.uncertainty}</p>
+                  <p class="inline-source-list">
+                    Representative papers:{' '}
+                    {group.representative_papers.map((slug, index) => (
+                      <>
+                        {index > 0 ? ', ' : ''}
+                        <a href={paper(slug).route}>{paper(slug).title}</a>
+                      </>
+                    ))}
+                    .
+                  </p>
+                </article>
+              ))}
+
+              {investigationNotes(cluster).map((note) => (
+                <article class="cluster-prose-block investigation-article">
+                  <h4>{note.label}</h4>
+                  <p class="subtle">Investigation status: {note.status}.</p>
+                  <p><b>Scope.</b> {note.scope}</p>
+                  <p><b>Why coherent.</b> {note.why_coherent}</p>
+                  <p><b>Boundary.</b> {note.boundary}</p>
+                  <div class="cluster-prose-subsection">
+                    <h5>Continuity evidence</h5>
+                    {note.continuity_evidence.map((item) => <p>{item}</p>)}
+                  </div>
+                  <div class="cluster-prose-subsection">
+                    <h5>Next checks</h5>
+                    {note.next_checks.map((item) => <p>{item}</p>)}
+                  </div>
+                  <p class="inline-source-list">
+                    Sources:{' '}
+                    {note.source_links.map((source, index) => (
+                      <>
+                        {index > 0 ? ', ' : ''}
+                        <a href={source.url}>{source.label}</a>
+                      </>
+                    ))}
+                    .
+                  </p>
+                </article>
+              ))}
+            </section>
           </article>
         );
       })}
