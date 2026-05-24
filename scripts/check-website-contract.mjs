@@ -28,6 +28,60 @@ function readJson(relativePath) {
   }
 }
 
+function valueType(value) {
+  if (Array.isArray(value)) return 'array';
+  if (value === null) return 'null';
+  if (Number.isInteger(value)) return 'integer';
+  return typeof value;
+}
+
+function matchesType(value, expectedType) {
+  const actualType = valueType(value);
+  const allowedTypes = Array.isArray(expectedType) ? expectedType : [expectedType];
+  if (allowedTypes.includes(actualType)) return true;
+  if (allowedTypes.includes('number') && typeof value === 'number' && Number.isFinite(value)) return true;
+  return false;
+}
+
+function validateSchemaValue(value, schema, label) {
+  if (!schema || typeof schema !== 'object') return;
+
+  if (schema.type && !matchesType(value, schema.type)) {
+    fail(`${label} should be ${Array.isArray(schema.type) ? schema.type.join(' or ') : schema.type}; got ${valueType(value)}`);
+    return;
+  }
+
+  if (schema.type === 'object' || (Array.isArray(schema.type) && schema.type.includes('object')) || schema.properties || schema.required) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      for (const key of schema.required || []) {
+        if (value[key] === undefined) fail(`${label}.${key} is required by schema`);
+      }
+      for (const [key, propertySchema] of Object.entries(schema.properties || {})) {
+        if (value[key] !== undefined) validateSchemaValue(value[key], propertySchema, `${label}.${key}`);
+      }
+    }
+  }
+
+  if (schema.type === 'array' || (Array.isArray(schema.type) && schema.type.includes('array')) || schema.items) {
+    if (Array.isArray(value) && schema.items) {
+      value.forEach((item, index) => validateSchemaValue(item, schema.items, `${label}[${index}]`));
+    }
+  }
+
+  if (schema.pattern && typeof value === 'string') {
+    const pattern = new RegExp(schema.pattern);
+    if (!pattern.test(value)) fail(`${label} does not match schema pattern ${schema.pattern}`);
+  }
+
+  if (schema.format === 'date-time' && typeof value === 'string' && Number.isNaN(Date.parse(value))) {
+    fail(`${label} is not a valid date-time`);
+  }
+
+  if (schema.minimum !== undefined && typeof value === 'number' && value < schema.minimum) {
+    fail(`${label} must be >= ${schema.minimum}`);
+  }
+}
+
 function countPaperFiles() {
   const dir = path.join(root, 'src/content/papers');
   if (!fs.existsSync(dir)) return 0;
@@ -43,6 +97,7 @@ const requiredPaths = [
   ['src/pages/papers/[slug].astro', 'paper detail route'],
   ['scripts/export-atlas-manifest.mjs', 'atlas manifest exporter'],
   ['docs/website-integration/README.md', 'website integration guide'],
+  ['docs/website-integration/schemas/atlas-manifest.schema.json', 'atlas manifest schema'],
   ['docs/website-integration/plan.md', 'website integration plan']
 ];
 
@@ -104,6 +159,10 @@ const manifestPath = 'public/cim-library.manifest.json';
 if (exists(manifestPath)) {
   const manifest = readJson(manifestPath);
   if (manifest) {
+    if (exists('docs/website-integration/schemas/atlas-manifest.schema.json')) {
+      const manifestSchema = readJson('docs/website-integration/schemas/atlas-manifest.schema.json');
+      if (manifestSchema) validateSchemaValue(manifest, manifestSchema, manifestPath);
+    }
     for (const key of ['schema_version', 'id', 'title', 'kind', 'route', 'generated_at', 'source', 'stats', 'papers']) {
       if (manifest[key] === undefined || manifest[key] === null || manifest[key] === '') {
         fail(`${manifestPath} missing ${key}`);

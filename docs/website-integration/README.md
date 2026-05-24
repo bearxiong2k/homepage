@@ -42,6 +42,8 @@ npm run export:atlas
 
 The generated `public/cim-library.manifest.json` is intended for project cards, project landing pages, sitemap-like views, and future cross-project dashboards. It should export stable summaries such as corpus counts, route inventory, public view descriptors, taxonomy summaries, and compact cluster-layer stats. It should not copy full paper notes or detailed working-group prose.
 
+`npm run contract:website` validates the generated manifest against `docs/website-integration/schemas/atlas-manifest.schema.json` before running project-specific count and route checks. Update the schema with intentional manifest contract changes rather than letting route or view fields drift informally.
+
 ## Development Loop
 
 Use this loop when touching website shell, route contracts, manifests, generated summaries, or rendered project surfaces:

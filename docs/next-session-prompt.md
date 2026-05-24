@@ -17,8 +17,12 @@ Current default state:
 - The cluster layer currently has 7 cluster hypotheses and 13 deeper investigation cards, but cluster investigation is paused while the manifest/visualization layer is refined.
 - Active focus doc: docs/focus/manifest-visualization-refinement.md.
 - Manifest schema is currently 0.2.0 with route inventory, public view descriptors, and compact cluster-layer stats, including the /papers/ note-index route.
+- npm run contract:website validates public/cim-library.manifest.json against docs/website-integration/schemas/atlas-manifest.schema.json before bespoke route/count checks.
 - CIM Library local navigator is implemented in src/components/CimLibraryNav.astro and should stay aligned with the global navigator while remaining lower hierarchy. Its Notes item points to /papers/ and is active for both /papers/ and /papers/[slug]/.
 - /library/ uses a left in-page section sidebar for Interactive atlas and Taxonomy axes, matching the paper-detail section-navigation pattern.
+- /clusters/ is focus-first: the top cluster map names each binding object and links to detail/atlas slices; long evidence, working-group, and investigation material is grouped inside each cluster card.
+- Next cluster-content work is merged with manifest work: prefer per-cluster text/prose graphs that explain object flow, lineage/boundary, and evidence relationships; update src/data/clusters.json, manifest export/schema, and /clusters/ together if this becomes structured data.
+- Paper detail pages are content-first: no framed title card at the top, with atlas/source/context metadata grouped below the corpus note.
 - Paused cluster focus can be resumed from docs/focus/cluster-analysis-working-groups.md.
 - Working-group labels must remain coarse and evidence-based; LLM-serving and full-stack-boundary cards are comparison sets, not lineage claims.
 - Do not add coverage scores, ranking scores, quality scores, or trajectory_IR_relevance.

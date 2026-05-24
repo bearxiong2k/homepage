@@ -46,7 +46,11 @@ Current manifest/visualization question:
 
 - The generated manifest now represents the library, route inventory, public views, and compact cluster-layer stats before further cluster investigation content is added.
 - `public/cim-library.manifest.json` is schema version `0.2.0` and includes `routes`, `views`, and `cluster_layer`.
+- `npm run contract:website` now validates the generated manifest against `docs/website-integration/schemas/atlas-manifest.schema.json` before running bespoke route/count checks.
 - The CIM Library local navigator is implemented in `src/components/CimLibraryNav.astro` and appears on project overview, atlas, cluster, paper-index, and paper-note routes.
+- `/clusters/` is focus-first: a top cluster focus map names each binding object, and individual cluster cards keep papers and evidence detail grouped instead of scattering TOC, atlas slices, working-group notes, and investigations across separate page regions.
+- Next cluster-content direction is merged with manifest work: add per-cluster text/prose graphs that are insightful to read, and evolve `src/data/clusters.json`, manifest export/schema, and `/clusters/` together when those fields become structured.
+- Paper detail pages are content-first: no framed title card at the top, and atlas/source/context metadata is grouped at the bottom after the corpus note.
 - Preserve the descriptive paper metadata contract and keep clusters separate from paper frontmatter unless the contract is intentionally changed.
 - Do not add coverage scores, ranking scores, quality scores, or `trajectory_IR_relevance`.
 
@@ -95,5 +99,5 @@ Known baseline:
 - Link-structure smoke check: `/projects/cim-library/` has no duplicate route cards or inline route links; `/clusters/` has one structured atlas-slice panel with 7 slice links and no per-cluster atlas buttons.
 - `/projects/cim-library/` smoke check: manifest-backed stats show 62 papers, 7 clusters, 13 investigation notes, 4 public views; no horizontal overflow on desktop or mobile.
 - `/library/` smoke check: in-page atlas sections use a left sidebar, not top card buttons; no horizontal overflow on desktop or mobile.
-- `/papers/` smoke check: plain note index renders 62 paper links, keeps the local Notes nav active, and has no horizontal overflow on desktop or mobile.
-- `/clusters/` smoke check: 7 clusters, 13 investigation cards, no horizontal overflow on desktop or mobile.
+- `/papers/` smoke check: plain note index renders 62 paper links, keeps the local Notes nav active, and has no horizontal overflow on desktop or mobile. Paper detail pages render a plain note header, corpus note first, and bottom metadata.
+- `/clusters/` smoke check: 7 focus rows, 7 cluster panels, 21 grouped detail sections, no horizontal overflow on desktop or mobile.

@@ -14,7 +14,7 @@ Use this directory to preserve retrievable project focus state when `docs/active
 | Focus file | Status | Use when |
 |---|---|---|
 | `manifest-visualization-refinement.md` | active | Refining static manifests, atlas/cluster visualization, route presentation, or website-facing project summaries. |
-| `cluster-analysis-working-groups.md` | paused / retrievable | Resuming cluster investigation, working-group comparison cards, or `/clusters/` evidence notes. |
+| `cluster-analysis-working-groups.md` | paused / retrievable | Resuming cluster investigation, working-group comparison cards, `/clusters/` evidence notes, or merged cluster content/manifest text-graph work. |
 | `paper-metadata-maintenance.md` | paused / retrievable | Improving paper source metadata, especially arXiv-only entries that may now have formal publication records. |
 
 ## Switching Focus

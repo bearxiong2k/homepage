@@ -41,7 +41,10 @@ Refine the public manifest and visualization layer before doing more cluster inv
 - Implemented `src/components/CimLibraryNav.astro` as the shared lower-hierarchy navigator for overview, atlas, clusters, and notes.
 - The Notes target is now `/papers/`, a plain listing of all recorded paper notes; individual `/papers/[slug]/` pages keep Notes active in the local navigator.
 - `/library/` uses a page-level sidebar for its in-page atlas anchors instead of top card buttons, matching the paper-detail page's section-navigation pattern.
-- Route-level links inside the CIM Library are centralized: project overview uses the local navigator rather than duplicate route cards or inline route links, while cluster-specific atlas filters are gathered into one structured Atlas Slices panel.
+- Route-level links inside the CIM Library are centralized: project overview uses the local navigator rather than duplicate route cards or inline route links, while cluster-specific atlas filters live in the top `/clusters/` focus map instead of being repeated inside every cluster card.
+- `npm run contract:website` enforces `docs/website-integration/schemas/atlas-manifest.schema.json` before bespoke route/count checks, so route and view drift fails the normal website loop.
+- `/clusters/` uses a focus-first display: the top map names each cluster's binding object and routes to detail, while cluster cards keep representative/supporting papers beside evidence, working-group notes, and investigation details in grouped disclosures.
+- Merged cluster/content task: future cluster iterations should develop content and manifest together. For each cluster, prefer an insightful text graph or prose-graph explanation of object flow, lineage/boundary, and evidence relationships over scattered decorative cards. If this becomes structured data, update `src/data/clusters.json`, `scripts/export-atlas-manifest.mjs`, the manifest schema, and `/clusters/` in the same batch.
 - Keep cluster content out of paper frontmatter.
 
 ## Guardrails
@@ -56,11 +59,10 @@ Refine the public manifest and visualization layer before doing more cluster inv
 
 ## Likely Work Batches
 
-1. Refine `/clusters/` and/or `/library/` visualization affordances to make the manifest-backed public surfaces clearer.
-2. Check whether `docs/website-integration/schemas/atlas-manifest.schema.json` should become an enforced validation step rather than a documented schema only.
-3. Consider whether the project registry should display manifest-derived route/view metadata in `/projects/`.
-4. Consider whether `/papers/` should gain lightweight filters or grouping after the plain listing proves stable.
-5. Run the full website loop after implementation.
+1. Consider whether the project registry should display manifest-derived route/view metadata in `/projects/`.
+2. Consider whether `/papers/` should gain lightweight filters or grouping after the plain listing proves stable.
+3. Add cluster text-graph/prose-graph content and manifest support together, one coherent cluster slice at a time.
+4. Run the full website loop after implementation.
 
 ## Local Navigator Target
 
