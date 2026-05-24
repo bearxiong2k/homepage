@@ -4,7 +4,7 @@
   "title": "CIM Compiler/IR Paper Library",
   "kind": "research-atlas",
   "route": "/library/",
-  "generated_at": "2026-05-24T15:40:08.044Z",
+  "generated_at": "2026-05-24T16:15:12.891Z",
   "source": {
     "content_root": "src/content/papers",
     "taxonomy_path": "src/data/taxonomy.json",
@@ -406,7 +406,7 @@
         "short_label": "SRAM macro generation",
         "status": "high-confidence descriptive cluster",
         "route": "/clusters/#digital-sram-macro-generation",
-        "analysis": null,
+        "analysis": "This cluster is strongest when read as a macro-materialization problem. AutoDCIM, ARCTIC, SynDCIM, and OpenC2 do not mainly ask how a neural network graph becomes an instruction stream; they ask how a digital SRAM-CIM macro specification becomes a concrete backend artifact. The repeated object is a configurable macro contract: rows and columns, weight and input bit widths, INT or FP format fields, SRAM and compute-cell choices, multiplier or mux structure, adder and accumulator topology, BIST/test modes, timing and area constraints, and the generator scripts or templates that turn those fields into RTL, netlists, DEF, GDSII, post-layout reports, or silicon-calibrated macro evidence. The analytical boundary is therefore lower than most model-compilation clusters: precision is a backend type parameter, subcircuit libraries are the costed vocabulary, and physical layout constraints are part of the compiler state rather than a postscript. OpenACMv2 belongs beside this cluster as a boundary case because it shares digital SRAM/DCIM backend objects, but its durable object is an accuracy-constrained approximate-arithmetic search trajectory, not the same spec-to-layout macro compiler lineage.",
         "representative_papers": [
           "autodcim",
           "arctic",
@@ -417,10 +417,10 @@
           "openacmv2"
         ],
         "object_flow": [
-          "Entry object: a macro specification names rows, columns, precision, cells, subcircuits, and peripheral choices before workload mapping dominates the stack.",
-          "Binding/rewrite: generation or search specializes the macro through template selection, numeric format choices, BIST, approximate arithmetic, or EDA constraints.",
-          "Backend handoff: the durable object is RTL, SPICE, DEF, GDSII, layout, or a validated macro-level report rather than a full model compiler dialect.",
-          "Boundary: the cluster is about lower-stack macro materialization; OpenACM-style approximate search is related but not the same lineage."
+          "Entry object: a macro specification names rows, columns, input and weight bit widths, INT/FP format fields, SRAM and compute-cell choices, and timing or area targets before workload scheduling becomes the dominant concern.",
+          "Binding/rewrite: the compiler state is specialized through template selection, array partitioning, shared-exponent placement, subcircuit-library search, adder or accumulator topology, BIST insertion, approximate compressor assignment, and EDA constraints.",
+          "Backend handoff: the durable object is generated RTL, Verilog or SPICE netlists, LEF/LIB-compatible cells, DEF/GDSII layout, timing/DRC/LVS reports, or silicon-calibrated macro evidence rather than a reusable model-graph dialect.",
+          "Boundary: the core cluster is spec/config-to-macro materialization; OpenACM-style approximate search is related because it shares DCIM backend objects, but it should remain a separate optimization boundary until stronger lineage evidence appears."
         ],
         "working_group_count": 2,
         "investigation_count": 2,

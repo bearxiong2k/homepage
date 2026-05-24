@@ -20,7 +20,7 @@ This is the compact default context for current project state. Keep it short; mo
 
 ## Active Focus
 
-The active focus is cluster analysis and working-group content for the CIM Library. Metadata should seed candidate clusters, but cluster claims must come from actual paper-note, paper, and artifact analysis. Working-group analysis is a parallel lens, not a subsection of cluster analysis; its investigations can focus on artifact lineage, authorship context, repositories, institutional practice, or continuity across papers. The long-term display direction is analytical paragraphs and prose graphs that explain object flow, lineage or boundary, and artifact relationships; each cluster and each working-group investigation should read like a small blog/article, not a cluster of cards, non-link tags, or folded data blocks. On `/clusters/`, cluster articles and one clear working-group investigation article per group share one left navigator so the two lenses have parallel weight. The manifest/visualization refinement focus is completed and archived.
+The active focus is cluster analysis and working-group content for the CIM Library. Metadata should seed candidate clusters, but cluster claims must come from actual paper-note, paper, and artifact analysis. Working-group analysis is a parallel lens, not a subsection of cluster analysis; its investigations can focus on artifact lineage, authorship context, repositories, institutional practice, or continuity across papers. The long-term display direction is analytical paragraphs and prose graphs that explain object flow, lineage or boundary, and artifact relationships; each cluster and each working-group investigation should read like a small blog/article, not a cluster of cards, non-link tags, repeated subtitles, folded data blocks, or list-heavy metadata sections. On `/clusters/`, cluster articles and one clear working-group investigation article per group share one left navigator so the two lenses have parallel weight. The manifest/visualization refinement focus is completed and archived.
 
 Current focus doc:
 
@@ -39,7 +39,7 @@ Main implementation surfaces:
 - `src/data/clusters.json`
 - `src/pages/clusters/index.astro`
 - Representative paper notes and official paper/artifact sources for the cluster being revised.
-- Current `object_flow` fields are a draft four-step display scaffold, structured in `src/data/clusters.json`, exported by `scripts/export-atlas-manifest.mjs`, validated by `docs/website-integration/schemas/atlas-manifest.schema.json`, and rendered on `/clusters/`; keep these surfaces aligned if the field changes. The `analysis` field is the preferred public paragraph surface and currently exists for the crossbar DNN toolchain, DRAM-PIM API/compiler, LLM memory-hierarchy, and full-stack IR/ISA boundary clusters.
+- Current `object_flow` fields are a draft four-step display scaffold, structured in `src/data/clusters.json`, exported by `scripts/export-atlas-manifest.mjs`, validated by `docs/website-integration/schemas/atlas-manifest.schema.json`, and rendered on `/clusters/`; keep these surfaces aligned if the field changes. The `analysis` field is the preferred public paragraph surface and currently exists for the crossbar DNN toolchain, digital SRAM-CIM macro generation, DRAM-PIM API/compiler, LLM memory-hierarchy, and full-stack IR/ISA boundary clusters.
 
 Current cluster/content question:
 

@@ -81,12 +81,13 @@
       "short_label": "SRAM macro generation",
       "status": "high-confidence descriptive cluster",
       "summary": "A lower-stack family centered on DCIM macro templates, precision fields, subcircuit choices, BIST or EDA flows, and physical or macro-level backend artifacts rather than whole-model compiler IR.",
+      "analysis": "This cluster is strongest when read as a macro-materialization problem. AutoDCIM, ARCTIC, SynDCIM, and OpenC2 do not mainly ask how a neural network graph becomes an instruction stream; they ask how a digital SRAM-CIM macro specification becomes a concrete backend artifact. The repeated object is a configurable macro contract: rows and columns, weight and input bit widths, INT or FP format fields, SRAM and compute-cell choices, multiplier or mux structure, adder and accumulator topology, BIST/test modes, timing and area constraints, and the generator scripts or templates that turn those fields into RTL, netlists, DEF, GDSII, post-layout reports, or silicon-calibrated macro evidence. The analytical boundary is therefore lower than most model-compilation clusters: precision is a backend type parameter, subcircuit libraries are the costed vocabulary, and physical layout constraints are part of the compiler state rather than a postscript. OpenACMv2 belongs beside this cluster as a boundary case because it shares digital SRAM/DCIM backend objects, but its durable object is an accuracy-constrained approximate-arithmetic search trajectory, not the same spec-to-layout macro compiler lineage.",
       "binding_theme": "Config-as-IR for macro templates, numeric formats, and backend generation constraints.",
       "object_flow": [
-        "Entry object: a macro specification names rows, columns, precision, cells, subcircuits, and peripheral choices before workload mapping dominates the stack.",
-        "Binding/rewrite: generation or search specializes the macro through template selection, numeric format choices, BIST, approximate arithmetic, or EDA constraints.",
-        "Backend handoff: the durable object is RTL, SPICE, DEF, GDSII, layout, or a validated macro-level report rather than a full model compiler dialect.",
-        "Boundary: the cluster is about lower-stack macro materialization; OpenACM-style approximate search is related but not the same lineage."
+        "Entry object: a macro specification names rows, columns, input and weight bit widths, INT/FP format fields, SRAM and compute-cell choices, and timing or area targets before workload scheduling becomes the dominant concern.",
+        "Binding/rewrite: the compiler state is specialized through template selection, array partitioning, shared-exponent placement, subcircuit-library search, adder or accumulator topology, BIST insertion, approximate compressor assignment, and EDA constraints.",
+        "Backend handoff: the durable object is generated RTL, Verilog or SPICE netlists, LEF/LIB-compatible cells, DEF/GDSII layout, timing/DRC/LVS reports, or silicon-calibrated macro evidence rather than a reusable model-graph dialect.",
+        "Boundary: the core cluster is spec/config-to-macro materialization; OpenACM-style approximate search is related because it shares DCIM backend objects, but it should remain a separate optimization boundary until stronger lineage evidence appears."
       ],
       "representative_papers": ["autodcim", "arctic", "syndcim"],
       "supporting_papers": ["openc2", "openacmv2"],
@@ -98,18 +99,20 @@
       "shared_first_class_objects": ["macro template", "numeric format", "crossbar / array", "ADC / DAC / peripherals", "nonideality / faults"],
       "shared_rewrite_objects": ["hardware template / macro choice", "numeric format, precision, quantization, or approximation", "mapping, placement, tiling, or allocation", "fault, variation, calibration, or accuracy handling"],
       "evidence": [
-        "AutoDCIM, ARCTIC, SynDCIM, OpenC2, and OpenACMv2 are all classified around SRAM/digital-CIM macro or approximate-DCIM generation and optimization.",
-        "Their frontmatter foregrounds macro topology, numeric precision, sub-array or cell-level structures, BIST/test flow, EDA flow, or approximate hardware choices.",
-        "The entries repeatedly place the work in Axis A1 or A1-adjacent roles with B1/B4/B6 middle-layer styles."
+        "AutoDCIM is described in the corpus note as user specification to DCIM macro architecture and optimized layout, with array partitioning and template-based generation as the visible transformation rather than workload import.",
+        "ARCTIC makes the precision tuple, shared-exponent FP organization, custom cells, MarchCIM BIST templates, and constraint-aware synthesis/place-route part of the macro-specialization pipeline.",
+        "SynDCIM starts from architectural and performance specifications, builds a subcircuit search space from a characterized library, and hands off macro RTL, netlists, circuit constraints, and layout-oriented EDA artifacts.",
+        "OpenC2 exposes the public artifact boundary most concretely: rows, columns, weight/input bit widths, technology/library files, generated Verilog/SPICE, DEF/GDSII, and area/layout scripts.",
+        "OpenACMv2 is supporting evidence for the boundary because it makes approximate compressor assignments, SRAM macro parameters, PEA-GNN prediction, transistor sizing, and accuracy budgets optimizer state rather than model-graph state."
       ],
-      "uncertainty": "The cluster intentionally groups by stack object and backend surface. It does not assert that every entry shares one project lineage, and some supporting entries are broader co-optimization frameworks.",
+      "uncertainty": "The cluster intentionally groups by first-class backend object and macro-materialization surface. It does not assert that every entry shares one project lineage. AutoDCIM, ARCTIC, SynDCIM, and OpenC2 form the core macro-generation reading; OpenACMv2 is a related approximate-DCIM optimization boundary.",
       "working_groups": [
         {
           "label": "HKUST / digital-CIM macro compiler line",
           "relationship": "repeated macro-compiler and precision-oriented DCIM entries",
           "representative_papers": ["autodcim", "openc2", "arctic", "syndcim"],
-          "evidence": "The current author/group fields mention HKUST or overlapping Cheng/Tsui digital-CIM macro compiler contributors across several entries.",
-          "uncertainty": "Tentative coarse label; use the paper pages for exact author lists and institutional context."
+          "evidence": "The visible continuity is technical and artifact-facing: macro specs, templates, subcircuit libraries, precision specialization, BIST/test insertion, and generated EDA outputs recur across the representative notes.",
+          "uncertainty": "Coarse working-group label only. Keep exact authorship and institutional claims tied to the individual paper pages, and do not merge OpenACMv2 into this lineage without stronger source evidence."
         },
         {
           "label": "OpenACM / approximate-DCIM optimization thread",
@@ -123,22 +126,35 @@
         {
           "label": "HKUST / digital-CIM macro compiler line",
           "status": "started",
-          "scope": "Treat as a DCIM macro-generation and physical-backend line centered on spec/config-to-RTL/netlist/layout flows, not as a DNN workload compiler lineage.",
-          "why_coherent": "The common object is the macro/backend configuration: rows and columns, input and weight precision, SRAM bitcell and compute-cell choices, multiplier, mux, adder and accumulator structures, subcircuit libraries, BIST/test modes, and EDA layout artifacts.",
+          "scope": "Treat this as a focused investigation of DCIM macro-generation practice: how a hardware specification becomes templates, subcircuit choices, generated RTL/netlists, layout constraints, and validation evidence. It should not be presented as a DNN workload compiler lineage unless a paper exposes a real graph or tensor frontend.",
+          "why_coherent": "The common object is the macro/backend contract. AutoDCIM contributes the early spec-to-layout framing, where user requirements and array partitioning drive template-based macro generation. OpenC2 makes that boundary inspectable in code through rows, columns, input and weight bit widths, technology files, generated Verilog/SPICE, DEF/GDSII, and area or placement scripts. ARCTIC turns precision into backend structure: INT/FP format fields, shared-exponent placement, custom cells, generated RTL, and MarchCIM BIST become part of the compiler state. SynDCIM pushes the same question into a characterized subcircuit library and a performance-aware search that emits macro RTL, netlists, circuit constraints, and layout-oriented backend files.",
           "continuity_evidence": [
-            "AutoDCIM is positioned in the notes as a spec-to-layout DCIM macro compiler with array partitioning and template-based generation.",
-            "OpenC2 exposes the public macro-generator side of the line: top-level macro parameters and technology/library inputs generate Verilog, SPICE, DEF, and GDSII artifacts.",
-            "ARCTIC and SynDCIM deepen the precision, subcircuit, and BIST side of the same lower-stack question, while OpenACMv2 is related as an accuracy-constrained approximate-DCIM optimization flow rather than the same lineage."
+            "AutoDCIM is positioned in the notes as a spec-to-layout DCIM macro compiler with array partitioning and template-based generation, but its checked public boundary does not expose a reusable high-level config schema.",
+            "OpenC2 exposes the public macro-generator side of the line: top-level macro parameters and technology/library inputs generate Verilog, SPICE, DEF, GDSII, and area/layout artifacts through scripts whose names and path conventions are visible in the note.",
+            "ARCTIC and SynDCIM deepen the precision, subcircuit, BIST, and physical-backend side of the same lower-stack question; OpenACMv2 remains adjacent as accuracy-constrained approximate-DCIM search rather than the same macro-compiler lineage."
           ],
-          "boundary": "Keep application-level CIM compilers out of this group unless their first-class output is the macro/backend flow. Keep OpenACMv2 as supporting evidence when discussing approximate arithmetic DSE rather than as a core HKUST lineage claim.",
+          "boundary": "The investigation should focus on artifact continuity and backend semantics, not on author-list inference. Keep application-level CIM compilers out unless their first-class output is the macro/backend flow. Keep OpenACMv2 as supporting evidence for approximate arithmetic DSE rather than as a core HKUST lineage claim.",
           "next_checks": [
             "Inspect OpenC2 output examples and generator scripts before writing a detail page about generated artifact formats.",
-            "Check whether ARCTIC and SynDCIM expose reusable spec fields beyond the paper descriptions; current evidence is mostly paper-level."
+            "Check whether ARCTIC and SynDCIM expose reusable spec fields beyond the paper descriptions; current evidence is mostly paper-level.",
+            "Compare AutoDCIM's private template boundary with OpenC2's public generator boundary before describing the line as open or reproducible."
           ],
           "source_links": [
             {
+              "label": "AutoDCIM publication record",
+              "url": "https://researchportal.hkust.edu.hk/en/publications/autodcim-an-automated-digital-cim-compiler/"
+            },
+            {
               "label": "OpenC2 repository",
               "url": "https://github.com/OpenC2-official/OpenC2_V1.0"
+            },
+            {
+              "label": "ARCTIC paper",
+              "url": "https://past.date-conference.com/proceedings-archive/2024/DATA/399_pdf_upload.pdf"
+            },
+            {
+              "label": "SynDCIM paper",
+              "url": "https://arxiv.org/pdf/2411.16806"
             },
             {
               "label": "OpenACM repository",
@@ -149,14 +165,15 @@
         {
           "label": "OpenACM / approximate-DCIM optimization boundary",
           "status": "started",
-          "scope": "Treat as a single-artifact approximate-DCIM DSE thread where approximate arithmetic, macro configuration, and transistor-level validity become optimization state. Do not merge it into the core spec-to-layout macro-generator lineage.",
-          "why_coherent": "The common object is accuracy-constrained hardware search state: approximate compressor type, compressor slot, partial-product column approximation region, bit significance, SRAM rows/columns/mux/array count, transistor sizing vector, PVT or Monte Carlo condition, and MRED/NMED accuracy budget.",
+          "scope": "Treat this as a focused investigation of one approximate-DCIM optimization artifact. Its value is not that it proves a broad lineage, but that it exposes a clean boundary between semantic approximation choices, SRAM macro parameters, surrogate prediction, and transistor-level sizing.",
+          "why_coherent": "The central object is accuracy-constrained hardware search state. At Level I, OpenACMv2 represents an approximate multiplier as compressor choices placed at lower-significance partial-product slots, evaluates the assignment with MRED/NMED and PPA objectives, and uses PEA-GNN as a graph surrogate over compressor-stage structure. At the SRAM side, rows, columns, mux ratio, and array count become DSE state under capacity and FOM constraints. At Level II, transistor width vectors, PVT or Monte Carlo conditions, SPICE-style checks, and SRAM bitcell/peripheral sizing refine selected candidates while preserving the chosen arithmetic truth-table semantics.",
           "continuity_evidence": [
             "OpenACMv2's Level-I optimization searches multiplier compressor assignments, lower-significance partial-product approximation regions, and SRAM macro configurations under error and PPA objectives.",
             "PEA-GNN turns a multiplier compressor assignment into a graph for predicting MRED, NMED, delay, area, and power, making approximate arithmetic structure a model-facing object rather than only a generated netlist.",
-            "Level-II refines selected compressor cells and SRAM bitcells with SPICE/PVT/Monte Carlo-style sizing while preserving the selected approximate truth-table semantics."
+            "Level-II refines selected compressor cells and SRAM bitcells with SPICE/PVT/Monte Carlo-style sizing while preserving the selected approximate truth-table semantics.",
+            "The artifact documents config and width stages with outputs such as config.json, solutions.txt, and pareto_front.png, but the corpus note does not yet establish these as a stable public schema."
           ],
-          "boundary": "Keep OpenACMv2 as supporting evidence for the digital macro cluster because it shares SRAM/DCIM backend objects, but distinguish it from AutoDCIM/OpenC2/SynDCIM-style macro materialization flows. Its central object is an accuracy/PPA search trajectory, not a workload compiler or full-stack IR.",
+          "boundary": "Keep OpenACMv2 as supporting evidence for the digital macro cluster because it shares SRAM/DCIM backend objects, but distinguish it from AutoDCIM/OpenC2/SynDCIM-style macro materialization flows. Its central object is an accuracy/PPA search trajectory with a surrogate model and sizing loop, not a workload compiler, not a full-stack IR, and not yet a multi-paper working-group lineage in this corpus.",
           "next_checks": [
             "Inspect the OpenACM repository's documented optimization outputs before claiming stable generated-file schemas.",
             "Compare OpenACMv2's compressor-assignment state with SynDCIM's subcircuit synthesis state to see whether both can share one detail-page table.",
