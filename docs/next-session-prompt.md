@@ -12,28 +12,32 @@ Project status:
 - 62 schema-valid paper entries.
 - Stable routes: /, /projects/, /projects/cim-library/, /library/, /clusters/, /papers/, /papers/[slug]/.
 - src/data/clusters.json is the hand-authored cluster/working-group source and stays separate from paper frontmatter.
-- /clusters/ is the active cluster and working-group route.
+- /clusters/ is a completed cluster and working-group route with a visible AI-assisted synthesis notice.
 
 Active focus:
+- General style controller.
+- Focus doc: docs/focus/style-controller.md.
+- Current goal: construct a general style controller for colors, formatting, fonts, spacing, and shared presentation policy across the static Astro website.
+- Current implementation: src/styles/global.css contains the first controller slice, using CSS custom properties and compatibility aliases for existing variables. Ordinary content links are underlined by default, with navigation/control exceptions.
+- Next priority: inventory and replace remaining repeated hard-coded style values where their semantic role is clear.
+
+Completed focus:
 - Cluster analysis and working-group content.
 - Focus doc: docs/focus/cluster-analysis-working-groups.md.
-- Current shape: 7 cluster hypotheses, 13 working-group investigation articles, 7 checked cluster analysis paragraphs.
-- Current goal: deepen existing cluster/group notes with real paper/artifact analysis before adding new notes.
-- Next priority: deepen the weakest existing working-group investigations and refine cluster object-flow/evidence only where new source checks sharpen the argument.
+- Final shape at completion: 7 cluster hypotheses, 13 working-group investigation articles, 7 checked cluster analysis paragraphs.
 
 Method:
-- Metadata is only a seed; final claims must come from paper notes, papers, official artifacts, docs, code, or visible execution/file boundaries.
-- Cluster articles and working-group investigations are parallel lenses.
-- Write prose-first article paragraphs, not metadata cards, tag clouds, folded blocks, duplicated investigation/article pairs, or list-heavy subsections.
-- Keep group labels coarse and evidence-based.
-- Do not add coverage scores, ranking scores, quality scores, trajectory_IR_relevance, backend services, databases, PDF hosting, or fine-grained collaboration graphs.
+- Keep the implementation static and inspectable.
+- Prefer a small token/controller layer over broad redesign.
+- Keep academic/library routes quiet, readable, and dense enough for repeated research use.
+- Do not add backend services, client-side styling dependencies, databases, PDF hosting, or route-breaking changes.
 - Keep /library/ and /papers/[slug]/ stable.
 
-For cluster work:
-1. Read docs/focus/cluster-analysis-working-groups.md.
-2. Choose one coherent evidence batch.
-3. Read the relevant paper notes and official artifacts as needed.
-4. Update src/data/clusters.json and any necessary focus/status docs.
+For style-controller work:
+1. Read docs/focus/style-controller.md.
+2. Inventory existing style tokens, duplicated colors, font sizes, spacing scales, and route-specific CSS patterns.
+3. Propose and implement one coherent controller slice.
+4. Verify representative public routes.
 5. Run verification.
 
 After substantial edits, run:

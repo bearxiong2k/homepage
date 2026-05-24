@@ -1,6 +1,6 @@
 # Focus: Cluster Analysis and Working Groups
 
-Status: active
+Status: completed
 
 Default-context policy: Do not read by default. Read when resuming cluster investigation, revising `src/data/clusters.json`, or changing the `/clusters/` route.
 
@@ -70,17 +70,17 @@ Prioritize depth over width. Improve existing cluster/group notes until they are
 
 These are coarse evidence lenses, not collaboration graphs.
 
-## Next Step
+## Completion State
 
-Deepen existing notes before creating new ones.
+This focus is marked done. The `/clusters/` page has a completed set of 7 cluster hypotheses, 13 working-group investigation articles, and a visible AI-assisted synthesis notice. Future cluster work should be treated as maintenance or a new follow-up focus rather than the default active focus.
 
-Recommended next batches:
+Possible follow-up batches:
 
 1. Improve the weakest existing working-group investigations by turning metadata-shaped evidence into coherent article paragraphs with clear uncertainty and source boundaries.
 2. Revisit existing cluster `object_flow` and evidence paragraphs only when source checks change or sharpen the public argument.
 3. Consider a cluster detail page only if one cluster accumulates enough checked evidence to justify a separate article; do not add new clusters yet.
 
-Each batch should update `src/data/clusters.json`, regenerate the manifest, and run the verification loop.
+Each follow-up batch should update `src/data/clusters.json`, regenerate the manifest, and run the verification loop.
 
 ## Guardrails
 

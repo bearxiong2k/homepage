@@ -13,29 +13,36 @@ Default read for every session. Keep this file compact; put focus details in the
 
 ## Active Focus
 
-Cluster analysis and working-group content is the active focus.
+General style controller is the active focus.
+
+- Focus doc: `docs/focus/style-controller.md`.
+- Main files: `src/styles/global.css`, `src/layouts/BaseLayout.astro`, `src/components/CimLibraryNav.astro`, `src/components/TaxonomyAtlas.astro`, and representative route files under `src/pages/`.
+- Current goal: construct a general style controller for colors, typography/fonts, spacing, radius/borders/surfaces, and shared formatting decisions across the static Astro website.
+- Current implementation: `src/styles/global.css` has the first controller slice, using canonical CSS custom properties with legacy variable aliases for compatibility. Ordinary content links are underlined by default, with navigation/control exceptions.
+- Next work should inventory and replace remaining repeated hard-coded presentation values only where the semantic role is clear.
+
+## Completed Focus
+
+Cluster analysis and working-group content is marked done.
 
 - Focus doc: `docs/focus/cluster-analysis-working-groups.md`.
 - Route: `/clusters/`.
-- Main files: `src/data/clusters.json`, `src/pages/clusters/index.astro`, `src/styles/global.css`, representative paper notes, and official paper/artifact sources for the cluster being revised.
-- Current shape: 7 cluster hypotheses, 13 working-group investigation articles, and 7 checked cluster `analysis` paragraphs.
-- Current goal: improve existing cluster/group notes for depth and evidence quality before adding new notes.
-- Next work should deepen the weakest existing cluster/group notes beyond their first checked analysis paragraphs, especially working-group investigations that still read like metadata summaries.
+- Final shape at completion: 7 cluster hypotheses, 13 working-group investigation articles, and 7 checked cluster `analysis` paragraphs.
+- `/clusters/` includes a visible AI-assisted synthesis notice, and future cluster edits should be treated as maintenance or a new follow-up focus.
 
 ## Method Guardrails
 
-- Metadata is only a seed. Public cluster claims must come from paper-note, paper, artifact, or source-visible evidence.
-- Cluster articles and working-group investigations are parallel lenses, not parent/child sections.
-- Keep clusters and working groups prose-first: article paragraphs, prose object flow, and evidence-backed boundaries; no card-heavy or tag-cloud style content.
-- Keep group labels coarse, tentative where evidence is weak, and traceable to papers/artifacts/authors/repositories.
-- Do not add coverage scores, ranking scores, quality scores, `trajectory_IR_relevance`, backend services, databases, PDF hosting, or fine-grained collaboration graphs unless explicitly requested.
+- Inventory existing style surfaces before broad implementation.
+- Prefer a small token/controller layer over a redesign.
+- Keep academic/library routes quiet, readable, dense enough for research use, static, and inspectable.
+- Do not add backend services, client-side styling dependencies, databases, PDF hosting, or route-breaking changes unless explicitly requested.
 - Keep `/library/` and `/papers/[slug]/` stable.
 
 ## Session Scope
 
-- When asked to proceed on cluster work, read `docs/focus/cluster-analysis-working-groups.md` first.
-- Prefer one coherent evidence batch over a tiny edit: source checks, `src/data/clusters.json` updates, necessary docs count/status updates, manifest export, and route/build checks.
-- Stop before making speculative lineage, affiliation, scoring, or ranking claims.
+- When asked to proceed with the active focus, read `docs/focus/style-controller.md` first.
+- For cluster maintenance, read `docs/focus/cluster-analysis-working-groups.md` and preserve its evidence/boundary guardrails.
+- Stop before making broad visual changes until duplicated style decisions are inventoried.
 
 ## Latest Good Verification
 

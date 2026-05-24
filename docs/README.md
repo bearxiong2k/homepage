@@ -17,8 +17,9 @@ Read only when the task calls for it:
 
 | Task | Read |
 |---|---|
-| Continue the current active focus | `docs/focus/cluster-analysis-working-groups.md`, then the files it names as needed |
+| Continue the current active focus | `docs/focus/style-controller.md`, then the files it names as needed |
 | Switch or resume focus | `docs/focus/README.md`, then the target focus file |
+| Maintain the completed cluster focus | `docs/focus/cluster-analysis-working-groups.md`, then `src/data/clusters.json`, representative paper notes, and official artifacts as needed |
 | Add or revise a paper note | `docs/corpus-note-harness.md`, `docs/metadata-template.md`, `docs/legacy-source-map.md` |
 | Work on cluster or working-group analysis | `docs/focus/cluster-analysis-working-groups.md`, then `src/data/clusters.json`, `docs/future-development-plan.md`, archive seed if needed |
 | Work on website shell, registry, manifest, or route contract | `docs/website-integration/README.md`, then specific ADR/plan files only if needed |
@@ -31,7 +32,8 @@ A coherent batch may span several related files in the same task row. For exampl
 
 - `docs/active-context.md` — concise active project state and next focus.
 - `docs/focus/README.md` — focus-switch index and retrieval protocol.
-- `docs/focus/cluster-analysis-working-groups.md` — active cluster-analysis focus state.
+- `docs/focus/style-controller.md` — active focus for a general style controller.
+- `docs/focus/cluster-analysis-working-groups.md` — completed cluster-analysis focus state, retained for maintenance.
 - `docs/future-development-plan.md` — detailed roadmap and rationale; not default session context.
 - `docs/next-session-prompt.md` — short restart prompt for explicitly requested continuation.
 - `docs/iteration-docs-playbook.md` — how to maintain, slim, archive, and update docs across iterations.
