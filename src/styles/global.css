@@ -1337,6 +1337,12 @@ button.secondary { background: var(--color-surface); color: #22304a; border-colo
 .methodology-status {
   margin-top: 18px;
 }
+.methodology-simple {
+  margin-top: 18px;
+}
+.methodology-simple p {
+  max-width: 860px;
+}
 .methodology-list {
   display: grid;
   gap: 8px;
