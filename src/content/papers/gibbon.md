@@ -3,13 +3,37 @@ slug: gibbon
 title: "Gibbon: An Efficient Co-Exploration Framework of NN Model and Processing-In-Memory Architecture"
 short_title: "Gibbon"
 subtitle: "Scoped CIM stack note"
-year: 2022
-venue: "DATE 2022; IEEE TCAD 2023"
-authors_or_group: "Yannan N. Wu, Peiyu Y. Chen, H. H. Li, Yiran Chen, Yingyan Lin, Yu Wang, Yuan Xie, Cheng Zhuo"
+year: 2023
+publication:
+  venue: "IEEE Trans. Comput. Aided Des. Integr. Circuits Syst."
+  type: "article"
+  doi: "10.1109/TCAD.2023.3262201"
+  url: "https://doi.org/10.1109/TCAD.2023.3262201"
+authors:
+  - "Hanbo Sun"
+  - "Zhenhua Zhu"
+  - "Chenyu Wang"
+  - "Xuefei Ning"
+  - "Guohao Dai"
+  - "Huazhong Yang"
+  - "Yu Wang"
+bibtex: |
+  @article{DBLP:journals/tcad/SunZWNDYW23,
+    author = {Hanbo Sun and Zhenhua Zhu and Chenyu Wang and Xuefei Ning and Guohao Dai and Huazhong Yang and Yu Wang},
+    title = {Gibbon: An Efficient Co-Exploration Framework of {NN} Model and Processing-In-Memory Architecture},
+    journal = {{IEEE} Trans. Comput. Aided Des. Integr. Circuits Syst.},
+    volume = {42},
+    number = {11},
+    pages = {4075--4089},
+    year = {2023},
+    doi = {10.1109/TCAD.2023.3262201},
+    url = {https://doi.org/10.1109/TCAD.2023.3262201}
+  }
+citation_source: https://dblp.org/rec/journals/tcad/SunZWNDYW23
 summary: >-
   Gibbon is best read as a memristor/RRAM PIM hardware-software co-exploration framework rather than as an explicit CIM compiler IR stack. Its contribution is a PIM-oriented neural-network/hardware search space, an entropy-and-intensity guided evolutionary search method called ESAPP, and an RNN-based surrogate predictor trained from MNSIM 2.0 simulator results. The demonstrated workload setting is static CNN inference on CIFAR-10 and CIFAR-100 over a MultiPrecision-style memristor PIM accelerator parameter space, including crossbar size, ADC/DAC resolution, memristor precision, and quantization choices. For CIM compiler/IR research, Gibbon is useful because it exposes which design-choice variables and metric-provenance fields become important when NN structure, precision, and PIM hardware are optimized together, even though its reusable boundary is more clearly a search candidate/configuration interface than a typed, serializable compiler IR. ([dai.sjtu.edu.cn](https://dai.sjtu.edu.cn/my_file/pdf/f8091be3-32b0-486b-a2a8-c738f07e0d0f.pdf))
 links:
-  paper: https://dai.sjtu.edu.cn/my_file/pdf/f8091be3-32b0-486b-a2a8-c738f07e0d0f.pdf
+  paper: https://doi.org/10.1109/TCAD.2023.3262201
   artifact: https://sites.google.com/view/nas-nicsefc/home/application-on-efficiency/gibbon
   docs:
   code:

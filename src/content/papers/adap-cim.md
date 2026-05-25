@@ -4,8 +4,34 @@ title: "AdaP-CIM: Compute-in-Memory Based Neural Network Accelerator using Adapt
 short_title: "AdaP-CIM"
 subtitle: "Scoped CIM stack note"
 year: 2024
-venue: "DATE 2024"
-authors_or_group: "Jingyu He, Fengbin Tu, Kwang-Ting Cheng, Chi-Ying Tsui; HKUST"
+publication:
+  venue: "DATE 2024"
+  type: "conference"
+  doi: "10.23919/DATE58400.2024.10546520"
+  url: "https://doi.org/10.23919/DATE58400.2024.10546520"
+authors:
+  - "Jingyu He"
+  - "Fengbin Tu"
+  - "Kwang Ting Cheng"
+  - "Chi Ying Tsui"
+author_note: "HKUST"
+citation_source: https://dblp.org/rec/conf/date/HeTCT24
+bibtex: |
+  @inproceedings{DBLP:conf/date/HeTCT24,
+    author       = {Jingyu He and
+                    Fengbin Tu and
+                    Kwang Ting Cheng and
+                    Chi Ying Tsui},
+    title        = {{AdaP-CIM:} Compute-in-Memory Based Neural Network Accelerator Using
+                    Adaptive Posit},
+    booktitle    = {Design, Automation {\&} Test in Europe Conference {\&} Exhibition,
+                    {DATE} 2024, Valencia, Spain, March 25-27, 2024},
+    pages        = {1--2},
+    publisher    = {{IEEE}},
+    year         = {2024},
+    doi          = {10.23919/DATE58400.2024.10546520},
+    url          = {https://doi.org/10.23919/DATE58400.2024.10546520}
+  }
 summary: >-
   **AdaP-CIM** is best read as a hardware–numeric-format co-design paper for CIM inference rather than as a compiler or IR stack. Its main contribution is **Adaptive Posit**, a Posit-derived format that bounds the regime length with parameter `rs` and adds an exponent-extension encoding mode, paired with a **speculative alignment unit** that computes the maximum effective exponent before CIM MAC execution. The demonstrated scope is BERT-Base-Uncased quantization on three GLUE tasks and synthesis of a 256×64 SRAM-CIM macro in TSMC 28 nm against a Posit/CT-based baseline. For CIM compiler/IR research, the reusable interface is clearest at the numeric type and alignment-state boundary: `AdaP(n, es, rs)`, effective exponent, encoding flag, exponent extension, fraction, `Emax`, and exponent-offset shift become the objects that a future IR would need to name, type, preserve, and lower. ([DATE Conference](https://past.date-conference.com/proceedings-archive/2024/DATA/1077_pdf_upload.pdf))
 links:

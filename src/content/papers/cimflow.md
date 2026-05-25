@@ -4,8 +4,31 @@ title: "CIMFlow: An Integrated Framework for Systematic Design and Evaluation of
 short_title: "CIMFlow"
 subtitle: Scoped CIM stack note seed
 year: 2025
-venue: "DAC 2025"
-authors_or_group: CIMFlow authors
+publication:
+  venue: "DAC 2025"
+  type: "conference"
+  doi: "10.1109/DAC63849.2025.11133270"
+  url: "https://doi.org/10.1109/DAC63849.2025.11133270"
+authors:
+  - "Yingjie Qi"
+  - "Jianlei Yang"
+  - "Yiou Wang"
+  - "Yikun Wang"
+  - "Dayu Wang"
+  - "Ling Tang"
+  - "Cenlin Duan"
+  - "Xiaolin He"
+  - "Weisheng Zhao"
+bibtex: |
+  @inproceedings{qi2025cimflow,
+    title = {CIMFlow: An Integrated Framework for Systematic Design and Evaluation of Digital CIM Architectures},
+    author = {Qi, Yingjie and Yang, Jianlei and Wang, Yiou and Wang, Yikun and Wang, Dayu and Tang, Ling and Duan, Cenlin and He, Xiaolin and Zhao, Weisheng},
+    booktitle = {2025 62nd ACM/IEEE Design Automation Conference (DAC)},
+    pages = {1--7},
+    year = {2025},
+    doi = {10.1109/DAC63849.2025.11133270}
+  }
+citation_source: https://www.cimflow.org/docs/Framework/what-is-cimflow
 summary: >-
   CIMFlow is a public SRAM-based digital CIM infrastructure stack for DNN inference, connecting ONNX input, hardware configuration, graph partitioning, OP-level MLIR/DSL lowering, per-core ISA JSON, and SystemC-backed simulation.
 links:

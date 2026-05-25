@@ -4,12 +4,36 @@ title: "DyPIM: Dynamic-Inference-Enabled Processing-In-Memory Accelerator"
 short_title: "DyPIM"
 subtitle: "Scoped CIM stack note"
 year: 2024
-venue: "DATE 2024"
-authors_or_group: "Tongxin Xie, Tianchen Zhao, Zhenhua Zhu, Xuefei Ning, Bing Li, Guohao Dai, Huazhong Yang, Yu Wang"
+publication:
+  venue: "DATE 2024"
+  type: "conference"
+  doi: "10.23919/DATE58400.2024.10546612"
+  url: "https://doi.org/10.23919/DATE58400.2024.10546612"
+authors:
+  - "Tongxin Xie"
+  - "Tianchen Zhao"
+  - "Zhenhua Zhu"
+  - "Xuefei Ning"
+  - "Bing Li"
+  - "Guohao Dai"
+  - "Huazhong Yang"
+  - "Yu Wang"
+bibtex: |
+  @inproceedings{DBLP:conf/date/XieZZNLDY024,
+    author = {Xie, Tongxin and Zhao, Tianchen and Zhu, Zhenhua and Ning, Xuefei and Li, Bing and Dai, Guohao and Yang, Huazhong and Wang, Yu},
+    title = {DyPIM: Dynamic-Inference-Enabled Processing-In-Memory Accelerator},
+    booktitle = {Design, Automation & Test in Europe Conference & Exhibition, DATE 2024, Valencia, Spain, March 25-27, 2024},
+    pages = {1--6},
+    publisher = {IEEE},
+    year = {2024},
+    doi = {10.23919/DATE58400.2024.10546612},
+    url = {https://doi.org/10.23919/DATE58400.2024.10546612}
+  }
+citation_source: https://dblp.org/rec/conf/date/XieZZNLDY024
 summary: >-
   DyPIM is a DATE 2024 hardware–software co-design study for dynamic CNN inference on an RRAM-based PIM accelerator. Its main contribution is not a general-purpose CIM compiler, but a set of reusable dynamic-execution abstractions: Channel-Net separates channel-mask generation from intermediate feature readiness to recover inter-layer pipelining; channel grouping and dynamic operation-unit formation align pruning granularity with PIM crossbar execution granularity; and a throughput-oriented loss uses layer latency rather than total MAC reduction as the training proxy. The demonstrated setting is ResNet-20/32/56 on CIFAR-10 and CIFAR-100, evaluated with MNSIM 2.0 after adding dynamic control flows, using a 128×128 crossbar and 16×8 operation unit. For CIM compiler/IR research, the paper is most useful as a hidden-stack example in which the effective IR is distributed across runtime masks, dynamic tables, OU formation rules, latency targets, and simulator assumptions rather than exposed as a named, serializable compiler representation. ([dai.sjtu.edu.cn](https://dai.sjtu.edu.cn/my_file/pdf/c69aff31-5bbd-45dc-8e2c-40deb0c504d7.pdf))
 links:
-  paper: https://dai.sjtu.edu.cn/my_file/pdf/c69aff31-5bbd-45dc-8e2c-40deb0c504d7.pdf
+  paper: https://doi.org/10.23919/DATE58400.2024.10546612
   artifact:
   docs:
   code:

@@ -4,12 +4,35 @@ title: "PIMsynth: A Unified Compiler Framework for Bit-Serial Processing-in-Memo
 short_title: "PIMsynth"
 subtitle: "Scoped CIM stack note"
 year: 2025
-venue: "IEEE Computer Architecture Letters"
-authors_or_group: "Deyuan Guo, Mohammadhosein Gholamrezaei, Matthew Hofmann, Ashish Venkat, Zhiru Zhang, Kevin Skadron"
+publication:
+  venue: "IEEE Comput. Archit. Lett."
+  type: "article"
+  doi: "10.1109/LCA.2025.3600588"
+  url: "https://doi.org/10.1109/LCA.2025.3600588"
+authors:
+  - "Deyuan Guo"
+  - "MohammadHosein Gholamrezaei"
+  - "Matthew Hofmann"
+  - "Ashish Venkat"
+  - "Zhiru Zhang"
+  - "Kevin Skadron"
+bibtex: |
+  @article{DBLP:journals/cal/GuoGHVZS25,
+    author = {Deyuan Guo and MohammadHosein Gholamrezaei and Matthew Hofmann and Ashish Venkat and Zhiru Zhang and Kevin Skadron},
+    title = {{PIMsynth}: A Unified Compiler Framework for Bit-Serial Processing-in-Memory Architectures},
+    journal = {{IEEE} Comput. Archit. Lett.},
+    volume = {24},
+    number = {2},
+    pages = {277--280},
+    year = {2025},
+    doi = {10.1109/LCA.2025.3600588},
+    url = {https://doi.org/10.1109/LCA.2025.3600588}
+  }
+citation_source: https://dblp.org/rec/journals/cal/GuoGHVZS25
 summary: >-
   PIMsynth is a public compiler framework for generating bit-serial PIM microprograms from bit-parallel combinational Verilog. Its clearest contribution is an automated lowering path that combines Yosys/ABC logic synthesis, a GenLib-described bit-serial PIM instruction set, analog-PIM-specific transformations for TRA/MAJ/DCC behavior, LLVM-based scheduling and register allocation, and PIMeval-backed functional/performance validation. The demonstrated setting is fixed-width integer and bitwise combinational kernels over 8/16/32/64-bit operands, evaluated on representative digital and analog DRAM-PIM programming models with small single-bit register sets. For CIM compiler/IR research, PIMsynth is most useful as a bit-level compiler-stack example where the first-class object is neither a neural-network tensor graph nor an array placement map, but a bit-serial operation DAG plus a constrained register/simulator instruction interface. ([University of Virginia Computer Science](https://www.cs.virginia.edu/venkat/papers/cal2025.pdf))
 links:
-  paper: https://www.cs.virginia.edu/~av6ds/papers/cal2025.pdf
+  paper: https://doi.org/10.1109/LCA.2025.3600588
   artifact: https://github.com/UVA-LavaLab/PIMsynth
   docs:
   code:

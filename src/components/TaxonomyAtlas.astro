@@ -24,7 +24,12 @@ type Paper = {
   short_title: string;
   subtitle?: string | null;
   year?: number | null;
-  venue?: string | null;
+  publication?: {
+    venue?: string | null;
+    type?: string | null;
+    doi?: string | null;
+    url?: string | null;
+  };
   summary: string;
   tags?: string[];
   technology?: string[];
@@ -231,7 +236,7 @@ const axisCategories = axisCategorySets(taxonomy);
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
   const firstMiddle = (paper) => paper.axis_B?.[0] ?? 'B1';
   const roles = (paper) => [paper.axis_A.primary, ...(paper.axis_A.secondary ?? [])];
-  const metadataLine = (paper) => [paper.year, paper.venue].filter(Boolean).join(' · ');
+  const metadataLine = (paper) => [paper.year, paper.publication?.venue].filter(Boolean).join(' · ');
   const currentAtlasUrl = () => `${window.location.pathname}${window.location.search}`;
   const sitePath = (path) => `${siteBasePath}${path.startsWith('/') ? path : `/${path}`}` || '/';
   const detailHref = (paper) => `${sitePath(`/papers/${paper.slug}/`)}?from=${encodeURIComponent(currentAtlasUrl())}`;

@@ -4,12 +4,41 @@ title: "Declarative Memory Services"
 short_title: "DMS"
 subtitle: "Scoped CIM stack note"
 year: 2026
-venue: "CIDR 2026"
-authors_or_group: "Jeronimo Castrillon, Jana Giceva, Yu Hua, Kimberly Keeton, Akhil Shekar, Kevin Skadron, Tianzheng Wang, Huanchen Zhang"
+publication:
+  venue: "CIDR 2026"
+  type: "conference"
+  doi: 
+  url: "https://www.vldb.org/cidrdb/papers/2026/p21-castrillon.pdf"
+authors:
+  - "Jeronimo Castrillon"
+  - "Jana Giceva"
+  - "Yu Hua"
+  - "Kimberly Keeton"
+  - "Akhil Shekar"
+  - "Kevin Skadron"
+  - "Tianzheng Wang"
+  - "Huanchen Zhang"
+citation_source: https://dblp.org/rec/conf/cidr/CastrillonGHKSS26
+bibtex: |
+  @inproceedings{DBLP:conf/cidr/CastrillonGHKSS26,
+    author       = {Jeronimo Castrillon and
+                    Jana Giceva and
+                    Yu Hua and
+                    Kimberly Keeton and
+                    Akhil Shekar and
+                    Kevin Skadron and
+                    Tianzheng Wang and
+                    Huanchen Zhang},
+    title        = {Declarative Memory Services},
+    booktitle    = {16th Conference on Innovative Data Systems Research, {CIDR} 2026,
+                    Chaminade, HI, USA, January 18-21, 2026},
+    year         = {2026},
+    url          = {https://www.vldb.org/cidrdb/papers/2026/p21-castrillon.pdf}
+  }
 summary: >-
   **Declarative Memory Services** is a CIDR 2026 vision paper that argues future memory programming should expose desired memory properties rather than hand-coded device-specific mechanisms. Its main contribution is a layered abstraction: applications annotate logical memory regions and dataflow tasks with properties such as cacheability, coherence, latency, bandwidth, replication, compression, and offloadability; a calibration layer records device capabilities and APIs; and a memory-services runtime maps those declarations to heterogeneous devices including local DRAM, CXL memory, and PIM-style computational memory. The strongest demonstrated scope is conceptual and DBMS-oriented: disaggregated B+-trees, PIM filtering, and tiered-memory buffer caching motivate the abstraction. For a CIM compiler/IR corpus, the paper is most useful as a runtime/property-abstraction reference: it does not define a CIM operator IR, numeric trajectory IR, or instruction lowering path, but it clearly identifies the kinds of memory-service contracts a higher-level compiler might need to preserve when targeting PIM or heterogeneous memory backends. ([VLDB](https://www.vldb.org/cidrdb/papers/2026/p21-castrillon.pdf))
 links:
-  paper: https://www.cidrdb.org/cidr2026/papers/p21-castrillon.pdf
+  paper: https://www.vldb.org/cidrdb/2026/declarative-memory-services.html
   artifact:
   docs:
   code:

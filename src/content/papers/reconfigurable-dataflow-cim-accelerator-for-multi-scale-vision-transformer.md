@@ -4,8 +4,43 @@ title: "An In-Memory Computing Accelerator with Reconfigurable Dataflow for Mult
 short_title: "Reconfigurable MSViT CIM"
 subtitle: "Scoped CIM stack note"
 year: 2024
-venue: "DAC 2024"
-authors_or_group: "Zhiyuan Chen; Yufei Ma; Keyi Li; Yifan Jia; Guoxiang Li; Meng Wu; Tianyu Jia; Le Ye; Ru Huang"
+publication:
+  venue: "DAC 2024"
+  type: "conference"
+  doi: "10.1145/3649329.3658244"
+  url: "https://doi.org/10.1145/3649329.3658244"
+authors:
+  - "Zhiyuan Chen"
+  - "Yufei Ma"
+  - "Keyi Li"
+  - "Yifan Jia"
+  - "Guoxiang Li"
+  - "Meng Wu"
+  - "Tianyu Jia"
+  - "Le Ye"
+  - "Ru Huang"
+citation_source: https://dblp.org/rec/conf/dac/Chen0L0L0JY024
+bibtex: |
+  @inproceedings{DBLP:conf/dac/Chen0L0L0JY024,
+    author       = {Zhiyuan Chen and
+                    Yufei Ma and
+                    Keyi Li and
+                    Yifan Jia and
+                    Guoxiang Li and
+                    Meng Wu and
+                    Tianyu Jia and
+                    Le Ye and
+                    Ru Huang},
+    title        = {An In-Memory Computing Accelerator with Reconfigurable Dataflow
+                    for Multi-Scale Vision Transformer with Hybrid Topology},
+    booktitle    = {Proceedings of the 61st {ACM/IEEE} Design Automation Conference,
+                    {DAC} 2024, San Francisco, CA, USA, June 23-27, 2024},
+    pages        = {245:1--245:6},
+    publisher    = {{ACM}},
+    year         = {2024},
+    doi          = {10.1145/3649329.3658244},
+    url          = {https://doi.org/10.1145/3649329.3658244}
+  }
 summary: >-
   This DAC 2024 paper contributes a digital SRAM-CIM accelerator architecture and reconfigurable dataflow for static-shape, image-domain multi-scale Vision Transformers whose topology mixes convolutional layers with multi-head attention. Its strongest CIM-stack contribution is at the hardware-mapping and backend-dataflow boundary: the paper highlights MHA pipeline reordering, a two-stage softmax strategy, fused attention matrix multiplication to reduce quadratic intermediate traffic, reconfigurable IMC engines, a distributor network, reuse buffers, accumulation, and post-processing paths. The demonstrated scope is a TSMC 22 nm evaluation against a baseline IMC accelerator, reporting 2.20×–2.52× MHA speedup, 40.6%–74.8% MHA energy reduction, and 44.1%–55.9% EDP reduction for typical multi-scale ViTs. ([ACM Digital Library](https://dl.acm.org/doi/epdf/10.1145/3649329.3658244?utm_source=chatgpt.com)) For CIM compiler/IR research, the paper is most useful as a hardware-software co-design case where the practical “IR-like” object is a reconfigurable dataflow and resource-binding state, rather than a public frontend, verifier, serializable dialect, ISA, or compiler API.
 links:

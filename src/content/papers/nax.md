@@ -4,12 +4,32 @@ title: "NAX: Neural Architecture and Memristive Xbar based Accelerator Co-design
 short_title: "NAX"
 subtitle: "Scoped CIM stack note"
 year: 2022
-venue: "DAC 2022 / Proceedings of the 59th ACM/IEEE Design Automation Conference"
-authors_or_group: "Shubham Negi, Indranil Chakraborty, Aayush Ankit, Kaushik Roy"
+publication:
+  venue: "DAC 2022"
+  type: "conference"
+  doi: "10.1145/3489517.3530477"
+  url: "https://doi.org/10.1145/3489517.3530477"
+authors:
+  - "Shubham Negi"
+  - "Indranil Chakraborty"
+  - "Aayush Ankit"
+  - "Kaushik Roy"
+bibtex: |
+  @inproceedings{DBLP:conf/dac/NegiCA022,
+    author = {Shubham Negi and Indranil Chakraborty and Aayush Ankit and Kaushik Roy},
+    title = {{NAX}: neural architecture and memristive xbar based accelerator co-design},
+    booktitle = {59th {ACM/IEEE} Design Automation Conference, {DAC} 2022},
+    pages = {451--456},
+    publisher = {{ACM}},
+    year = {2022},
+    doi = {10.1145/3489517.3530477},
+    url = {https://doi.org/10.1145/3489517.3530477}
+  }
+citation_source: https://dblp.org/rec/conf/dac/NegiCA022
 summary: >-
   NAX is a hardware-aware neural architecture search framework for CNN inference on memristive crossbar array IMC accelerators. Its main contribution is not a general compiler IR, but a search formulation that makes **per-layer coupling between neural operation choice and crossbar-size binding** explicit: convolution kernels in a ResNet-derived super-network are searched together with crossbar sizes, and the selected architecture is evaluated against accuracy, energy, and area-normalized latency objectives. The stack slice strengthened by the paper is the mapper/DSE layer between a CNN graph and a PUMA-like analog crossbar accelerator model, with nonideality feedback supplied through GENIEx and hardware-efficiency feedback through per-operation lookup-table costs. The demonstrated setting is static CNN inference on CIFAR-10 and Tiny ImageNet using ResNet-20/ResNet-18-derived search spaces, with simulator-backed comparisons against homogeneous-crossbar ResNet baselines. ([arXiv](https://arxiv.org/pdf/2106.12125)) |
 links:
-  paper: https://arxiv.org/pdf/2106.12125
+  paper: https://doi.org/10.1145/3489517.3530477
   artifact:
   docs:
   code:

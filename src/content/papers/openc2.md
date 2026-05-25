@@ -4,8 +4,38 @@ title: "OpenC2: An Open-Source End-to-End Hardware Compiler Development Framewor
 short_title: "OpenC2"
 subtitle: "Scoped CIM stack note"
 year: 2025
-venue: "DATE 2025"
-authors_or_group: "Tianchu Dong, Shaoxuan Li, Yihang Zuo, Hongwu Jiang, Yuzhe Ma, Shanshi Huang; HKUST(GZ)"
+publication:
+  venue: "DATE 2025"
+  type: "conference"
+  doi: "10.23919/DATE64628.2025.10992965"
+  url: "https://doi.org/10.23919/DATE64628.2025.10992965"
+authors:
+  - "Tianchu Dong"
+  - "Shaoxuan Li"
+  - "Yihang Zuo"
+  - "Hongwu Jiang"
+  - "Yuzhe Ma"
+  - "Shanshi Huang"
+author_note: "HKUST(GZ)"
+citation_source: https://dblp.org/rec/conf/date/DongLZJMH25
+bibtex: |
+  @inproceedings{DBLP:conf/date/DongLZJMH25,
+    author       = {Tianchu Dong and
+                    Shaoxuan Li and
+                    Yihang Zuo and
+                    Hongwu Jiang and
+                    Yuzhe Ma and
+                    Shanshi Huang},
+    title        = {{OpenC\({}^{\mbox{2}}\)}: An Open-Source End-to-End Hardware Compiler
+                    Development Framework for Digital Compute-in-Memory Macro},
+    booktitle    = {Design, Automation {\&} Test in Europe Conference {\&} Exhibition,
+                    {DATE} 2025, Lyon, France, March 31 - April 2, 2025},
+    pages        = {1--2},
+    publisher    = {{IEEE}},
+    year         = {2025},
+    doi          = {10.23919/DATE64628.2025.10992965},
+    url          = {https://doi.org/10.23919/DATE64628.2025.10992965}
+  }
 summary: >-
   OpenC² contributes an open-source, template-based hardware generation and physical-design flow for digital SRAM compute-in-memory macros. Its strongest demonstrated stack layer is the backend macro generator: from top-level macro parameters, customized cells, and 45 nm FreePDK technology/library inputs, it emits Verilog and SPICE front-end netlists plus DEF/GDSII layout artifacts through open-source EDA tools. The paper demonstrates this flow for DCIM macro construction, including a 64×64, 4-bit-by-4-bit example and macro-level area, power, and energy-efficiency comparisons. For CIM compiler/IR research, OpenC² is best read as a backend-plugin case study: it makes macro shape, precision fields, hardware hierarchy, and physical layout generation concrete, while the effective intermediate semantics are distributed across configuration values, Python templates, generated netlists, Yosys scripts, and DEF/LEF/GDS metadata rather than a standalone CIM IR. ([zyh0911.github.io](https://zyh0911.github.io/assets/pdf/OpenC2.pdf))
 links:

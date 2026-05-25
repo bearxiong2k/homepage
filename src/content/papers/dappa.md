@@ -4,8 +4,33 @@ title: "DaPPA: A Data-Parallel Programming Framework for Processing-in-Memory Ar
 short_title: "DaPPA"
 subtitle: "Scoped CIM stack note"
 year: 2023
-venue: "arXiv preprint; PACT 2023 ACM Student Research Competition presentation/poster context"
-authors_or_group: "Geraldo F. Oliveira, Alain Kohli, David Novo, Ataberk Olgun, A. Giray Yağlıkçı, Saugata Ghose, Juan Gómez-Luna, Onur Mutlu"
+publication:
+  venue: "arXiv:2310.10168"
+  type: "other"
+  doi: "10.48550/arXiv.2310.10168"
+  url: "https://doi.org/10.48550/arXiv.2310.10168"
+authors:
+  - "Geraldo F. Oliveira"
+  - "Alain Kohli"
+  - "David Novo"
+  - "Ataberk Olgun"
+  - "A. Giray Yaglikci"
+  - "Saugata Ghose"
+  - "Juan Gómez-Luna"
+  - "Onur Mutlu"
+bibtex: |
+  @misc{oliveira2023dappa,
+    author = {Oliveira, Geraldo F. and Kohli, Alain and Novo, David and Olgun, Ataberk and Yaglikci, A. Giray and Ghose, Saugata and Gómez-Luna, Juan and Mutlu, Onur},
+    title = {DaPPA: A Data-Parallel Programming Framework for Processing-in-Memory Architectures},
+    year = {2023},
+    howpublished = {arXiv:2310.10168},
+    doi = {10.48550/arXiv.2310.10168},
+    eprint = {2310.10168},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.AR},
+    url = {https://arxiv.org/abs/2310.10168}
+  }
+citation_source: https://arxiv.org/abs/2310.10168
 summary: >-
   DaPPA is a UPMEM-oriented programming and dynamic code-generation framework that raises the programmer-facing abstraction from explicit DPU memory movement and tasklet partitioning to C++ data-parallel patterns. Its main reusable contribution is the `Pipeline`/stage abstraction: users express map, reduce, filter, window, group, and composite pattern pipelines, while DaPPA generates UPMEM host/DPU code, arranges MRAM and WRAM data, handles 8-byte alignment, partitions work across DPUs and tasklets, and performs CPU-side leftover or post-processing when required. The paper demonstrates the approach on six PrIM workloads—VA, SEL, UNI, RED, GEMV, and HST-S—on a real UPMEM system with 2,560 DPUs, reporting 2.1× average end-to-end speedup over hand-tuned PrIM implementations and 94% lower effective UPMEM-related LOC. For CIM compiler/IR research, DaPPA is most relevant as a layer-specific frontend-to-backend stack where the first-class object is a data-parallel pipeline plus UPMEM memory-layout/runtime state, rather than an explicit portable IR, instruction dialect, analog-CIM value trajectory, or hardware-model schema. ([arXiv](https://arxiv.org/pdf/2310.10168))
 links:

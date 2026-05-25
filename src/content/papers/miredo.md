@@ -4,8 +4,31 @@ title: "MIREDO: MIP-Driven Resource-Efficient Dataflow Optimization for Computin
 short_title: "MIREDO"
 subtitle: "Scoped CIM stack note"
 year: 2026
-venue: "ASP-DAC 2026"
-authors_or_group: "Xiaolin He, Cenlin Duan, Yingjie Qi, Xiao Ma, Jianlei Yang / Beihang University CI-Lab"
+publication:
+  venue: "ASP-DAC 2026"
+  type: "conference"
+  doi: "10.48550/arXiv.2510.26463"
+  url: "https://doi.org/10.48550/arXiv.2510.26463"
+authors:
+  - "Xiaolin He"
+  - "Cenlin Duan"
+  - "Yingjie Qi"
+  - "Xiao Ma"
+  - "Jianlei Yang"
+author_note: "Beihang University CI-Lab"
+bibtex: |
+  @inproceedings{he2026miredo,
+    author = {He, Xiaolin and Duan, Cenlin and Qi, Yingjie and Ma, Xiao and Yang, Jianlei},
+    title = {MIREDO: MIP-Driven Resource-Efficient Dataflow Optimization for Computing-in-Memory Accelerator},
+    booktitle = {ASP-DAC 2026},
+    year = {2026},
+    doi = {10.48550/arXiv.2510.26463},
+    eprint = {2510.26463},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.AR},
+    url = {https://arxiv.org/abs/2510.26463}
+  }
+citation_source: https://arxiv.org/abs/2510.26463
 summary: >-
   **MIREDO** is best read as a CIM dataflow mapping framework that makes loop-factor placement, operand-specific memory hierarchy use, transfer paths, and buffering decisions explicit inside a Mixed-Integer Programming formulation. The paper’s strongest contribution is not a public compiler IR or instruction stack, but a stall-aware analytical model for SRAM-CIM accelerator mapping: it captures memory-capacity constraints, bus-width-derived transfer latency, single-versus-double buffering, and recursive loop-level latency to select a dataflow for DNN inference. The demonstrated workload setting is primarily INT8 CNN inference, with ResNet-18/ImageNet used as the baseline case and additional DNN/hardware sweeps reported through simulator-backed experiments. For CIM compiler/IR research, MIREDO is valuable as evidence that a useful “hidden IR” for CIM mapping can be a structured optimization state: constants, binary variables, enumerated data-size candidates, loop-factor placements, memory-level bindings, and latency recurrences. ([arXiv](https://arxiv.org/pdf/2510.26463))
 links:

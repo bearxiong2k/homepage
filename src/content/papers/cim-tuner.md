@@ -4,8 +4,32 @@ title: "CIM-Tuner: Balancing the Compute and Storage Capacity of SRAM-CIM Accele
 short_title: "CIM-Tuner"
 subtitle: "Scoped CIM stack note"
 year: 2026
-venue: "DATE 2026 / arXiv:2601.18070"
-authors_or_group: "Jinwu Chen, Yuhui Shi, He Wang, Zhe Jiang, Jun Yang, Xin Si, Zhenhua Zhu"
+publication:
+  venue: "arXiv:2601.18070"
+  type: "other"
+  doi: "10.48550/arXiv.2601.18070"
+  url: "https://doi.org/10.48550/arXiv.2601.18070"
+authors:
+  - "Jinwu Chen"
+  - "Yuhui Shi"
+  - "He Wang"
+  - "Zhe Jiang"
+  - "Jun Yang"
+  - "Xin Si"
+  - "Zhenhua Zhu"
+bibtex: |
+  @misc{chen2026cimtuner,
+    author = {Chen, Jinwu and Shi, Yuhui and Wang, He and Jiang, Zhe and Yang, Jun and Si, Xin and Zhu, Zhenhua},
+    title = {CIM-Tuner: Balancing the Compute and Storage Capacity of SRAM-CIM Accelerator via Hardware-mapping Co-exploration},
+    year = {2026},
+    howpublished = {arXiv:2601.18070},
+    doi = {10.48550/arXiv.2601.18070},
+    eprint = {2601.18070},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.AR},
+    url = {https://arxiv.org/abs/2601.18070}
+  }
+citation_source: https://arxiv.org/abs/2601.18070
 summary: >-
   **CIM-Tuner** is a hardware-mapping co-exploration stack for SRAM compute-in-memory accelerators. Its main contribution is not a general-purpose compiler IR, but a reusable modeling and mapping abstraction: SRAM-CIM macros are represented as matrix-projection units with parameters such as accumulation length, parallel channels, storage-compute ratio, input-compute bandwidth, and weight-update bandwidth; accelerators are represented as a three-stage template with Input SRAM, CIM macro array, Output SRAM, and external bandwidth; and each operator is assigned a two-level mapping strategy combining spatial scheduling, temporal update priority, and macro-level tiling. The demonstrated workloads are DNN inference operators, especially CNN and Transformer-derived matrix multiplications encoded as CSV operator shapes, evaluated through a C CIMMA compiler, instruction-flow/count simulation, Python power/area/latency models, and simulated annealing over hardware sizing. For CIM compiler/IR research, the paper is most useful as evidence that a compact CIM-resource template plus mapping-state search can serve as an effective middle layer for hardware/software co-design, while the reusable IR boundary is clearest in the configuration schema, mapping labels, instruction types, and simulator metrics rather than in a separately documented compiler IR. ([arXiv](https://arxiv.org/html/2601.18070v1))
 links:

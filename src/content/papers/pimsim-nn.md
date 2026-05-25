@@ -4,12 +4,32 @@ title: "PIMSIM-NN: An ISA-based Simulation Framework for Processing-in-Memory Ac
 short_title: "PIMSIM-NN"
 subtitle: "Scoped CIM stack note"
 year: 2024
-venue: "DATE 2024 Late Breaking Results"
-authors_or_group: "Xinyu Wang, Xiaotian Sun, Yinhe Han, Xiaoming Chen"
+publication:
+  venue: "DATE 2024"
+  type: "conference"
+  doi: "10.23919/DATE58400.2024.10546788"
+  url: "https://doi.org/10.23919/DATE58400.2024.10546788"
+authors:
+  - "Xinyu Wang"
+  - "Xiaotian Sun"
+  - "Yinhe Han"
+  - "Xiaoming Chen"
+bibtex: |
+  @inproceedings{DBLP:conf/date/WangS0024,
+    author = {Xinyu Wang and Xiaotian Sun and Yinhe Han and Xiaoming Chen},
+    title = {{PIMSIM-NN}: An {ISA}-based Simulation Framework for Processing-in-Memory Accelerators},
+    booktitle = {Design, Automation {\&} Test in Europe Conference {\&} Exhibition, {DATE} 2024},
+    pages = {1--2},
+    publisher = {{IEEE}},
+    year = {2024},
+    doi = {10.23919/DATE58400.2024.10546788},
+    url = {https://doi.org/10.23919/DATE58400.2024.10546788}
+  }
+citation_source: https://dblp.org/rec/conf/date/WangS0024
 summary: >-
   PIMSIM-NN is best read as an ISA-centered simulation framework for crossbar-based PIM neural-network inference. The paper’s main contribution is the instruction-sequence boundary between software mapping/code generation and a configurable SystemC simulator: DNNs are compiled into per-core instructions, then evaluated against hardware and NoC configuration files for latency, power, energy, and throughput. The demonstrated paper scope is static DNN inference on memristor/RRAM-style crossbar accelerators, with experiments over CNN workloads such as AlexNet, GoogLeNet, ResNet-18, SqueezeNet, VGG-8, and VGG-16; the public simulator artifact is clearest for precompiled instruction streams and JSON hardware configs, while ONNX-to-instruction compilation is documented through the companion PIMCOMP-NN repository. For CIM compiler/IR research, PIMSIM-NN is valuable less as a general-purpose IR stack and more as a concrete backend contract: it shows which CIM details must be named at the ISA/config boundary for simulator-backed exploration. ([arXiv](https://arxiv.org/html/2402.18089v1))
 links:
-  paper: https://arxiv.org/html/2402.18089v1
+  paper: https://doi.org/10.23919/DATE58400.2024.10546788
   artifact: https://github.com/wangxy-2000/pimsim-nn
   docs:
   code:

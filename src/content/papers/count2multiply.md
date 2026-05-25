@@ -4,12 +4,33 @@ title: "Count2Multiply: Reliable In-Memory High-Radix Counting"
 short_title: "Count2Multiply"
 subtitle: "Scoped CIM stack note"
 year: 2026
-venue: "HPCA 2026"
-authors_or_group: "João Paulo C. de Lima, Benjamin Morris III, Asif Ali Khan, Jeronimo Castrillon, Alex K. Jones"
+publication:
+  venue: "HPCA 2026"
+  type: "conference"
+  doi: "10.1109/HPCA68181.2026.11408436"
+  url: "https://doi.org/10.1109/HPCA68181.2026.11408436"
+authors:
+  - "João Paulo C. de Lima"
+  - "Benjamin F. Morris III"
+  - "Asif Ali Khan"
+  - "Jerónimo Castrillón"
+  - "Alex K. Jones"
+bibtex: |
+  @inproceedings{DBLP:conf/hpca/LimaMKCJ26,
+    author = {Jo{\~{a}}o Paulo C. de Lima and Benjamin F. Morris III and Asif Ali Khan and Jer{\'{o}}nimo Castrill{\'{o}}n and Alex K. Jones},
+    title = {Count2Multiply: Reliable In-Memory High-Radix Counting},
+    booktitle = {IEEE International Symposium on High-Performance Computer Architecture, {HPCA} 2026},
+    pages = {1--15},
+    publisher = {{IEEE}},
+    year = {2026},
+    doi = {10.1109/HPCA68181.2026.11408436},
+    url = {https://doi.org/10.1109/HPCA68181.2026.11408436}
+  }
+citation_source: https://dblp.org/rec/conf/hpca/LimaMKCJ26
 summary: >-
   **Count2Multiply** contributes a digital-CIM masked accumulation primitive for integer-binary and integer-integer matrix operations by storing one operand as bit-sliced mask rows, storing outputs as high-radix Johnson-counter rows, and converting the other operand into host-generated Ambit-style memory-command µPrograms. Its compiler/IR relevance is clearest at the boundary between numeric lowering and backend instruction generation: input values are converted into radix digits, zero digits are skipped, row addresses are populated into preconstructed command macros, and a host-side virtual counter manages delayed carry propagation. The demonstrated stack is an Ambit-style commodity-DRAM CIM design evaluated with a cycle-level NVMain/RTSim extension over GEMV/GEMM-like kernels from LLaMA/LLaMA-2, BERT/LLama-3 attention, DNA pre-alignment filtering, and quantized GNN workloads. The work is best read as a hardware-software co-design and instruction-stream lowering study for digital-CIM arithmetic, with reusable ideas for representing masks, counter state, µProgram templates, and ECC-aware recomputation paths in a future CIM IR. ([CFAED](https://cfaed.tu-dresden.de/files/Images/people/chair-cc/publications/2602_Lima_HPCA.pdf))
 links:
-  paper: https://arxiv.org/html/2409.10136v3
+  paper: https://doi.org/10.1109/HPCA68181.2026.11408436
   artifact: https://github.com/SU-JonesLab/C2M
   docs:
   code:

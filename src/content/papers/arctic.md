@@ -4,8 +4,33 @@ title: "ARCTIC: Agile and Robust Compute-In-Memory Compiler with Parameterized I
 short_title: "ARCTIC"
 subtitle: "Scoped CIM stack note"
 year: 2024
-venue: "DATE 2024"
-authors_or_group: "Hongyi Zhang, Haozhe Zhu, Siqi He, Mengjie Li, Chengchen Wang, Xiankui Xiong, Haidong Tian, Xiaoyang Zeng, Chixiao Chen"
+publication:
+  venue: "DATE 2024"
+  type: "conference"
+  doi: "10.23919/DATE58400.2024.10546676"
+  url: "https://doi.org/10.23919/DATE58400.2024.10546676"
+authors:
+  - "Hongyi Zhang"
+  - "Haozhe Zhu"
+  - "Siqi He"
+  - "Mengjie Li"
+  - "Chengchen Wang"
+  - "Xiankui Xiong"
+  - "Haidong Tian"
+  - "Xiaoyang Zeng"
+  - "Chixiao Chen"
+bibtex: |
+  @inproceedings{DBLP:conf/date/ZhangZHLWXTZC24,
+    author = {Hongyi Zhang and Haozhe Zhu and Siqi He and Mengjie Li and Chengchen Wang and Xiankui Xiong and Haidong Tian and Xiaoyang Zeng and Chixiao Chen},
+    title = {{ARCTIC}: Agile and Robust Compute-In-Memory Compiler with Parameterized {INT/FP} Precision and Built-In Self Test},
+    booktitle = {Design, Automation {\&} Test in Europe Conference {\&} Exhibition, {DATE} 2024},
+    pages = {1--6},
+    publisher = {{IEEE}},
+    year = {2024},
+    doi = {10.23919/DATE58400.2024.10546676},
+    url = {https://doi.org/10.23919/DATE58400.2024.10546676}
+  }
+citation_source: https://dblp.org/rec/conf/date/ZhangZHLWXTZC24
 summary: >-
   **ARCTIC: Agile and Robust Compute-In-Memory Compiler with Parameterized INT/FP Precision and Built-In Self Test** is best read as a physical digital-CIM macro compiler for SRAM-based DCIM. Its main contribution is a parameterized macro-generation flow that accepts hardware-level specifications—timing and area constraints, memory depth and width, mantissa width, exponent width, exponent offset, and INT/FP format—and produces low-level RTL, MarchCIM BIST logic, and placed-and-routed 28 nm macro layouts through commercial EDA flows. The paper strengthens the lower hardware-generation layer of the CIM stack, especially precision-specialized INT/FP macro construction and DCIM-aware BIST, rather than the model-frontend or tensor-mapping layer. For CIM compiler/IR research, ARCTIC is useful as evidence that numeric-format fields, mantissa/exponent placement, BIST test modes, and physical macro hierarchy are important first-class backend objects, even though the paper foregrounds a template/EDA flow rather than a standalone auditable IR. ([DATE Conference](https://past.date-conference.com/proceedings-archive/2024/DATA/399_pdf_upload.pdf))
 links:

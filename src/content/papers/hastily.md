@@ -4,12 +4,32 @@ title: "HASTILY: Hardware-Software Co-Design for Accelerating Transformer Infere
 short_title: "HASTILY"
 subtitle: "Scoped CIM stack note"
 year: 2025
-venue: "IEEE Transactions on Circuits and Systems for Artificial Intelligence; arXiv:2502.12344"
-authors_or_group: "Dong Eun Kim, Tanvi Sharma, Kaushik Roy"
+publication:
+  venue: "IEEE Transactions on Circuits and Systems for Artificial Intelligence"
+  type: "article"
+  doi: "10.1109/TCASAI.2025.3601975"
+  url: "https://doi.org/10.1109/TCASAI.2025.3601975"
+authors:
+  - "Dong Eun Kim"
+  - "Tanvi Sharma"
+  - "Kaushik Roy"
+citation_source: https://doi.org/10.1109/TCASAI.2025.3601975
+bibtex: |
+  @article{hastily,
+    author       = {Dong Eun Kim and
+                    Tanvi Sharma and
+                    Kaushik Roy},
+    title        = {{HASTILY:} Hardware-Software Co-Design for Accelerating Transformer
+                    Inference Leveraging Compute-in-Memory},
+    journal      = {{IEEE} Transactions on Circuits and Systems for Artificial Intelligence},
+    year         = {2025},
+    doi          = {10.1109/TCASAI.2025.3601975},
+    url          = {https://doi.org/10.1109/TCASAI.2025.3601975}
+  }
 summary: >-
   HASTILY is a hardware-software co-design for BERT-style transformer encoder inference on an SRAM-based analog-CIM spatial accelerator. Its central contribution is the **Unified Compute and Lookup Module**: an 8T-SRAM CIM structure that can perform both matrix-vector multiplication and exponent-table lookup, enabling softmax acceleration inside the CIM core rather than relegating exponentiation entirely to a vector functional unit. The compiler-facing part of the work is clearest in its vector-level scheduling strategy and ISA extensions: transformer encoder layers are decomposed into row/vector MVM stages, Q/K/V and attention computations are pipelined through UCLMs, K/V are dynamically written as CIM weights, and softmax maxima/sums are reduced across cores through a tree-style gather. For CIM compiler/IR research, HASTILY is best read as a narrow but informative end-to-end stack whose reusable semantics are concentrated in the mapping schedule, UCLM mode model, softmax reduction state, and PUMASim-derived backend contract, rather than in an auditable standalone IR. ([arXiv](https://arxiv.org/pdf/2502.12344)) |
 links:
-  paper: https://arxiv.org/pdf/2502.12344
+  paper: https://doi.org/10.1109/TCASAI.2025.3601975
   artifact:
   docs:
   code:

@@ -4,12 +4,36 @@ title: "SEGA-DCIM: Design Space Exploration-Guided Automatic Digital CIM Compile
 short_title: "SEGA-DCIM"
 subtitle: "Scoped CIM stack note"
 year: 2025
-venue: "DATE 2025; arXiv v1 submitted 2025-05-14"
-authors_or_group: "Haikang Diao, Haoyi Zhang, Jiahao Song, Haoyang Luo, Yibo Lin, Runsheng Wang, Yuan Wang, Xiyuan Tang"
+publication:
+  venue: "DATE 2025"
+  type: "conference"
+  doi: "10.23919/DATE64628.2025.10993192"
+  url: "https://doi.org/10.23919/DATE64628.2025.10993192"
+authors:
+  - "Haikang Diao"
+  - "Haoyi Zhang"
+  - "Jiahao Song"
+  - "Haoyang Luo"
+  - "Yibo Lin"
+  - "Runsheng Wang"
+  - "Yuan Wang"
+  - "Xiyuan Tang"
+bibtex: |
+  @inproceedings{DBLP:conf/date/DiaoZSLLW0T25,
+    author = {Haikang Diao and Haoyi Zhang and Jiahao Song and Haoyang Luo and Yibo Lin and Runsheng Wang and Yuan Wang and Xiyuan Tang},
+    title = {{SEGA-DCIM}: Design Space Exploration-Guided Automatic Digital {CIM} Compiler with Multiple Precision Support},
+    booktitle = {Design, Automation {\&} Test in Europe Conference {\&} Exhibition, {DATE} 2025},
+    pages = {1--7},
+    publisher = {{IEEE}},
+    year = {2025},
+    doi = {10.23919/DATE64628.2025.10993192},
+    url = {https://doi.org/10.23919/DATE64628.2025.10993192}
+  }
+citation_source: https://dblp.org/rec/conf/date/DiaoZSLLW0T25
 summary: >-
   SEGA-DCIM is a digital SRAM-CIM macro-generation and design-space-exploration framework for producing Pareto-frontier DCIM macro designs across integer and floating-point precision choices. Its strongest contribution is the combination of a parameterized synthesizable DCIM architecture, normalized analytical area/delay/energy/throughput models, an NSGA-II-based multi-objective search over macro parameters, and a template-based Verilog/netlist/layout generation flow that relies on user-provided cell/layout resources and commercial EDA tools. The demonstrated workload abstraction is matrix-vector multiplication with static stored weights and streamed input vectors, evaluated mainly through macro-level PPA trends, generated layouts, and comparisons against published DCIM macro results. For CIM compiler/IR research, SEGA-DCIM is most useful as a hardware-generation and backend-cost-model reference: it makes DCIM macro structure and numeric precision choices first-class, while workload graph import, tensor IR, CIM ISA, runtime state, and simulator-facing instruction streams sit outside the demonstrated interface. ([arXiv](https://arxiv.org/abs/2505.09451)) |
 links:
-  paper: https://arxiv.org/abs/2505.09451
+  paper: https://doi.org/10.23919/DATE64628.2025.10993192
   artifact:
   docs:
   code:

@@ -3,13 +3,38 @@ slug: ciminus
 title: "CIMinus: Empowering Sparse DNN Workloads Modeling and Exploration on SRAM-Based CIM Architectures"
 short_title: "CIMinus"
 subtitle: "Scoped CIM stack note"
-year: 2025
-venue: "IEEE Transactions on Computers"
-authors_or_group: "Yingjie Qi, Jianlei Yang, Rubing Yang, Cenlin Duan, Xiaolin He, Ziyan He, Weitao Pan, Weisheng Zhao"
+year: 2026
+publication:
+  venue: "IEEE Trans. Computers"
+  type: "article"
+  doi: "10.1109/TC.2025.3628114"
+  url: "https://doi.org/10.1109/TC.2025.3628114"
+authors:
+  - "Yingjie Qi"
+  - "Jianlei Yang"
+  - "Rubing Yang"
+  - "Cenlin Duan"
+  - "Xiaolin He"
+  - "Ziyan He"
+  - "Weitao Pan"
+  - "Weisheng Zhao"
+bibtex: |
+  @article{DBLP:journals/tc/QiYYDHHPZ26,
+    author = {Yingjie Qi and Jianlei Yang and Rubing Yang and Cenlin Duan and Xiaolin He and Ziyan He and Weitao Pan and Weisheng Zhao},
+    title = {{CIMinus}: Empowering Sparse {DNN} Workloads Modeling and Exploration on {SRAM}-Based {CIM} Architectures},
+    journal = {{IEEE} Trans. Computers},
+    volume = {75},
+    number = {1},
+    pages = {380--394},
+    year = {2026},
+    doi = {10.1109/TC.2025.3628114},
+    url = {https://doi.org/10.1109/TC.2025.3628114}
+  }
+citation_source: https://dblp.org/rec/journals/tc/QiYYDHHPZ26
 summary: >-
   **CIMinus** contributes a sparse-DNN modeling and exploration framework for digital SRAM-based compute-in-memory systems. Its central stack contribution is **FlexBlock**, a compositional sparsity abstraction that represents structurally constrained sparse weight matrices using FullBlock and IntraBlock patterns, coupled with a declarative interface for workload DAGs, hardware units, and mapping templates. The demonstrated flow starts from ONNX or manually described DNN workloads, applies or describes FlexBlock-compatible pruning masks, maps compressed/rearranged weights onto parameterized CIM macros, and estimates latency and energy through system-level/cycle-level modeling. The work is most relevant to CIM compiler/IR research as a **configuration-and-mapping boundary**: it shows how sparsity masks, compressed matrix layout, loopnest mapping, index-memory overhead, and macro organization can be named explicitly enough for exploration, even though the paper’s reusable endpoint is a simulator/cost-model report rather than a compiler IR, ISA, or synthesis backend. ([arXiv](https://arxiv.org/pdf/2511.16368v1))
 links:
-  paper: https://arxiv.org/pdf/2511.16368v1
+  paper: https://doi.org/10.1109/TC.2025.3628114
   artifact:
   docs:
   code:

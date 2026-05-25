@@ -4,8 +4,29 @@ title: "Efficient In-Memory Acceleration of Sparse Block Diagonal LLMs"
 short_title: "SparseBD-LLM CIM"
 subtitle: "Scoped CIM stack note"
 year: 2025
-venue: "IEEE Cross-disciplinary Conference on Memory-Centric Computing (CCMCC), to appear / arXiv v1"
-authors_or_group: "João Paulo C. de Lima, Marc Dietrich, Jeronimo Castrillon, Asif Ali Khan"
+publication:
+  venue: "CCMCC 2025"
+  type: "conference"
+  doi: "10.48550/arXiv.2510.11192"
+  url: "https://doi.org/10.48550/arXiv.2510.11192"
+authors:
+  - "João Paulo Cardoso de Lima"
+  - "Marc Dietrich"
+  - "Jeronimo Castrillon"
+  - "Asif Ali Khan"
+bibtex: |
+  @inproceedings{delima2025efficient,
+    author = {de Lima, João Paulo Cardoso and Dietrich, Marc and Castrillon, Jeronimo and Khan, Asif Ali},
+    title = {Efficient In-Memory Acceleration of Sparse Block Diagonal LLMs},
+    booktitle = {IEEE Cross-disciplinary Conference on Memory-Centric Computing, CCMCC 2025},
+    year = {2025},
+    doi = {10.48550/arXiv.2510.11192},
+    eprint = {2510.11192},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.AR},
+    url = {https://arxiv.org/abs/2510.11192}
+  }
+citation_source: https://arxiv.org/abs/2510.11192
 summary: >-
   This paper is best read as a focused hardware-software co-design study for mapping Monarch-style block-diagonal transformer weights onto analog CIM crossbars. Its core contribution is not a general CIM compiler IR, but a set of mapping and scheduling rules that make block-diagonal structure usable on CIM arrays: a latency-oriented sparse mapping, a capacity-oriented dense packing, diagonal-index placement with rotation cancellation, permutation folding, and mapping-aware temporal row/column activation. The demonstrated workload is transformer inference over parameterized matmuls in BERT-large, BART-large, and GPT-2-Medium, evaluated through a simulator based on IBM’s PCM-oriented 3D AIMC modeling stack with ADC/DAC design-space variation. For CIM compiler/IR research, the paper is valuable because it exposes a compact “hidden IR” centered on packed array layout, diagonal offsets, ADC sharing, and schedule timestamps—objects that a future explicit IR could name, type, verify, serialize, and lower to a backend. ([arXiv](https://arxiv.org/pdf/2510.11192v1))
 links:

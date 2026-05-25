@@ -4,8 +4,39 @@ title: "SHERLOCK: Scheduling Efficient and Reliable Bulk Bitwise Operations in N
 short_title: "SHERLOCK"
 subtitle: "Scoped CIM stack note"
 year: 2024
-venue: "DAC 2024"
-authors_or_group: "Hamid Farzaneh; João Paulo C. de Lima; Ali Nezhadi Khelejani; Asif Ali Khan; Mahta Mayahinia; Mehdi Tahoori; Jeronimo Castrillon"
+publication:
+  venue: "DAC 2024"
+  type: "conference"
+  doi: "10.1145/3649329.3658485"
+  url: "https://doi.org/10.1145/3649329.3658485"
+authors:
+  - "Hamid Farzaneh"
+  - "João Paulo C. de Lima"
+  - "Ali Nezhadi Khelejani"
+  - "Asif Ali Khan"
+  - "Mahta Mayahinia"
+  - "Mehdi B. Tahoori"
+  - "Jerónimo Castrillón"
+citation_source: https://dblp.org/rec/conf/dac/FarzanehLKKMTC24
+bibtex: |
+  @inproceedings{DBLP:conf/dac/FarzanehLKKMTC24,
+    author       = {Hamid Farzaneh and
+                    Jo{\~{a}}o Paulo C. de Lima and
+                    Ali Nezhadi Khelejani and
+                    Asif Ali Khan and
+                    Mahta Mayahinia and
+                    Mehdi B. Tahoori and
+                    Jer{\'{o}}nimo Castrill{\'{o}}n},
+    title        = {{SHERLOCK:} Scheduling Efficient and Reliable Bulk Bitwise Operations
+                    in NVMs},
+    booktitle    = {Proceedings of the 61st {ACM/IEEE} Design Automation Conference,
+                    {DAC} 2024, San Francisco, CA, USA, June 23-27, 2024},
+    pages        = {293:1--293:6},
+    publisher    = {{ACM}},
+    year         = {2024},
+    doi          = {10.1145/3649329.3658485},
+    url          = {https://doi.org/10.1145/3649329.3658485}
+  }
 summary: >-
   **SHERLOCK** is a mapping and scheduling framework for bulk bitwise logic in memristive NVM compute-in-memory systems. Its main compiler contribution is to treat a bulk-bitwise program as a DAG of operand and operation nodes, cluster dependent operations so their operands fit NVM array columns, bind those clusters to row/column resources, and generate simulator-compatible read/write/shift/CIM instructions while accounting for the latency–energy–reliability tradeoff of multi-row activation. The demonstrated flow starts from C bulk-bitwise kernels parsed with pycparser, targets scouting-logic-style ReRAM and STT-MRAM arrays, and evaluates BitWeaving, bit-sliced Sobel, and Usuba-generated bit-sliced AES through an extended gem5 + NVSim + SPICE/statistical-modeling backend. For CIM compiler/IR research, SHERLOCK is best read as a graph-to-hardware-layout compiler whose reusable semantics are clearest in the DAG, cluster/layout state, instruction format, and reliability-aware MRA model. ([cfaed.tu-dresden.de](https://cfaed.tu-dresden.de/files/Images/people/chair-cc/publications/2406_Farzaneh_DAC.pdf))
 links:

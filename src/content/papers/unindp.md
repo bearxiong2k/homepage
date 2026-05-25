@@ -4,8 +4,44 @@ title: "UniNDP: A Unified Compilation and Simulation Tool for Near DRAM Processi
 short_title: "UniNDP"
 subtitle: "Scoped CIM stack note"
 year: 2025
-venue: "IEEE HPCA 2025"
-authors_or_group: "Tongxin Xie, Zhenhua Zhu, Bing Li, Yukai He, Cong Li, Guangyu Sun, Huazhong Yang, Yuan Xie, Yu Wang"
+publication:
+  venue: "HPCA 2025"
+  type: "conference"
+  doi: "10.1109/HPCA61900.2025.00054"
+  url: "https://doi.org/10.1109/HPCA61900.2025.00054"
+authors:
+  - "Tongxin Xie"
+  - "Zhenhua Zhu"
+  - "Bing Li"
+  - "Yukai He"
+  - "Cong Li"
+  - "Guangyu Sun"
+  - "Huazhong Yang"
+  - "Yuan Xie"
+  - "Yu Wang"
+citation_source: https://dblp.org/rec/conf/hpca/XieZLHL0Y0025
+bibtex: |
+  @inproceedings{DBLP:conf/hpca/XieZLHL0Y0025,
+    author       = {Tongxin Xie and
+                    Zhenhua Zhu and
+                    Bing Li and
+                    Yukai He and
+                    Cong Li and
+                    Guangyu Sun and
+                    Huazhong Yang and
+                    Yuan Xie and
+                    Yu Wang},
+    title        = {{UniNDP:} A Unified Compilation and Simulation Tool for Near {DRAM}
+                    Processing Architectures},
+    booktitle    = {31st {IEEE} International Symposium on High-Performance Computer
+                    Architecture, {HPCA} 2025, Las Vegas, NV, USA, March 1-5,
+                    2025},
+    pages        = {624--640},
+    publisher    = {{IEEE}},
+    year         = {2025},
+    doi          = {10.1109/HPCA61900.2025.00054},
+    url          = {https://doi.org/10.1109/HPCA61900.2025.00054}
+  }
 summary: >-
   UniNDP is best read as a unified mapping-and-simulation framework for **DRAM-based near-data / near-DRAM processing architectures**. Its main contribution is a narrow but concrete stack that takes ML operator descriptions and hardware configuration, enumerates partition and data-layout strategies across DRAM hierarchy levels, prunes and ranks those strategies with DRAM-timing-derived predictors, lowers top candidates to a small NDP instruction abstraction, and evaluates them with an instruction-driven timing simulator. The paper strengthens the CIM/PIM stack at the **mapping, hardware-resource abstraction, cost-model, and simulator-backend** layers rather than at the frontend language or formal IR-verification layer. The demonstrated scope is ML operators from CNN and LLM workloads—especially MM and MVM shapes—on bank-, device-, and rank-level NDP architectures modeled after UPMEM, AiM, HBM-PIM, and DIMMining-like organizations. ([nicsefc.ee.tsinghua.edu.cn](https://nicsefc.ee.tsinghua.edu.cn/nics_file/pdf/d356f1fd-6204-4b21-8849-a9c3b2e15065.pdf))
 links:

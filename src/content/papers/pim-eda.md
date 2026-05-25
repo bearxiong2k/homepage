@@ -4,8 +4,22 @@ title: "PIM EDA Suite / PIM Toolchain"
 short_title: "PIM EDA Suite"
 subtitle: "Scoped CIM stack note"
 year: 2023
-venue: "Repository-centered suite; associated papers include DAC 2023, IEEE TCAD, DATE 2024"
-authors_or_group: "Xiaoming Chen group / ICT CAS and collaborators"
+publication:
+  venue: "GitHub repository"
+  type: "other"
+  doi: 
+  url: "https://github.com/chenxm1986/PIM-Toolchain"
+authors: []
+author_note: "Xiaoming Chen group / ICT CAS and collaborators"
+bibtex: |
+  @misc{pim-eda,
+    title = {PIM EDA Suite / PIM Toolchain},
+    year = {2023},
+    howpublished = {GitHub repository},
+    url = {https://github.com/chenxm1986/PIM-Toolchain},
+    note = {Repository-centered suite; associated papers include DAC 2023, IEEE TCAD, and DATE 2024}
+  }
+citation_source: https://github.com/chenxm1986/PIM-Toolchain
 summary: >-
   **PIM EDA Suite / PIM Toolchain** is best read as a crossbar-PIM DNN/CNN inference toolchain family rather than a single compiler paper. Its strongest contribution for a CIM compiler/IR corpus is the way it exposes several adjacent compiler boundaries: PIMSYN-NN synthesizes a parameterized macro/PE/crossbar accelerator and dataflow under a power constraint; PIMCOMP-NN lowers ONNX models through structure/weight representations, array-group partitioning, weight replication, core mapping, and HT/LL scheduling into pseudo-instruction or simulator inputs; PIMSIM-NN evaluates ISA/program-instruction streams against architecture/NoC configuration; and PIMACC evaluates inference accuracy under configurable nonidealities. The demonstrated setting is static DNN/CNN inference on configurable crossbar/RRAM-style PIM accelerators, with reusable evidence strongest at the hardware-template/config, mapping-state, pseudo-instruction, and simulator-input boundaries. ([GitHub](https://github.com/chenxm1986/PIM-Toolchain))
 links:

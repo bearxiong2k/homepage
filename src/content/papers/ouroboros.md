@@ -4,8 +4,33 @@ title: "Ouroboros: Wafer-Scale SRAM CIM with Token-Grained Pipelining for Large 
 short_title: "Ouroboros"
 subtitle: "Scoped CIM stack note"
 year: 2026
-venue: "ASPLOS 2026"
-authors_or_group: "Yiqi Liu, Yudong Pan, Mengdi Wang, Shixin Zhao, Haonan Zhu, Yinhe Han, Lei Zhang, Ying Wang"
+publication:
+  venue: "ASPLOS 2026"
+  type: "conference"
+  doi: "10.48550/arXiv.2603.02737"
+  url: "https://doi.org/10.48550/arXiv.2603.02737"
+authors:
+  - "Yiqi Liu"
+  - "Yudong Pan"
+  - "Mengdi Wang"
+  - "Shixin Zhao"
+  - "Haonan Zhu"
+  - "Yinhe Han"
+  - "Lei Zhang"
+  - "Ying Wang"
+bibtex: |
+  @inproceedings{liu2026ouroboros,
+    author = {Liu, Yiqi and Pan, Yudong and Wang, Mengdi and Zhao, Shixin and Zhu, Haonan and Han, Yinhe and Zhang, Lei and Wang, Ying},
+    title = {Ouroboros: Wafer-Scale SRAM CIM with Token-Grained Pipelining for Large Language Model Inference},
+    booktitle = {ASPLOS 2026},
+    year = {2026},
+    doi = {10.48550/arXiv.2603.02737},
+    eprint = {2603.02737},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.AR},
+    url = {https://arxiv.org/abs/2603.02737}
+  }
+citation_source: https://arxiv.org/abs/2603.02737
 summary: >-
   **Ouroboros** is best classified as a narrow end-to-end hardware–software co-design for wafer-scale **digital SRAM compute-in-memory** LLM inference. The paper’s central stack contribution is not a general CIM compiler IR, but a coherent target-specific execution stack: token-grained pipelining for causal decoder inference, communication- and fault-aware layer-to-core mapping, H-tree-aware intra-core placement, distributed dynamic KV-cache management, and a simulator-backed evaluation loop. Its demonstrated setting is LLM inference over a proposed 54 GB SRAM-CIM wafer-scale architecture, evaluated with decoder-only models such as LLaMA/Baichuan/Qwen and encoder-containing models such as T5/BERT. For CIM compiler/IR research, Ouroboros is valuable because it exposes a rich “hidden IR” made from mapping variables, pipeline stages, KV runtime tables, hardware-resource coordinates, and simulator parameters, even though those interfaces are paper-internal rather than released as a reusable dialect or instruction stream. ([arXiv](https://arxiv.org/html/2603.02737v1))
 links:

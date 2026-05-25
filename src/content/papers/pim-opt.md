@@ -4,12 +4,37 @@ title: "PIM-Opt: Demystifying Distributed Optimization Algorithms on a Real-Worl
 short_title: "PIM-Opt"
 subtitle: "Scoped CIM stack note"
 year: 2024
-venue: "PACT 2024"
-authors_or_group: "Steve Rhyner, Haocong Luo, Juan Gómez-Luna, Mohammad Sadrosadati, Jiawei Jiang, Ataberk Olgun, Harshita Gupta, Ce Zhang, Onur Mutlu"
+publication:
+  venue: "PACT 2024"
+  type: "conference"
+  doi: "10.1145/3656019.3676947"
+  url: "https://doi.org/10.1145/3656019.3676947"
+authors:
+  - "Steve Rhyner"
+  - "Haocong Luo"
+  - "Juan Gómez-Luna"
+  - "Mohammad Sadrosadati"
+  - "Jiawei Jiang"
+  - "Ataberk Olgun"
+  - "Harshita Gupta"
+  - "Ce Zhang"
+  - "Onur Mutlu"
+bibtex: |
+  @inproceedings{DBLP:conf/IEEEpact/RhynerLGS0OG0M24,
+    author = {Rhyner, Steve and Luo, Haocong and Gómez-Luna, Juan and Sadrosadati, Mohammad and Jiang, Jiawei and Olgun, Ataberk and Gupta, Harshita and Zhang, Ce and Mutlu, Onur},
+    title = {PIM-Opt: Demystifying Distributed Optimization Algorithms on a Real-World Processing-In-Memory System},
+    booktitle = {Proceedings of the 33rd International Conference on Parallel Architectures and Compilation Techniques, PACT 2024, Long Beach, CA, USA, October 14-16, 2024},
+    pages = {201--218},
+    publisher = {ACM},
+    year = {2024},
+    doi = {10.1145/3656019.3676947},
+    url = {https://doi.org/10.1145/3656019.3676947}
+  }
+citation_source: https://dblp.org/rec/conf/IEEEpact/RhynerLGS0OG0M24
 summary: >-
   PIM-Opt is a real-hardware UPMEM PIM study and reproducible evaluation framework for distributed optimization in linear ML training. Its main contribution is the implementation and measurement of MA-SGD, GA-SGD, and ADMM for logistic regression and SVM training on YFCC100M-HNfc6 and Criteo, including UPMEM execution, CPU/GPU baselines, preprocessing/postprocessing scripts, and figure-generation artifacts. The stack contribution is strongest at the runtime, benchmarking, and hardware-software co-design boundary: the paper makes host–DPU data movement, parameter-server synchronization, DPU/tasklet parallelism, and fixed-point backend constraints visible as performance-critical objects. For CIM compiler/IR research, PIM-Opt is most useful as a real-system backend and benchmark corpus rather than as an explicit IR stack: its reusable semantics are distributed across C structs, Makefiles, experiment scripts, timing logs, and host aggregation code. ([arXiv](https://arxiv.org/pdf/2404.07164v2))
 links:
-  paper: https://arxiv.org/pdf/2404.07164v2
+  paper: https://doi.org/10.1145/3656019.3676947
   artifact: https://github.com/CMU-SAFARI/PIM-Opt
   docs:
   code:

@@ -4,8 +4,31 @@ title: "SparseP: Towards Efficient Sparse Matrix Vector Multiplication on Real P
 short_title: "SparseP"
 subtitle: "Scoped CIM stack note"
 year: 2022
-venue: "Proceedings of the ACM on Measurement and Analysis of Computing Systems (POMACS), Vol. 6, No. 1, Article 21; SIGMETRICS/PERFORMANCE 2022 companion presentation"
-authors_or_group: "Christina Giannoula, Ivan Fernandez, Juan Gómez-Luna, Nectarios Koziris, Georgios Goumas, Onur Mutlu"
+publication:
+  venue: "Proc. ACM Meas. Anal. Comput. Syst."
+  type: "article"
+  doi: "10.1145/3508041"
+  url: "https://doi.org/10.1145/3508041"
+authors:
+  - "Christina Giannoula"
+  - "Ivan Fernandez"
+  - "Juan Gómez-Luna"
+  - "Nectarios Koziris"
+  - "Georgios I. Goumas"
+  - "Onur Mutlu"
+bibtex: |
+  @article{DBLP:journals/pomacs/GiannoulaFGKGM22,
+    author = {Christina Giannoula and Ivan Fernandez and Juan G{\'{o}}mez{-}Luna and Nectarios Koziris and Georgios I. Goumas and Onur Mutlu},
+    title = {{SparseP}: Towards Efficient Sparse Matrix Vector Multiplication on Real Processing-In-Memory Architectures},
+    journal = {Proc. {ACM} Meas. Anal. Comput. Syst.},
+    volume = {6},
+    number = {1},
+    pages = {21:1--21:49},
+    year = {2022},
+    doi = {10.1145/3508041},
+    url = {https://doi.org/10.1145/3508041}
+  }
+citation_source: https://dblp.org/rec/journals/pomacs/GiannoulaFGKGM22
 summary: >-
   SparseP is a real-system sparse linear algebra study and software library for SpMV on UPMEM near-bank digital PIM. Its concrete contribution is a family of 25 hand-written host/DPU kernels covering CSR, COO, BCSR, and BCOO sparse formats, multiple scalar data types, 1D and 2D matrix partitioning, PIM-core load balancing, tasklet-level load balancing, and synchronization choices, evaluated on a 20-DIMM UPMEM system against CPU and GPU baselines. ([arXiv](https://arxiv.org/pdf/2201.05072)) For CIM compiler/IR research, SparseP is most useful as a sparse-mapping and backend-contract case study: it exposes what a compiler would need to represent for real near-bank PIM execution, including sparse format metadata, host–PIM transfer phases, DPU memory placement, tasklet schedules, partial-output merging, and reproducibility constraints around hardware, SDK, and benchmark preparation. The demonstrated abstraction is a library-plus-configuration stack rather than a standalone compiler IR, but its artifact makes the hidden mapping state unusually concrete. ([GitHub](https://github.com/CMU-SAFARI/SparseP))
 links:

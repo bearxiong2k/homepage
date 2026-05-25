@@ -4,8 +4,39 @@ title: "CIM-MLC: A Multi-level Compilation Stack for Computing-In-Memory Acceler
 short_title: "CIM-MLC"
 subtitle: "Scoped CIM stack note"
 year: 2024
-venue: "ASPLOS 2024, Volume 2"
-authors_or_group: "Songyun Qu, Shixin Zhao, Bing Li, Yintao He, Xuyi Cai, Lei Zhang, Ying Wang"
+publication:
+  venue: "ASPLOS 2024"
+  type: "conference"
+  doi: "10.1145/3620665.3640393"
+  url: "https://doi.org/10.1145/3620665.3640393"
+authors:
+  - "Songyun Qu"
+  - "Shixin Zhao"
+  - "Bing Li"
+  - "Yintao He"
+  - "Xuyi Cai"
+  - "Lei Zhang"
+  - "Ying Wang"
+citation_source: https://dblp.org/rec/conf/asplos/QuZLHCZW24
+bibtex: |
+  @inproceedings{DBLP:conf/asplos/QuZLHCZW24,
+    author       = {Songyun Qu and
+                    Shixin Zhao and
+                    Bing Li and
+                    Yintao He and
+                    Xuyi Cai and
+                    Lei Zhang and
+                    Ying Wang},
+    title        = {{CIM-MLC:} A Multi-level Compilation Stack for Computing-In-Memory Accelerators},
+    booktitle    = {Proceedings of the 29th {ACM} International Conference on Architectural
+                    Support for Programming Languages and Operating Systems, Volume 2,
+                    {ASPLOS} 2024, La Jolla, CA, USA, 27 April 2024- 1 May 2024},
+    pages        = {185--200},
+    publisher    = {{ACM}},
+    year         = {2024},
+    doi          = {10.1145/3620665.3640393},
+    url          = {https://doi.org/10.1145/3620665.3640393}
+  }
 summary: >-
   CIM-MLC is a CIM compiler/mapping framework that contributes a three-tier hardware abstraction and a matching three-level scheduling pipeline for static DNN inference. Its main abstraction separates **architecture parameters**—chip, core, crossbar, buffer, NoC, ALU, cell precision, ADC/DAC precision—from **computing modes**—Core Mode, Crossbar Mode, and Wordline Mode—so that a compiler can select scheduling strategies at DNN-operator, MVM, or row-activation granularity. The demonstrated stack ingests ONNX graphs, records mapping decisions as graph attributes, performs graph segmentation, duplication, MVM-level pipelining, and WLM data remapping, then emits meta-operator flows for simulator-backed evaluation. For CIM compiler/IR research, CIM-MLC is valuable because it makes hardware-resource granularity explicit and provides a concrete meta-op backend boundary, while also illustrating a common “hidden IR” pattern: much of the reusable semantics sits in ONNX annotations, Python configs, optimization pass order, and codegen templates rather than in a single independently verifiable IR object. ([ar5iv](https://ar5iv.org/html/2401.12428v2))
 links:

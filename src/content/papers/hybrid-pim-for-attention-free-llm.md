@@ -4,12 +4,37 @@ title: "Towards Floating Point-Based Attention-Free LLM: Hybrid PIM with Non-Uni
 short_title: "Hybrid PIM"
 subtitle: "Scoped CIM stack note"
 year: 2024
-venue: "ICCAD 2024"
-authors_or_group: "Lidong Guo, Zhenhua Zhu, Tengxuan Liu, Xuefei Ning, Shiyao Li, Guohao Dai, Huazhong Yang, Wangyang Fu, Yu Wang"
+publication:
+  venue: "ICCAD 2024"
+  type: "conference"
+  doi: "10.1145/3676536.3676776"
+  url: "https://doi.org/10.1145/3676536.3676776"
+authors:
+  - "Lidong Guo"
+  - "Zhenhua Zhu"
+  - "Tengxuan Liu"
+  - "Xuefei Ning"
+  - "Shiyao Li"
+  - "Guohao Dai"
+  - "Huazhong Yang"
+  - "Wangyang Fu"
+  - "Yu Wang"
+bibtex: |
+  @inproceedings{DBLP:conf/iccad/GuoZLNLDYF024,
+    author = {Lidong Guo and Zhenhua Zhu and Tengxuan Liu and Xuefei Ning and Shiyao Li and Guohao Dai and Huazhong Yang and Wangyang Fu and Yu Wang},
+    title = {Towards Floating Point-Based Attention-Free {LLM}: Hybrid {PIM} with Non-Uniform Data Format and Reduced Multiplications},
+    booktitle = {{IEEE/ACM} International Conference on Computer-Aided Design, {ICCAD} 2024},
+    pages = {177:1--177:9},
+    publisher = {{ACM}},
+    year = {2024},
+    doi = {10.1145/3676536.3676776},
+    url = {https://doi.org/10.1145/3676536.3676776}
+  }
+citation_source: https://dblp.org/rec/conf/iccad/GuoZLNLDYF024
 summary: >-
   This paper contributes a hardware-software co-design for attention-free LLM inference that makes the MVM/EWM split in Mamba and RWKV the central optimization boundary. Its clearest CIM-stack contribution is a precision-and-arithmetic layer: PN, a PIM-oriented exponent-free non-uniform weight format that preserves bit-sliced analog RRAM MVM execution, and a multiplication-free approximate FP16 EWM implementation mapped onto a proposed 3D-SRAM digital PIM array. The demonstrated path is not a general compiler IR, but it does expose useful compiler/IR ingredients: a named numeric representation, a group-wise offline parameter-search algorithm, an operator-to-hardware mapping rule, a PN shift configuration boundary, conversion units between INT and FP stages, and simulator/synthesis-backed hardware evaluation for Mamba/RWKV families. The work is therefore best placed as a narrow end-to-end co-design with a strong isolated precision/mapping abstraction, relevant to CIM compiler research as evidence for treating bit significance, scaling-factor propagation, operator sensitivity, and domain transition as first-class lowering state. ([NIC SEFC](https://nicsefc.ee.tsinghua.edu.cn/nics_file/pdf/3b18c2b6-a7c4-439d-9fa8-d6276749f085.pdf))
 links:
-  paper: https://nicsefc.ee.tsinghua.edu.cn/nics_file/pdf/3b18c2b6-a7c4-439d-9fa8-d6276749f085.pdf
+  paper: https://doi.org/10.1145/3676536.3676776
   artifact: https://github.com/gld17/PN
   docs:
   code:

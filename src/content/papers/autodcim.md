@@ -4,8 +4,38 @@ title: "AutoDCIM: An Automated Digital CIM Compiler"
 short_title: "AutoDCIM"
 subtitle: "Scoped CIM stack note"
 year: 2023
-venue: "DAC 2023"
-authors_or_group: "Jia Chen, Fengbin Tu, Kunming Shao, Fengshi Tian, Xiao Huo, Chi-Ying Tsui, Kwang-Ting Cheng"
+publication:
+  venue: "DAC 2023"
+  type: "conference"
+  doi: "10.1109/DAC56929.2023.10247976"
+  url: "https://doi.org/10.1109/DAC56929.2023.10247976"
+authors:
+  - "Jia Chen"
+  - "Fengbin Tu"
+  - "Kunming Shao"
+  - "Fengshi Tian"
+  - "Xiao Huo"
+  - "Chi Ying Tsui"
+  - "Kwang Ting Cheng"
+citation_source: https://dblp.org/rec/conf/dac/ChenTSTHTC23
+bibtex: |
+  @inproceedings{DBLP:conf/dac/ChenTSTHTC23,
+    author       = {Jia Chen and
+                    Fengbin Tu and
+                    Kunming Shao and
+                    Fengshi Tian and
+                    Xiao Huo and
+                    Chi Ying Tsui and
+                    Kwang Ting Cheng},
+    title        = {{AutoDCIM:} An Automated Digital {CIM} Compiler},
+    booktitle    = {Proceedings of the 60th {ACM/IEEE} Design Automation Conference,
+                    {DAC} 2023, San Francisco, CA, USA, July 9-13, 2023},
+    pages        = {1--6},
+    publisher    = {{IEEE}},
+    year         = {2023},
+    doi          = {10.1109/DAC56929.2023.10247976},
+    url          = {https://doi.org/10.1109/DAC56929.2023.10247976}
+  }
 summary: >-
   AutoDCIM is best classified as a digital-CIM macro compiler rather than a workload compiler or explicit IR stack. Its public contribution is a spec-to-layout hardware generation flow that takes user macro specifications, builds a DCIM macro architecture, and produces an optimized physical layout using template-based generation plus a layout exploration loop over array partitioning choices. The demonstrated stack slice is the hardware-EDA layer: customized SRAM-based digital CIM cells, compute/peripheral structures, array partitioning, and layout generation.
 links:

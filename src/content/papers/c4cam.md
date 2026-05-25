@@ -4,8 +4,33 @@ title: "C4CAM: A Compiler for CAM-based In-memory Accelerators"
 short_title: "C4CAM"
 subtitle: "Scoped CIM stack note"
 year: 2024
-venue: "ASPLOS 2024"
-authors_or_group: "Hamid Reza Farzaneh, Mohammad Hossein Shahrokh Abadi, Minxuan Zhou, Wanqian Zhao, Aviral Shrivastava, Jeronimo Castrillon"
+publication:
+  venue: "Proceedings of the 29th ACM International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS'24), Volume 3"
+  type: "conference"
+  doi: "10.1145/3620666.3651386"
+  url: "https://doi.org/10.1145/3620666.3651386"
+authors:
+  - "Hamid Reza Farzaneh"
+  - "João Paulo Cardoso de Lima"
+  - "Mengyuan Li"
+  - "Asif Ali Khan"
+  - "Xiaobo Sharon Hu"
+  - "Jeronimo Castrillon"
+bibtex: |
+  @inproceedings{farzaneh2024c4cam,
+    author = {Farzaneh, Hamid Reza and de Lima, João Paulo Cardoso and Li, Mengyuan and Khan, Asif Ali and Hu, Xiaobo Sharon and Castrillon, Jeronimo},
+    title = {C4CAM: A Compiler for CAM-based In-memory Accelerators},
+    booktitle = {Proceedings of the 29th ACM International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS'24), Volume 3},
+    pages = {164--177},
+    publisher = {Association for Computing Machinery},
+    series = {ASPLOS '24},
+    isbn = {9798400703867},
+    location = {La Jolla, CA, USA},
+    year = {2024},
+    doi = {10.1145/3620666.3651386},
+    url = {https://arxiv.org/abs/2309.06418}
+  }
+citation_source: https://cfaed.tu-dresden.de/publications?pubId=3738
 summary: >-
   C4CAM is a 2024 ASPLOS paper that proposes an MLIR-based compiler and mapping flow for content-addressable-memory accelerators, focused on similarity and search-style workloads rather than general tensor-program compilation. Its main technical contribution is a layered lowering path from TorchScript/Torch MLIR into a generic `cim` abstraction and then into a CAM-specific `cam` abstraction that names CAM hierarchy, allocation, search mode, similarity metric, and partial-result handling. The demonstrated workloads are KNN, hyperdimensional-computing similarity, and DNA read mapping, evaluated through a CAMASim/Eva-CAM-style simulator setup with FeFET TCAM/MCAM assumptions rather than through a public end-to-end compiler artifact. The work is most useful to CIM compiler/IR research as an example of making CAM search and hierarchy mapping explicit in IR, with the clearest reusable boundary around pattern lowering, CAM resource binding, and simulator-facing cost-model integration. ([Cfaed](https://cfaed.tu-dresden.de/publications?pubId=3738))
 links:

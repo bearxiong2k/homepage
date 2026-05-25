@@ -13,13 +13,15 @@ Default read for every session. Keep this file compact; put focus details in the
 
 ## Active Focus
 
-Detail page content refinement is the active focus.
+Paper metadata maintenance is the active focus.
 
-- Focus doc: `docs/focus/detail-page-content-refinement.md`.
+- Focus doc: `docs/focus/paper-metadata-maintenance.md`.
 - Main files: `src/content/papers/*.md`, `src/pages/papers/[slug].astro`, `src/pages/papers/index.astro`, `src/content.config.ts`, and paper-note support docs.
-- Current goal: improve individual paper detail page content quality, source traceability, uncertainty handling, and per-paper reading usefulness.
-- Current implementation: `/papers/` lists notes and supports selected-note Markdown export; `/papers/[slug]/` renders metadata, source links, axis placement, normalized Axis C/D labels, note outline, and the Markdown note body.
-- Next work should audit representative detail pages and decide which issues belong in paper Markdown notes versus the detail-page shell.
+- Current goal: continue broadening source-backed citation metadata coverage. Collect or verify full BibTeX from reliable citation sources first, record `citation_source`, then derive clean display metadata from BibTeX with `npm run sync:citation-metadata`.
+- Current implementation: `/papers/` lists notes and supports selected-note Markdown and BibTeX export; `/papers/[slug]/` renders clean structured metadata, source links, axis placement, normalized Axis C/D labels, note outline, and the Markdown note body.
+- Paper metadata uses `year`, structured `publication`, `authors` / optional `author_note`, and `bibtex`; source-backed BibTeX records also use `citation_source`, and display metadata is synced from BibTeX with `npm run sync:citation-metadata`. Do not reintroduce top-level `venue` or `authors_or_group`.
+- Current metadata checkpoint: all 62 entries have source-backed `citation_source` records. Recent additions completed the remaining backlog, including formal DOI/proceedings records for AdaP-CIM, AutoDCIM, CIM-MLC, CLEAR, Declarative Memory Services, MCC CIM DSE, HASTILY, NS-Cache, OpenC2, OpenCIMTC, PolyXB, Reconfigurable MSViT CIM, ReSCIM, SHERLOCK, and UniNDP; `cim-pruner.md` is anchored to the official ISCAS 2026 page; `cima-com.md` and `pimacc.md` are explicitly repository/artifact-centered records.
+- Next work should audit citation freshness and source quality as maintenance, not continue a missing-`citation_source` backlog. Prioritize replacing artifact-only or forthcoming records with formal publisher BibTeX if those records become available.
 
 ## Paused Focus
 
@@ -49,7 +51,7 @@ Cluster analysis and working-group content is marked done.
 
 ## Session Scope
 
-- When asked to proceed with the active focus, read `docs/focus/detail-page-content-refinement.md` first.
+- When asked to proceed with the active focus, read `docs/focus/paper-metadata-maintenance.md` first.
 - For paper-note edits, use `docs/corpus-note-harness.md`, `docs/metadata-template.md`, and `docs/legacy-source-map.md` only as needed.
 - For cluster maintenance, read `docs/focus/cluster-analysis-working-groups.md` and preserve its evidence/boundary guardrails.
 - For style-controller work, read `docs/focus/style-controller.md` and avoid broad visual changes until duplicated style decisions are inventoried.

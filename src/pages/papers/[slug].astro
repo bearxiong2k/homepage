@@ -5,6 +5,7 @@ import CimLibraryNav from '../../components/CimLibraryNav.astro';
 import ContentTag from '../../components/ContentTag.astro';
 import taxonomy from '../../data/taxonomy.json';
 import { normalizePaperAxes } from '../../lib/axisNormalization';
+import { citationDisplayMetadata } from '../../lib/bibtex.js';
 import { sitePath } from '../../lib/sitePath';
 
 export async function getStaticPaths() {
@@ -84,7 +85,15 @@ for (const heading of noteOutline) {
     noteSections[noteSections.length - 1].children.push(heading);
   }
 }
-const paperMeta = [data.year, data.venue, data.authors_or_group].filter(Boolean).join(' · ');
+const citation = data.citation_source ? citationDisplayMetadata(data.bibtex) : null;
+const citationPublication = citation?.publication.venue ? citation.publication : data.publication;
+const citationAuthors = citation?.authors.length ? citation.authors : data.authors;
+const publicationVenue = citationPublication?.venue ?? null;
+const publicationType = citationPublication?.type ?? null;
+const publicationDoi = citationPublication?.doi || data.publication?.doi || null;
+const displayYear = citation?.year ?? data.year;
+const authorLine = citationAuthors.length ? citationAuthors.join(', ') : data.author_note ?? '';
+const paperMeta = [displayYear, publicationVenue].filter(Boolean).join(' · ');
 const emptyLabel = 'Unknown / not specified';
 const artifactChecked = data.artifact.last_checked ?? emptyLabel;
 const artifactUrlRecorded = Boolean(data.artifact?.url || data.links?.artifact);
@@ -103,6 +112,7 @@ const provenanceSummary = [
       <p class="eyebrow eyebrow--dark">Corpus note</p>
       <h1>{data.title}</h1>
       {paperMeta && <p>{paperMeta}</p>}
+      {authorLine && <p>{authorLine}</p>}
     </header>
 
     <div class:list={['paper-layout', { 'without-outline': noteSections.length === 0 }]}>
@@ -140,8 +150,11 @@ const provenanceSummary = [
         <div class="panel pad metadata-panel">
           <h2>Scan metadata</h2>
           <dl class="metadata-list">
-            <div><dt>Year</dt><dd>{data.year ?? emptyLabel}</dd></div>
-            <div><dt>Venue</dt><dd>{data.venue ?? emptyLabel}</dd></div>
+            <div><dt>Year</dt><dd>{displayYear ?? emptyLabel}</dd></div>
+            <div><dt>Publication</dt><dd>{publicationVenue ?? emptyLabel}</dd></div>
+            <div><dt>Type</dt><dd>{publicationType ?? emptyLabel}</dd></div>
+            <div><dt>DOI</dt><dd>{publicationDoi ?? emptyLabel}</dd></div>
+            <div><dt>Authors</dt><dd>{authorLine || emptyLabel}</dd></div>
             <div><dt>Reproducibility</dt><dd>{data.reproducibility_level}</dd></div>
             <div><dt>Artifact status</dt><dd>{data.artifact.status}</dd></div>
             <div><dt>Last checked</dt><dd>{data.artifact.last_checked ?? emptyLabel}</dd></div>

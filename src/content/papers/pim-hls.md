@@ -4,12 +4,35 @@ title: "PIM-HLS: An Automatic Hardware Generation Tool for Heterogeneous Process
 short_title: "PIM-HLS"
 subtitle: "Scoped CIM stack note"
 year: 2023
-venue: "DAC 2023"
-authors_or_group: "Yu Zhu, Zhenhua Zhu, Guohao Dai, Fengbin Tu, Hanbo Sun, Kwang-Ting Cheng, Huazhong Yang, Yu Wang"
+publication:
+  venue: "DAC 2023"
+  type: "conference"
+  doi: "10.1109/DAC56929.2023.10247755"
+  url: "https://doi.org/10.1109/DAC56929.2023.10247755"
+authors:
+  - "Yu Zhu"
+  - "Zhenhua Zhu"
+  - "Guohao Dai"
+  - "Fengbin Tu"
+  - "Hanbo Sun"
+  - "Kwang Ting Cheng"
+  - "Huazhong Yang"
+  - "Yu Wang"
+bibtex: |
+  @inproceedings{54975a0b99ec4ceaad7177162844574f,
+    title = {PIM-HLS: An Automatic Hardware Generation Tool for Heterogeneous Processing-In-Memory-based Neural Network Accelerators},
+    author = {Zhu, Yu and Zhu, Zhenhua and Dai, Guohao and Tu, Fengbin and Sun, Hanbo and Cheng, Kwang Ting and Yang, Huazhong and Wang, Yu},
+    series = {Proceedings - Design Automation Conference},
+    publisher = {Institute of Electrical and Electronics Engineers Inc.},
+    booktitle = {2023 60th ACM/IEEE Design Automation Conference, DAC 2023},
+    year = {2023},
+    doi = {10.1109/DAC56929.2023.10247755}
+  }
+citation_source: https://researchportal.hkust.edu.hk/en/publications/pim-hls-an-automatic-hardware-generation-tool-for-heterogeneous-p
 summary: >-
   **PIM-HLS** is a DAC 2023 tool paper that frames heterogeneous SRAM/RRAM PIM accelerator generation as an area-constrained mapping, scheduling, and hardware-parameter optimization problem for CNN inference. Its clearest contribution is not a general-purpose CIM compiler IR, but a hardware-aware optimization flow: a manually written NN description is parsed into a DFG, MNSIM-derived latency/area choices are used to rank SRAM/RRAM and array/interface options, layers are grouped and remapped under area constraints, bottleneck layers can be split or duplicated, and Verilog-style hardware templates plus module-level control/instruction information are generated. The demonstrated scope is static VGG-8 and ResNet-18 CNN inference over simulated SRAM/RRAM PIM configurations, with the most reusable compiler insight lying in the mapping state: layer groups, device binding, tile-set allocation, weight remapping cost, and area/latency-driven hardware choice. ([dai.sjtu.edu.cn](https://dai.sjtu.edu.cn/my_file/pdf/fab6156a-f133-4b35-929a-b0e65c7387ad.pdf)) |
 links:
-  paper: https://dai.sjtu.edu.cn/my_file/pdf/fab6156a-f133-4b35-929a-b0e65c7387ad.pdf
+  paper: https://doi.org/10.1109/DAC56929.2023.10247755
   artifact: https://github.com/Hazuyuki/PIM-HLS
   docs:
   code:

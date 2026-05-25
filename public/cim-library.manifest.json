@@ -4,7 +4,7 @@
   "title": "CIM Compiler/IR Paper Library",
   "kind": "research-atlas",
   "route": "/library/",
-  "generated_at": "2026-05-25T08:56:34.215Z",
+  "generated_at": "2026-05-25T10:52:14.289Z",
   "source": {
     "content_root": "src/content/papers",
     "taxonomy_path": "src/data/taxonomy.json",
@@ -592,8 +592,32 @@
       "short_title": "OpenCIMTC",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
-      "venue": "Nature Communications",
-      "authors_or_group": "Tsinghua LEMON Lab and collaborators",
+      "publication": {
+        "venue": "Nature Communications",
+        "type": "article",
+        "doi": "10.1038/s41467-025-57183-0",
+        "url": "https://doi.org/10.1038/s41467-025-57183-0"
+      },
+      "authors": [
+        "Ruihua Yu",
+        "Ze Wang",
+        "Qi Liu",
+        "Bin Gao",
+        "Zhenqi Hao",
+        "Tao Guo",
+        "Sanchuan Ding",
+        "Junyang Zhang",
+        "Qi Qin",
+        "Dong Wu",
+        "Peng Yao",
+        "Qingtian Zhang",
+        "Jianshi Tang",
+        "He Qian",
+        "Huaqiang Wu"
+      ],
+      "author_note": "Tsinghua LEMON Lab and collaborators",
+      "bibtex": "@article{Yu2025FullStackMemristorCIM,\n  author  = {Ruihua Yu and Ze Wang and Qi Liu and Bin Gao and Zhenqi Hao and Tao Guo and Sanchuan Ding and Junyang Zhang and Qi Qin and Dong Wu and Peng Yao and Qingtian Zhang and Jianshi Tang and He Qian and Huaqiang Wu},\n  title   = {A full-stack memristor-based computation-in-memory system with software-hardware co-development},\n  journal = {Nature Communications},\n  volume  = {16},\n  number  = {1},\n  pages   = {2123},\n  year    = {2025},\n  doi     = {10.1038/s41467-025-57183-0},\n  url     = {https://www.nature.com/articles/s41467-025-57183-0}\n}",
+      "citation_source": "https://www.nature.com/articles/s41467-025-57183-0",
       "summary": "OpenCIMTC is best read as a concrete end-to-end memristor/RRAM CIM co-design stack whose reusable compiler contribution is a serialized YAML **CIM-IR** separating layer attributes, physical mapping information, and calculation/deployment parameters. The work strengthens the vertical path from ONNX model import to memristor-array placement, simulator or hardware execution, post-deployment training, and simulator-/chip-in-the-loop tuning of hardware-sensitive parameters. The demonstrated system targets static neural-network inference and training-adjustment flows for a specific memristor CIM prototype with FPGA/CPU support, with public artifact support clearest around ResNet-32 simulation and generated training/optimization/inference scripts. For CIM compiler/IR research, its main value is not a broad formal IR, but an auditable example of how mapping state, physical addresses, ADC/integration-time parameters, quantization fields, and backend generation contracts can be made explicit enough to survive a compiler-to-hardware flow. ([Nature](https://www.nature.com/articles/s41467-025-57183-0))",
       "route": "/papers/opencimtc/",
       "links": {
@@ -682,8 +706,31 @@
       "short_title": "AccelCIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2026,
-      "venue": "DAC 2026",
-      "authors_or_group": "Chenhao Xue, Yukun Wang, An Guo, Yuhui Shi, Jinwei Zhou, Xiping Dong, Yihan Yin, Yuanpeng Zhang, Tianyu Jia, Wei Gao, Qiang Wu, Xin Si, Jun Yang, Guangyu Sun",
+      "publication": {
+        "venue": "DAC 2026",
+        "type": "conference",
+        "doi": "10.48550/arXiv.2604.17692",
+        "url": "https://doi.org/10.48550/arXiv.2604.17692"
+      },
+      "authors": [
+        "Chenhao Xue",
+        "Yukun Wang",
+        "An Guo",
+        "Yuhui Shi",
+        "Jinwei Zhou",
+        "Xiping Dong",
+        "Yihan Yin",
+        "Yuanpeng Zhang",
+        "Tianyu Jia",
+        "Wei Gao",
+        "Qiang Wu",
+        "Xin Si",
+        "Jun Yang",
+        "Guangyu Sun"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{xue2026accelcim,\n  author = {Xue, Chenhao and Wang, Yukun and Guo, An and Shi, Yuhui and Zhou, Jinwei and Dong, Xiping and Yin, Yihan and Zhang, Yuanpeng and Jia, Tianyu and Gao, Wei and Wu, Qiang and Si, Xin and Yang, Jun and Sun, Guangyu},\n  title = {AccelCIM: Systematic Dataflow Exploration for SRAM Compute-in-Memory Accelerator},\n  booktitle = {DAC 2026},\n  year = {2026},\n  doi = {10.48550/arXiv.2604.17692},\n  eprint = {2604.17692},\n  archivePrefix = {arXiv},\n  primaryClass = {cs.AR},\n  url = {https://arxiv.org/abs/2604.17692}\n}",
+      "citation_source": "https://arxiv.org/abs/2604.17692",
       "summary": "**AccelCIM** contributes a systematic design-space exploration framework for SRAM compute-in-memory accelerator dataflows, with particular emphasis on the coupling between CIM macro parameters and macro-array organizations. Its strongest stack contribution is in hardware-aware mapping and backend evaluation: the paper models weight-stationary versus output-stationary dataflows, broadcast versus systolic interconnect, macro capacity, pipeline level, and compute-I/O overlap, then ranks candidate designs using cycle-accurate simulation and post-layout PPA extraction through an SRAM-CIM macro compiler, SPICE characterization, RTL generation, Cadence synthesis, and place-and-route. The demonstrated workloads are GEMM-like LLM inference cases, including Qwen3-0.6B, LLaMA-3-8B/70B, and GPT-3 175B, under W8A8 integer computation and prefill/time-to-first-token evaluation. For CIM compiler/IR research, AccelCIM is best read as a **config-and-schedule-centered mapping stack**: it makes hardware dataflow options and macro-array resources first-class, while upstream graph IR, explicit ISA lowering, runtime state, and serialized reusable intermediate states remain outside the demonstrated public interface. ([arXiv](https://arxiv.org/pdf/2604.17692))",
       "route": "/papers/accelcim/",
       "links": {
@@ -763,12 +810,27 @@
       "short_title": "PIM-TC",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
-      "venue": "IPDPS Workshop on Graphs, Architectures, Programming, and Learning (GrAPL); also indexed as arXiv/CoRR abs/2505.04269",
-      "authors_or_group": "Lorenzo Asquini, Manos Frouzakis, Juan Gómez-Luna, Mohammad Sadrosadati, Onur Mutlu, Francesco Silvestri",
+      "publication": {
+        "venue": "IPDPS Workshops 2025",
+        "type": "conference",
+        "doi": "10.1109/IPDPSW66978.2025.00126",
+        "url": "https://doi.org/10.1109/IPDPSW66978.2025.00126"
+      },
+      "authors": [
+        "Lorenzo Asquini",
+        "Manos Frouzakis",
+        "Juan Gómez-Luna",
+        "Mohammad Sadrosadati",
+        "Onur Mutlu",
+        "Francesco Silvestri"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/ipps/AsquiniFGSMS25,\n  author = {Lorenzo Asquini and Manos Frouzakis and Juan G{\\'{o}}mez{-}Luna and Mohammad Sadrosadati and Onur Mutlu and Francesco Silvestri},\n  title = {Accelerating Triangle Counting with Real Processing-in-Memory Systems},\n  booktitle = {{IPDPS} Workshops 2025},\n  pages = {805--814},\n  publisher = {{IEEE}},\n  year = {2025},\n  doi = {10.1109/IPDPSW66978.2025.00126},\n  url = {https://doi.org/10.1109/IPDPSW66978.2025.00126}\n}",
+      "citation_source": "https://dblp.org/rec/conf/ipps/AsquiniFGSMS25",
       "summary": "PIM-TC is a real-hardware graph-processing stack for triangle counting on UPMEM processing-in-memory DPUs. Its main contribution is a workload-specific host/DPU implementation that maps COO-format graph edges to PIM cores using vertex coloring, constructs host-to-DPU edge batches, optionally applies uniform and reservoir sampling for approximate counting, uses Misra-Gries summaries to handle high-degree vertices, and measures the result on a real UPMEM platform. For CIM compiler/IR research, the work is most useful as evidence for the backend/runtime boundary of a graph workload on commercial digital PIM: it names hardware resources, batching state, graph partition state, and per-DPU memory-resident samples, while the demonstrated reusable abstraction is closer to a specialized mapping/runtime protocol than to a general compiler dialect or instruction-level IR. ([arXiv](https://arxiv.org/pdf/2505.04269v2))",
       "route": "/papers/pim-tc/",
       "links": {
-        "paper": "https://arxiv.org/pdf/2505.04269v2",
+        "paper": "https://doi.org/10.1109/IPDPSW66978.2025.00126",
         "artifact": "https://github.com/CMU-SAFARI/PIM-TC",
         "docs": "",
         "code": ""
@@ -841,8 +903,21 @@
       "short_title": "AdaP-CIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
-      "venue": "DATE 2024",
-      "authors_or_group": "Jingyu He, Fengbin Tu, Kwang-Ting Cheng, Chi-Ying Tsui; HKUST",
+      "publication": {
+        "venue": "DATE 2024",
+        "type": "conference",
+        "doi": "10.23919/DATE58400.2024.10546520",
+        "url": "https://doi.org/10.23919/DATE58400.2024.10546520"
+      },
+      "authors": [
+        "Jingyu He",
+        "Fengbin Tu",
+        "Kwang Ting Cheng",
+        "Chi Ying Tsui"
+      ],
+      "author_note": "HKUST",
+      "bibtex": "@inproceedings{DBLP:conf/date/HeTCT24,\n  author       = {Jingyu He and\n                  Fengbin Tu and\n                  Kwang Ting Cheng and\n                  Chi Ying Tsui},\n  title        = {{AdaP-CIM:} Compute-in-Memory Based Neural Network Accelerator Using\n                  Adaptive Posit},\n  booktitle    = {Design, Automation {\\&} Test in Europe Conference {\\&} Exhibition,\n                  {DATE} 2024, Valencia, Spain, March 25-27, 2024},\n  pages        = {1--2},\n  publisher    = {{IEEE}},\n  year         = {2024},\n  doi          = {10.23919/DATE58400.2024.10546520},\n  url          = {https://doi.org/10.23919/DATE58400.2024.10546520}\n}",
+      "citation_source": "https://dblp.org/rec/conf/date/HeTCT24",
       "summary": "**AdaP-CIM** is best read as a hardware–numeric-format co-design paper for CIM inference rather than as a compiler or IR stack. Its main contribution is **Adaptive Posit**, a Posit-derived format that bounds the regime length with parameter `rs` and adds an exponent-extension encoding mode, paired with a **speculative alignment unit** that computes the maximum effective exponent before CIM MAC execution. The demonstrated scope is BERT-Base-Uncased quantization on three GLUE tasks and synthesis of a 256×64 SRAM-CIM macro in TSMC 28 nm against a Posit/CT-based baseline. For CIM compiler/IR research, the reusable interface is clearest at the numeric type and alignment-state boundary: `AdaP(n, es, rs)`, effective exponent, encoding flag, exponent extension, fraction, `Emax`, and exponent-offset shift become the objects that a future IR would need to name, type, preserve, and lower. ([DATE Conference](https://past.date-conference.com/proceedings-archive/2024/DATA/1077_pdf_upload.pdf))",
       "route": "/papers/adap-cim/",
       "links": {
@@ -912,8 +987,26 @@
       "short_title": "Reconfigurable MSViT CIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
-      "venue": "DAC 2024",
-      "authors_or_group": "Zhiyuan Chen; Yufei Ma; Keyi Li; Yifan Jia; Guoxiang Li; Meng Wu; Tianyu Jia; Le Ye; Ru Huang",
+      "publication": {
+        "venue": "DAC 2024",
+        "type": "conference",
+        "doi": "10.1145/3649329.3658244",
+        "url": "https://doi.org/10.1145/3649329.3658244"
+      },
+      "authors": [
+        "Zhiyuan Chen",
+        "Yufei Ma",
+        "Keyi Li",
+        "Yifan Jia",
+        "Guoxiang Li",
+        "Meng Wu",
+        "Tianyu Jia",
+        "Le Ye",
+        "Ru Huang"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/dac/Chen0L0L0JY024,\n  author       = {Zhiyuan Chen and\n                  Yufei Ma and\n                  Keyi Li and\n                  Yifan Jia and\n                  Guoxiang Li and\n                  Meng Wu and\n                  Tianyu Jia and\n                  Le Ye and\n                  Ru Huang},\n  title        = {An In-Memory Computing Accelerator with Reconfigurable Dataflow\n                  for Multi-Scale Vision Transformer with Hybrid Topology},\n  booktitle    = {Proceedings of the 61st {ACM/IEEE} Design Automation Conference,\n                  {DAC} 2024, San Francisco, CA, USA, June 23-27, 2024},\n  pages        = {245:1--245:6},\n  publisher    = {{ACM}},\n  year         = {2024},\n  doi          = {10.1145/3649329.3658244},\n  url          = {https://doi.org/10.1145/3649329.3658244}\n}",
+      "citation_source": "https://dblp.org/rec/conf/dac/Chen0L0L0JY024",
       "summary": "This DAC 2024 paper contributes a digital SRAM-CIM accelerator architecture and reconfigurable dataflow for static-shape, image-domain multi-scale Vision Transformers whose topology mixes convolutional layers with multi-head attention. Its strongest CIM-stack contribution is at the hardware-mapping and backend-dataflow boundary: the paper highlights MHA pipeline reordering, a two-stage softmax strategy, fused attention matrix multiplication to reduce quadratic intermediate traffic, reconfigurable IMC engines, a distributor network, reuse buffers, accumulation, and post-processing paths. The demonstrated scope is a TSMC 22 nm evaluation against a baseline IMC accelerator, reporting 2.20×–2.52× MHA speedup, 40.6%–74.8% MHA energy reduction, and 44.1%–55.9% EDP reduction for typical multi-scale ViTs. ([ACM Digital Library](https://dl.acm.org/doi/epdf/10.1145/3649329.3658244?utm_source=chatgpt.com)) For CIM compiler/IR research, the paper is most useful as a hardware-software co-design case where the practical “IR-like” object is a reconfigurable dataflow and resource-binding state, rather than a public frontend, verifier, serializable dialect, ISA, or compiler API.",
       "route": "/papers/reconfigurable-dataflow-cim-accelerator-for-multi-scale-vision-transformer/",
       "links": {
@@ -988,8 +1081,32 @@
       "short_title": "PIMeval/PIMbench",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
-      "venue": "IISWC 2024",
-      "authors_or_group": "University of Virginia LavaLab / Siddique et al.",
+      "publication": {
+        "venue": "IISWC 2024",
+        "type": "conference",
+        "doi": "10.1109/IISWC63097.2024.00030",
+        "url": "https://doi.org/10.1109/IISWC63097.2024.00030"
+      },
+      "authors": [
+        "Farzana Ahmed Siddique",
+        "Deyuan Guo",
+        "Zhenxing Fan",
+        "MohammadHosein Gholamrezaei",
+        "Morteza Baradaran",
+        "Alif Ahmed",
+        "Hugo Abbot",
+        "Kyle Durrer",
+        "Kumaresh Nandagopal",
+        "Ethan Ermovick",
+        "Khyati Kiyawat",
+        "Beenish Gul",
+        "Abdullah T. Mughrabi",
+        "Ashish Venkat",
+        "Kevin Skadron"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/iiswc/SiddiqueGFGBAAD24,\n  author = {Siddique, Farzana Ahmed and Guo, Deyuan and Fan, Zhenxing and Gholamrezaei, MohammadHosein and Baradaran, Morteza and Ahmed, Alif and Abbot, Hugo and Durrer, Kyle and Nandagopal, Kumaresh and Ermovick, Ethan and Kiyawat, Khyati and Gul, Beenish and Mughrabi, Abdullah T. and Venkat, Ashish and Skadron, Kevin},\n  title = {Architectural Modeling and Benchmarking for Digital DRAM PIM},\n  booktitle = {IEEE International Symposium on Workload Characterization, IISWC 2024, Vancouver, BC, Canada, September 15-17, 2024},\n  pages = {247--261},\n  publisher = {IEEE},\n  year = {2024},\n  doi = {10.1109/IISWC63097.2024.00030}\n}",
+      "citation_source": "https://dblp.org/rec/conf/iiswc/SiddiqueGFGBAAD24",
       "summary": "**PIMeval / PIMbench** contributes a public modeling and benchmarking stack for **digital DRAM-PIM**, centered on a C++ PIM API, a configurable performance/energy model, and a benchmark suite spanning vector, linear algebra, graph, image, security, machine-learning, and DNN inference kernels. The demonstrated hardware scope covers three DRAM-PIM styles: DRAM-AP-style subarray bit-serial PIM, Fulcrum-style subarray bit-parallel PIM, and bank-level bit-parallel PIM. Its strongest contribution to a CIM compiler/IR corpus is not an explicit compiler IR, but a reusable evaluation boundary: PIM data objects, layout choices, target device configs, PIM API commands, and command-level timing/energy accounting. For compiler/IR research, PIMeval is useful as a backend-facing reference model and benchmark harness that exposes the kinds of objects a future CIM IR would need to preserve when lowering higher-level tensor or graph programs into digital DRAM-PIM execution. ([University of Virginia Computer Science](https://www.cs.virginia.edu/~skadron/Papers/PIMbench_PIMeval_iiswc2024.pdf))",
       "route": "/papers/pimeval/",
       "links": {
@@ -1075,8 +1192,26 @@
       "short_title": "ARCTIC",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
-      "venue": "DATE 2024",
-      "authors_or_group": "Hongyi Zhang, Haozhe Zhu, Siqi He, Mengjie Li, Chengchen Wang, Xiankui Xiong, Haidong Tian, Xiaoyang Zeng, Chixiao Chen",
+      "publication": {
+        "venue": "DATE 2024",
+        "type": "conference",
+        "doi": "10.23919/DATE58400.2024.10546676",
+        "url": "https://doi.org/10.23919/DATE58400.2024.10546676"
+      },
+      "authors": [
+        "Hongyi Zhang",
+        "Haozhe Zhu",
+        "Siqi He",
+        "Mengjie Li",
+        "Chengchen Wang",
+        "Xiankui Xiong",
+        "Haidong Tian",
+        "Xiaoyang Zeng",
+        "Chixiao Chen"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/date/ZhangZHLWXTZC24,\n  author = {Hongyi Zhang and Haozhe Zhu and Siqi He and Mengjie Li and Chengchen Wang and Xiankui Xiong and Haidong Tian and Xiaoyang Zeng and Chixiao Chen},\n  title = {{ARCTIC}: Agile and Robust Compute-In-Memory Compiler with Parameterized {INT/FP} Precision and Built-In Self Test},\n  booktitle = {Design, Automation {\\&} Test in Europe Conference {\\&} Exhibition, {DATE} 2024},\n  pages = {1--6},\n  publisher = {{IEEE}},\n  year = {2024},\n  doi = {10.23919/DATE58400.2024.10546676},\n  url = {https://doi.org/10.23919/DATE58400.2024.10546676}\n}",
+      "citation_source": "https://dblp.org/rec/conf/date/ZhangZHLWXTZC24",
       "summary": "**ARCTIC: Agile and Robust Compute-In-Memory Compiler with Parameterized INT/FP Precision and Built-In Self Test** is best read as a physical digital-CIM macro compiler for SRAM-based DCIM. Its main contribution is a parameterized macro-generation flow that accepts hardware-level specifications—timing and area constraints, memory depth and width, mantissa width, exponent width, exponent offset, and INT/FP format—and produces low-level RTL, MarchCIM BIST logic, and placed-and-routed 28 nm macro layouts through commercial EDA flows. The paper strengthens the lower hardware-generation layer of the CIM stack, especially precision-specialized INT/FP macro construction and DCIM-aware BIST, rather than the model-frontend or tensor-mapping layer. For CIM compiler/IR research, ARCTIC is useful as evidence that numeric-format fields, mantissa/exponent placement, BIST test modes, and physical macro hierarchy are important first-class backend objects, even though the paper foregrounds a template/EDA flow rather than a standalone auditable IR. ([DATE Conference](https://past.date-conference.com/proceedings-archive/2024/DATA/399_pdf_upload.pdf))",
       "route": "/papers/arctic/",
       "links": {
@@ -1151,12 +1286,26 @@
       "short_title": "ARES",
       "subtitle": "Scoped CIM stack note",
       "year": 2023,
-      "venue": "ICCAD 2023",
-      "authors_or_group": "Xiuping Cui, Size Zheng, Tianyu Jia, Le Ye, Yun Liang",
+      "publication": {
+        "venue": "ICCAD 2023",
+        "type": "conference",
+        "doi": "10.1109/ICCAD57390.2023.10323777",
+        "url": "https://doi.org/10.1109/ICCAD57390.2023.10323777"
+      },
+      "authors": [
+        "Xiuping Cui",
+        "Size Zheng",
+        "Tianyu Jia",
+        "Le Ye",
+        "Yun Liang"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/iccad/CuiZJYL23,\n  author = {Cui, Xiuping and Zheng, Size and Jia, Tianyu and Ye, Le and Liang, Yun},\n  title = {ARES: A Mapping Framework of DNNs Towards Diverse PIMs with General Abstractions},\n  booktitle = {IEEE/ACM International Conference on Computer-Aided Design, ICCAD 2023, San Francisco, CA, USA, October 29 - November 2, 2023},\n  pages = {1--9},\n  publisher = {IEEE},\n  year = {2023},\n  doi = {10.1109/ICCAD57390.2023.10323777},\n  url = {https://doi.org/10.1109/ICCAD57390.2023.10323777}\n}",
+      "citation_source": "https://dblp.org/rec/conf/iccad/CuiZJYL23",
       "summary": "ARES is a compiler-mapping framework for placing static DNN tensor operators onto multiple PIM/CIM-like hardware classes. Its main contribution is a pair of reusable abstractions: a compute abstraction that describes a PIM primitive as a tensorized compute equation, and a memory abstraction that encodes bit-level operand placement through mapping matrices and offsets. These abstractions are used to derive a mapping space over tensor binding, loop binding, loop sizes, resource allocation, execution order, and data movement. The demonstrated setting is simulator-backed DNN inference mapping on four adapted platforms: logic-DRAM, logic-SRAM, MVM-ReRAM, and near-DRAM / PIM-HBM-like hardware.",
       "route": "/papers/ares/",
       "links": {
-        "paper": "https://sizezheng.github.io/files/ARES_A_Mapping_Framework_of_DNNs_Towards_Diverse_PIMs_with_General_Abstractions.pdf",
+        "paper": "https://doi.org/10.1109/ICCAD57390.2023.10323777",
         "artifact": "",
         "docs": "",
         "code": ""
@@ -1238,8 +1387,24 @@
       "short_title": "AutoDCIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2023,
-      "venue": "DAC 2023",
-      "authors_or_group": "Jia Chen, Fengbin Tu, Kunming Shao, Fengshi Tian, Xiao Huo, Chi-Ying Tsui, Kwang-Ting Cheng",
+      "publication": {
+        "venue": "DAC 2023",
+        "type": "conference",
+        "doi": "10.1109/DAC56929.2023.10247976",
+        "url": "https://doi.org/10.1109/DAC56929.2023.10247976"
+      },
+      "authors": [
+        "Jia Chen",
+        "Fengbin Tu",
+        "Kunming Shao",
+        "Fengshi Tian",
+        "Xiao Huo",
+        "Chi Ying Tsui",
+        "Kwang Ting Cheng"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/dac/ChenTSTHTC23,\n  author       = {Jia Chen and\n                  Fengbin Tu and\n                  Kunming Shao and\n                  Fengshi Tian and\n                  Xiao Huo and\n                  Chi Ying Tsui and\n                  Kwang Ting Cheng},\n  title        = {{AutoDCIM:} An Automated Digital {CIM} Compiler},\n  booktitle    = {Proceedings of the 60th {ACM/IEEE} Design Automation Conference,\n                  {DAC} 2023, San Francisco, CA, USA, July 9-13, 2023},\n  pages        = {1--6},\n  publisher    = {{IEEE}},\n  year         = {2023},\n  doi          = {10.1109/DAC56929.2023.10247976},\n  url          = {https://doi.org/10.1109/DAC56929.2023.10247976}\n}",
+      "citation_source": "https://dblp.org/rec/conf/dac/ChenTSTHTC23",
       "summary": "AutoDCIM is best classified as a digital-CIM macro compiler rather than a workload compiler or explicit IR stack. Its public contribution is a spec-to-layout hardware generation flow that takes user macro specifications, builds a DCIM macro architecture, and produces an optimized physical layout using template-based generation plus a layout exploration loop over array partitioning choices. The demonstrated stack slice is the hardware-EDA layer: customized SRAM-based digital CIM cells, compute/peripheral structures, array partitioning, and layout generation.",
       "route": "/papers/autodcim/",
       "links": {
@@ -1306,12 +1471,27 @@
       "short_title": "PrIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2022,
-      "venue": "IEEE Access",
-      "authors_or_group": "Juan Gómez-Luna, Izzat El Hajj, Ivan Fernandez, Christina Giannoula, Geraldo F. Oliveira, Onur Mutlu",
+      "publication": {
+        "venue": "IEEE Access",
+        "type": "article",
+        "doi": "10.1109/ACCESS.2022.3174101",
+        "url": "https://doi.org/10.1109/ACCESS.2022.3174101"
+      },
+      "authors": [
+        "Juan Gómez-Luna",
+        "Izzat El Hajj",
+        "Ivan Fernandez",
+        "Christina Giannoula",
+        "Geraldo F. Oliveira",
+        "Onur Mutlu"
+      ],
+      "author_note": null,
+      "bibtex": "@article{DBLP:journals/access/Gomez-LunaHFGOM22,\n  author = {Juan G{\\'{o}}mez{-}Luna and Izzat El Hajj and Ivan Fernandez and Christina Giannoula and Geraldo F. Oliveira and Onur Mutlu},\n  title = {Benchmarking a New Paradigm: Experimental Analysis and Characterization of a Real Processing-in-Memory System},\n  journal = {{IEEE} Access},\n  volume = {10},\n  pages = {52565--52608},\n  year = {2022},\n  doi = {10.1109/ACCESS.2022.3174101},\n  url = {https://doi.org/10.1109/ACCESS.2022.3174101}\n}",
+      "citation_source": "https://dblp.org/rec/journals/access/Gomez-LunaHFGOM22",
       "summary": "PrIM is best classified as a real-hardware benchmark and characterization framework for the UPMEM digital DRAM-PIM architecture rather than as an explicit compiler/IR stack. Its main contribution is a public suite of 16 manually ported memory-bound workloads, accompanying microbenchmarks, CPU/GPU baselines, and a measurement methodology for understanding DPU compute throughput, MRAM/WRAM bandwidth, host-DPU transfer behavior, scaling, and energy on 640-DPU and 2,556-DPU UPMEM systems. The reusable stack layer is clearest at the benchmark/reproducibility boundary: host code, DPU kernels, Makefile parameters, run scripts, datasets, and profiling outputs. For CIM compiler/IR research, PrIM is useful as a concrete backend contract for digital DRAM-PIM: it shows which objects a future IR would need to name to target UPMEM-like systems, especially DPU allocation, tasklet count, MRAM/WRAM staging, transfer direction, inter-DPU communication through the host, and workload partitioning. ([cgiannoula.github.io](https://cgiannoula.github.io/assets/publications/Prim_Access22_arxiv.pdf))",
       "route": "/papers/prim/",
       "links": {
-        "paper": "https://cgiannoula.github.io/assets/publications/Prim_Access22_arxiv.pdf",
+        "paper": "https://doi.org/10.1109/ACCESS.2022.3174101",
         "artifact": "https://github.com/CMU-SAFARI/prim-benchmarks",
         "docs": "",
         "code": ""
@@ -1396,8 +1576,23 @@
       "short_title": "C4CAM",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
-      "venue": "ASPLOS 2024",
-      "authors_or_group": "Hamid Reza Farzaneh, Mohammad Hossein Shahrokh Abadi, Minxuan Zhou, Wanqian Zhao, Aviral Shrivastava, Jeronimo Castrillon",
+      "publication": {
+        "venue": "Proceedings of the 29th ACM International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS'24), Volume 3",
+        "type": "conference",
+        "doi": "10.1145/3620666.3651386",
+        "url": "https://doi.org/10.1145/3620666.3651386"
+      },
+      "authors": [
+        "Hamid Reza Farzaneh",
+        "João Paulo Cardoso de Lima",
+        "Mengyuan Li",
+        "Asif Ali Khan",
+        "Xiaobo Sharon Hu",
+        "Jeronimo Castrillon"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{farzaneh2024c4cam,\n  author = {Farzaneh, Hamid Reza and de Lima, João Paulo Cardoso and Li, Mengyuan and Khan, Asif Ali and Hu, Xiaobo Sharon and Castrillon, Jeronimo},\n  title = {C4CAM: A Compiler for CAM-based In-memory Accelerators},\n  booktitle = {Proceedings of the 29th ACM International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS'24), Volume 3},\n  pages = {164--177},\n  publisher = {Association for Computing Machinery},\n  series = {ASPLOS '24},\n  isbn = {9798400703867},\n  location = {La Jolla, CA, USA},\n  year = {2024},\n  doi = {10.1145/3620666.3651386},\n  url = {https://arxiv.org/abs/2309.06418}\n}",
+      "citation_source": "https://cfaed.tu-dresden.de/publications?pubId=3738",
       "summary": "C4CAM is a 2024 ASPLOS paper that proposes an MLIR-based compiler and mapping flow for content-addressable-memory accelerators, focused on similarity and search-style workloads rather than general tensor-program compilation. Its main technical contribution is a layered lowering path from TorchScript/Torch MLIR into a generic `cim` abstraction and then into a CAM-specific `cam` abstraction that names CAM hierarchy, allocation, search mode, similarity metric, and partial-result handling. The demonstrated workloads are KNN, hyperdimensional-computing similarity, and DNA read mapping, evaluated through a CAMASim/Eva-CAM-style simulator setup with FeFET TCAM/MCAM assumptions rather than through a public end-to-end compiler artifact. The work is most useful to CIM compiler/IR research as an example of making CAM search and hierarchy mapping explicit in IR, with the clearest reusable boundary around pattern lowering, CAM resource binding, and simulator-facing cost-model integration. ([Cfaed](https://cfaed.tu-dresden.de/publications?pubId=3738))",
       "route": "/papers/c4cam/",
       "links": {
@@ -1476,8 +1671,24 @@
       "short_title": "CIM-MLC",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
-      "venue": "ASPLOS 2024, Volume 2",
-      "authors_or_group": "Songyun Qu, Shixin Zhao, Bing Li, Yintao He, Xuyi Cai, Lei Zhang, Ying Wang",
+      "publication": {
+        "venue": "ASPLOS 2024",
+        "type": "conference",
+        "doi": "10.1145/3620665.3640393",
+        "url": "https://doi.org/10.1145/3620665.3640393"
+      },
+      "authors": [
+        "Songyun Qu",
+        "Shixin Zhao",
+        "Bing Li",
+        "Yintao He",
+        "Xuyi Cai",
+        "Lei Zhang",
+        "Ying Wang"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/asplos/QuZLHCZW24,\n  author       = {Songyun Qu and\n                  Shixin Zhao and\n                  Bing Li and\n                  Yintao He and\n                  Xuyi Cai and\n                  Lei Zhang and\n                  Ying Wang},\n  title        = {{CIM-MLC:} A Multi-level Compilation Stack for Computing-In-Memory Accelerators},\n  booktitle    = {Proceedings of the 29th {ACM} International Conference on Architectural\n                  Support for Programming Languages and Operating Systems, Volume 2,\n                  {ASPLOS} 2024, La Jolla, CA, USA, 27 April 2024- 1 May 2024},\n  pages        = {185--200},\n  publisher    = {{ACM}},\n  year         = {2024},\n  doi          = {10.1145/3620665.3640393},\n  url          = {https://doi.org/10.1145/3620665.3640393}\n}",
+      "citation_source": "https://dblp.org/rec/conf/asplos/QuZLHCZW24",
       "summary": "CIM-MLC is a CIM compiler/mapping framework that contributes a three-tier hardware abstraction and a matching three-level scheduling pipeline for static DNN inference. Its main abstraction separates **architecture parameters**—chip, core, crossbar, buffer, NoC, ALU, cell precision, ADC/DAC precision—from **computing modes**—Core Mode, Crossbar Mode, and Wordline Mode—so that a compiler can select scheduling strategies at DNN-operator, MVM, or row-activation granularity. The demonstrated stack ingests ONNX graphs, records mapping decisions as graph attributes, performs graph segmentation, duplication, MVM-level pipelining, and WLM data remapping, then emits meta-operator flows for simulator-backed evaluation. For CIM compiler/IR research, CIM-MLC is valuable because it makes hardware-resource granularity explicit and provides a concrete meta-op backend boundary, while also illustrating a common “hidden IR” pattern: much of the reusable semantics sits in ONNX annotations, Python configs, optimization pass order, and codegen templates rather than in a single independently verifiable IR object. ([ar5iv](https://ar5iv.org/html/2401.12428v2))",
       "route": "/papers/cim-mlc/",
       "links": {
@@ -1556,8 +1767,21 @@
       "short_title": "CIM-Pruner",
       "subtitle": "Scoped CIM stack note",
       "year": 2026,
-      "venue": "ISCAS 2026",
-      "authors_or_group": "Zhuojun Han, Siqi He, Chixiao Chen, Haozhe Zhu",
+      "publication": {
+        "venue": "ISCAS 2026",
+        "type": "conference",
+        "doi": "",
+        "url": "https://epapers2.org/iscas2026/ESR/paper_details.php?paper_id=2510"
+      },
+      "authors": [
+        "Zhuojun Han",
+        "Siqi He",
+        "Chixiao Chen",
+        "Haozhe Zhu"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{cim-pruner,\n  author    = {Zhuojun Han and Siqi He and Chixiao Chen and Haozhe Zhu},\n  title     = {{CIM-Pruner:} A Dual-Mode Compute-In-Memory Macro for Efficient {VLMs}\n               with Intra-Chunk Token Pruning and Merging},\n  booktitle = {{IEEE} International Symposium on Circuits and Systems, {ISCAS} 2026},\n  year      = {2026},\n  url       = {https://epapers2.org/iscas2026/ESR/paper_details.php?paper_id=2510}\n}",
+      "citation_source": "https://epapers2.org/iscas2026/ESR/paper_details.php?paper_id=2510",
       "summary": "CIM-Pruner is publicly described as an ISCAS 2026 paper proposing a dual-mode Compute-in-Memory macro for efficient Vision-Language Models through in-memory token pruning and token merging. Its strongest public evidence places the contribution at the CIM macro and narrow hardware-software co-design layer: it targets the token-reduction behavior of VLM inference and appears to make intra-chunk pruning/merging a hardware-visible operation. For CIM compiler/IR research, the main value is not an exposed frontend, IR, mapper, ISA, or reusable backend interface, but the set of dynamic objects it motivates: token masks, merge groups, chunk boundaries, macro mode switches, and token lineage. Those objects are important because a future VLM-oriented CIM backend would need to name, preserve, verify, and lower them across the boundary between token-level algorithms and CIM macro execution. ([Haozhe's Blog](https://zhutmost.com/publication))",
       "route": "/papers/cim-pruner/",
       "links": {
@@ -1621,8 +1845,24 @@
       "short_title": "CIM-Tuner",
       "subtitle": "Scoped CIM stack note",
       "year": 2026,
-      "venue": "DATE 2026 / arXiv:2601.18070",
-      "authors_or_group": "Jinwu Chen, Yuhui Shi, He Wang, Zhe Jiang, Jun Yang, Xin Si, Zhenhua Zhu",
+      "publication": {
+        "venue": "arXiv:2601.18070",
+        "type": "other",
+        "doi": "10.48550/arXiv.2601.18070",
+        "url": "https://doi.org/10.48550/arXiv.2601.18070"
+      },
+      "authors": [
+        "Jinwu Chen",
+        "Yuhui Shi",
+        "He Wang",
+        "Zhe Jiang",
+        "Jun Yang",
+        "Xin Si",
+        "Zhenhua Zhu"
+      ],
+      "author_note": null,
+      "bibtex": "@misc{chen2026cimtuner,\n  author = {Chen, Jinwu and Shi, Yuhui and Wang, He and Jiang, Zhe and Yang, Jun and Si, Xin and Zhu, Zhenhua},\n  title = {CIM-Tuner: Balancing the Compute and Storage Capacity of SRAM-CIM Accelerator via Hardware-mapping Co-exploration},\n  year = {2026},\n  howpublished = {arXiv:2601.18070},\n  doi = {10.48550/arXiv.2601.18070},\n  eprint = {2601.18070},\n  archivePrefix = {arXiv},\n  primaryClass = {cs.AR},\n  url = {https://arxiv.org/abs/2601.18070}\n}",
+      "citation_source": "https://arxiv.org/abs/2601.18070",
       "summary": "**CIM-Tuner** is a hardware-mapping co-exploration stack for SRAM compute-in-memory accelerators. Its main contribution is not a general-purpose compiler IR, but a reusable modeling and mapping abstraction: SRAM-CIM macros are represented as matrix-projection units with parameters such as accumulation length, parallel channels, storage-compute ratio, input-compute bandwidth, and weight-update bandwidth; accelerators are represented as a three-stage template with Input SRAM, CIM macro array, Output SRAM, and external bandwidth; and each operator is assigned a two-level mapping strategy combining spatial scheduling, temporal update priority, and macro-level tiling. The demonstrated workloads are DNN inference operators, especially CNN and Transformer-derived matrix multiplications encoded as CSV operator shapes, evaluated through a C CIMMA compiler, instruction-flow/count simulation, Python power/area/latency models, and simulated annealing over hardware sizing. For CIM compiler/IR research, the paper is most useful as evidence that a compact CIM-resource template plus mapping-state search can serve as an effective middle layer for hardware/software co-design, while the reusable IR boundary is clearest in the configuration schema, mapping labels, instruction types, and simulator metrics rather than in a separately documented compiler IR. ([arXiv](https://arxiv.org/html/2601.18070v1))",
       "route": "/papers/cim-tuner/",
       "links": {
@@ -1703,8 +1943,16 @@
       "short_title": "CIMA_COMP",
       "subtitle": "Scoped CIM stack note",
       "year": null,
-      "venue": "unknown for exact CIMA_COM; related paper: Nature Communications",
-      "authors_or_group": "Tsinghua-LEMON-Lab; related paper includes Ruihua Yu, Ze Wang, Qi Liu, Bin Gao, Huaqiang Wu, et al.",
+      "publication": {
+        "venue": "Public software artifact",
+        "type": "other",
+        "doi": "",
+        "url": "https://github.com/Tsinghua-LEMON-Lab/CIMA_COMP"
+      },
+      "authors": [],
+      "author_note": "Tsinghua-LEMON-Lab; related paper includes Ruihua Yu, Ze Wang, Qi Liu, Bin Gao, Huaqiang Wu, et al.",
+      "bibtex": "@misc{cima-com,\n  title        = {{CIMA\\_COMP:} CIMA compiler and backend artifact for a CIMA-specific CIM deployment pipeline},\n  organization = {Tsinghua LEMON Lab},\n  howpublished = {Public software artifact},\n  note         = {Related article: A full-stack memristor-based computation-in-memory system with software-hardware co-development, Nature Communications 16, 2123 (2025)},\n  url          = {https://github.com/Tsinghua-LEMON-Lab/CIMA_COMP}\n}",
+      "citation_source": "https://github.com/Tsinghua-LEMON-Lab/CIMA_COMP",
       "summary": "CIMA_COM / CIMA_COMP is best read as a CIMA-specific compiler and backend artifact that makes a practical CIM deployment pipeline concrete: it imports an ONNX-style DNN workload, converts it into a YAML/JSON-serializable graph IR, maps the graph onto a fixed CIMA hardware topology, attaches CIMA mapping and calculation metadata, and emits SystemC/UVM/chip-side JSON, weight, and activation-LUT artifacts for a YOLOv5m-style demonstration. Its strongest contribution to CIM compiler/IR research is the exposed boundary between graph-level model representation, CIM placement/splitting state, and backend code-generation contracts. The demonstrated scope is architecture-specific and artifact-centered: reuse is clearest for researchers interested in how a CIMA mapper/backend serializes graph, placement, precision, memory, and chip-configuration state across a narrow end-to-end stack. ([GitHub](https://github.com/Tsinghua-LEMON-Lab/CIMA_COMP/blob/main/))",
       "route": "/papers/cima-com/",
       "links": {
@@ -1784,8 +2032,26 @@
       "short_title": "CIMFlow",
       "subtitle": "Scoped CIM stack note seed",
       "year": 2025,
-      "venue": "DAC 2025",
-      "authors_or_group": "CIMFlow authors",
+      "publication": {
+        "venue": "DAC 2025",
+        "type": "conference",
+        "doi": "10.1109/DAC63849.2025.11133270",
+        "url": "https://doi.org/10.1109/DAC63849.2025.11133270"
+      },
+      "authors": [
+        "Yingjie Qi",
+        "Jianlei Yang",
+        "Yiou Wang",
+        "Yikun Wang",
+        "Dayu Wang",
+        "Ling Tang",
+        "Cenlin Duan",
+        "Xiaolin He",
+        "Weisheng Zhao"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{qi2025cimflow,\n  title = {CIMFlow: An Integrated Framework for Systematic Design and Evaluation of Digital CIM Architectures},\n  author = {Qi, Yingjie and Yang, Jianlei and Wang, Yiou and Wang, Yikun and Wang, Dayu and Tang, Ling and Duan, Cenlin and He, Xiaolin and Zhao, Weisheng},\n  booktitle = {2025 62nd ACM/IEEE Design Automation Conference (DAC)},\n  pages = {1--7},\n  year = {2025},\n  doi = {10.1109/DAC63849.2025.11133270}\n}",
+      "citation_source": "https://www.cimflow.org/docs/Framework/what-is-cimflow",
       "summary": "CIMFlow is a public SRAM-based digital CIM infrastructure stack for DNN inference, connecting ONNX input, hardware configuration, graph partitioning, OP-level MLIR/DSL lowering, per-core ISA JSON, and SystemC-backed simulation.",
       "route": "/papers/cimflow/",
       "links": {
@@ -1883,13 +2149,30 @@
       "title": "CIMinus: Empowering Sparse DNN Workloads Modeling and Exploration on SRAM-Based CIM Architectures",
       "short_title": "CIMinus",
       "subtitle": "Scoped CIM stack note",
-      "year": 2025,
-      "venue": "IEEE Transactions on Computers",
-      "authors_or_group": "Yingjie Qi, Jianlei Yang, Rubing Yang, Cenlin Duan, Xiaolin He, Ziyan He, Weitao Pan, Weisheng Zhao",
+      "year": 2026,
+      "publication": {
+        "venue": "IEEE Trans. Computers",
+        "type": "article",
+        "doi": "10.1109/TC.2025.3628114",
+        "url": "https://doi.org/10.1109/TC.2025.3628114"
+      },
+      "authors": [
+        "Yingjie Qi",
+        "Jianlei Yang",
+        "Rubing Yang",
+        "Cenlin Duan",
+        "Xiaolin He",
+        "Ziyan He",
+        "Weitao Pan",
+        "Weisheng Zhao"
+      ],
+      "author_note": null,
+      "bibtex": "@article{DBLP:journals/tc/QiYYDHHPZ26,\n  author = {Yingjie Qi and Jianlei Yang and Rubing Yang and Cenlin Duan and Xiaolin He and Ziyan He and Weitao Pan and Weisheng Zhao},\n  title = {{CIMinus}: Empowering Sparse {DNN} Workloads Modeling and Exploration on {SRAM}-Based {CIM} Architectures},\n  journal = {{IEEE} Trans. Computers},\n  volume = {75},\n  number = {1},\n  pages = {380--394},\n  year = {2026},\n  doi = {10.1109/TC.2025.3628114},\n  url = {https://doi.org/10.1109/TC.2025.3628114}\n}",
+      "citation_source": "https://dblp.org/rec/journals/tc/QiYYDHHPZ26",
       "summary": "**CIMinus** contributes a sparse-DNN modeling and exploration framework for digital SRAM-based compute-in-memory systems. Its central stack contribution is **FlexBlock**, a compositional sparsity abstraction that represents structurally constrained sparse weight matrices using FullBlock and IntraBlock patterns, coupled with a declarative interface for workload DAGs, hardware units, and mapping templates. The demonstrated flow starts from ONNX or manually described DNN workloads, applies or describes FlexBlock-compatible pruning masks, maps compressed/rearranged weights onto parameterized CIM macros, and estimates latency and energy through system-level/cycle-level modeling. The work is most relevant to CIM compiler/IR research as a **configuration-and-mapping boundary**: it shows how sparsity masks, compressed matrix layout, loopnest mapping, index-memory overhead, and macro organization can be named explicitly enough for exploration, even though the paper’s reusable endpoint is a simulator/cost-model report rather than a compiler IR, ISA, or synthesis backend. ([arXiv](https://arxiv.org/pdf/2511.16368v1))",
       "route": "/papers/ciminus/",
       "links": {
-        "paper": "https://arxiv.org/pdf/2511.16368v1",
+        "paper": "https://doi.org/10.1109/TC.2025.3628114",
         "artifact": "",
         "docs": "",
         "code": ""
@@ -1978,12 +2261,24 @@
       "short_title": "CiMLoop",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
-      "venue": "IEEE International Symposium on Performance Analysis of Systems and Software (ISPASS)",
-      "authors_or_group": "Tanner Andrulis, Joel S. Emer, Vivienne Sze",
+      "publication": {
+        "venue": "ISPASS 2024",
+        "type": "conference",
+        "doi": "",
+        "url": ""
+      },
+      "authors": [
+        "Tanner Andrulis",
+        "Joel S. Emer",
+        "Vivienne Sze"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{2024_ispass_cimloop,\n  author = {Andrulis, Tanner and Emer, Joel S. and Sze, Vivienne},\n  title = {CiMLoop: A Flexible, Accurate, and Fast Compute-In-Memory Modeling Tool},\n  booktitle = {IEEE International Symposium on Performance Analysis of Systems and Software (ISPASS)},\n  year = {2024}\n}",
+      "citation_source": "https://emze.csail.mit.edu/cimloop",
       "summary": "CiMLoop is best read as a **CIM-aware modeling, cost-estimation, and mapping-support framework** rather than as a general compiler IR stack. Its contribution is a set of CiM-specific extensions around Timeloop+Accelergy: hierarchical YAML descriptions for circuits and architecture, per-component/per-tensor reuse and coalescing directives, explicit encoding and bit-slicing support, plug-in component models, and a statistical data-value-dependent energy pipeline that amortizes expensive value modeling across many Timeloop mappings. The paper demonstrates the framework on DNN inference workloads and published CiM macros spanning SRAM and ReRAM styles, validating energy/area/throughput against published simulated or silicon-measured macro data and using Timeloop-style mapping search for design-space studies. For CIM compiler/IR research, CiMLoop is most valuable as an example of **config-as-IR plus hardware-resource IR**: it shows how a backend-facing representation can name memory cells, converters, bit slices, reuse semantics, operand distributions, and calibrated component costs, while leaving higher-level graph IR, ISA, runtime protocol, and chip-in-loop execution outside the demonstrated interface. ([People](https://people.csail.mit.edu/emer/media/papers/2024.05.ispass.cimloop.pdf))",
       "route": "/papers/cimloop/",
       "links": {
-        "paper": "https://arxiv.org/abs/2405.07259",
+        "paper": "https://doi.org/10.1109/ISPASS61541.2024.00012",
         "artifact": "https://github.com/mit-emze/cimloop",
         "docs": "",
         "code": ""
@@ -2059,13 +2354,28 @@
       "title": "CINM (Cinnamon): A Compilation Infrastructure for Heterogeneous Compute In-Memory and Compute Near-Memory Paradigms",
       "short_title": "CINM",
       "subtitle": "Scoped CIM stack note",
-      "year": 2025,
-      "venue": "ASPLOS '25 / Proceedings of the 29th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 4",
-      "authors_or_group": "Asif Ali Khan; Hamid Farzaneh; Karl F. A. Friebel; Clément Fournier; Lorenzo Chelini; Jeronimo Castrillon",
+      "year": 2024,
+      "publication": {
+        "venue": "ASPLOS (4) 2024",
+        "type": "conference",
+        "doi": "10.1145/3622781.3674189",
+        "url": "https://doi.org/10.1145/3622781.3674189"
+      },
+      "authors": [
+        "Asif Ali Khan",
+        "Hamid Farzaneh",
+        "Karl Friedrich Alexander Friebel",
+        "Clément Fournier",
+        "Lorenzo Chelini",
+        "Jerónimo Castrillón"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/asplos/KhanFFFCC24,\n  author = {Asif Ali Khan and Hamid Farzaneh and Karl Friedrich Alexander Friebel and Cl{\\'{e}}ment Fournier and Lorenzo Chelini and Jer{\\'{o}}nimo Castrill{\\'{o}}n},\n  title = {{CINM} (Cinnamon): A Compilation Infrastructure for Heterogeneous Compute In-Memory and Compute Near-Memory Paradigms},\n  booktitle = {{ASPLOS} {(4)} 2024},\n  pages = {31--46},\n  publisher = {{ACM}},\n  year = {2024},\n  doi = {10.1145/3622781.3674189},\n  url = {https://doi.org/10.1145/3622781.3674189}\n}",
+      "citation_source": "https://dblp.org/rec/conf/asplos/KhanFFFCC24",
       "summary": "CINM, or Cinnamon, contributes an MLIR-based abstraction and lowering stack for compute-in-memory and compute-near-memory systems. Its strongest contribution for a compiler/IR corpus is the explicit hierarchy of dialects: a high-level `cinm` dialect for device-agnostic CINM operations and target-selection hooks, mid-level `cnm` and `cim` dialects for common near-memory and in-memory resource/control patterns, and device dialects such as UPMEM and memristor for backend-specific lowering. The demonstrated scope is CPU+UPMEM on real UPMEM hardware and CPU+memristor-crossbar through an OCC/gem5-style simulation path, with workloads drawn from ML kernels, tensor contractions, MLPs, and selected PriM benchmarks. CINM is therefore best read as a reusable compiler/mapping framework and IR design point for heterogeneous CIM/CNM systems, rather than as a fully calibrated universal CIM runtime or value-trajectory IR. ([arXiv](https://arxiv.org/html/2301.07486v4))",
       "route": "/papers/cinm/",
       "links": {
-        "paper": "https://arxiv.org/pdf/2301.07486",
+        "paper": "https://doi.org/10.1145/3622781.3674189",
         "artifact": "https://github.com/tud-ccc/Cinnamon",
         "docs": "",
         "code": ""
@@ -2157,8 +2467,30 @@
       "short_title": "CLEAR",
       "subtitle": "Scoped CIM stack note",
       "year": 2023,
-      "venue": "Science China Information Sciences 66(12):229402",
-      "authors_or_group": "Ruihua Yu, Wenqiang Zhang, Bin Gao, Yiwen Geng, Peng Yao, Yuyi Liu, Qingtian Zhang, Jianshi Tang, Dong Wu, Hu He, Ning Deng, He Qian, Huaqiang Wu; Tsinghua University",
+      "publication": {
+        "venue": "Science China Information Sciences",
+        "type": "article",
+        "doi": "10.1007/s11432-022-3756-3",
+        "url": "https://doi.org/10.1007/s11432-022-3756-3"
+      },
+      "authors": [
+        "Ruihua Yu",
+        "Wenqiang Zhang",
+        "Bin Gao",
+        "Yiwen Geng",
+        "Peng Yao",
+        "Yuyi Liu",
+        "Qingtian Zhang",
+        "Jianshi Tang",
+        "Dong Wu",
+        "Hu He",
+        "Ning Deng",
+        "He Qian",
+        "Huaqiang Wu"
+      ],
+      "author_note": "Tsinghua University",
+      "bibtex": "@article{DBLP:journals/chinaf/YuZGGYLZTWHDQW23,\n  author       = {Ruihua Yu and\n                  Wenqiang Zhang and\n                  Bin Gao and\n                  Yiwen Geng and\n                  Peng Yao and\n                  Yuyi Liu and\n                  Qingtian Zhang and\n                  Jianshi Tang and\n                  Dong Wu and\n                  Hu He and\n                  Ning Deng and\n                  He Qian and\n                  Huaqiang Wu},\n  title        = {{CLEAR:} a full-stack chip-in-loop emulator for analog {RRAM} based\n                  computing-in-memory system},\n  journal      = {Science China Information Sciences},\n  volume       = {66},\n  number       = {12},\n  pages        = {229402},\n  year         = {2023},\n  doi          = {10.1007/s11432-022-3756-3},\n  url          = {https://doi.org/10.1007/s11432-022-3756-3}\n}",
+      "citation_source": "https://dblp.org/rec/journals/chinaf/YuZGGYLZTWHDQW23",
       "summary": "CLEAR is a chip-in-loop stack for analog RRAM computing-in-memory that connects chip-aware DNN training, a compiler, an “emulation-oriented IR,” and a calibrated emulator capable of switching parts of execution between a real chip and an analog computing model. Its most distinctive compiler/IR contribution is the use of backend addresses as part of the model representation: a layer can be mapped to a concrete chip/tile/XB coordinate and weight rectangle, or marked virtual for simulator/off-hardware execution. The demonstrated compiler scope is DNN-centric: ONNX-style neural-network graphs are optimized through operator fusion/splitting and critical-path resource reallocation, then evaluated on VGG/ResNet-style inference workloads and prior RRAM chip settings. For CIM compiler/IR research, CLEAR is most useful as an example of a hardware-addressed graph IR coupled tightly to calibration and chip-in-loop backend selection. ([SciEngine](https://cdn.sciengine.com/doi/pdf/761A2F2A63E7408AB2AE3B565114BDCC))",
       "route": "/papers/clear/",
       "links": {
@@ -2239,12 +2571,28 @@
       "short_title": "CMSwitch",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
-      "venue": "ASPLOS 2025, Proceedings of the 30th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 2",
-      "authors_or_group": "Shixin Zhao, Yuming Li, Bing Li, Yintao He, Mengdi Wang, Yinhe Han, Ying Wang",
+      "publication": {
+        "venue": "ASPLOS (2) 2025",
+        "type": "conference",
+        "doi": "10.1145/3676641.3716248",
+        "url": "https://doi.org/10.1145/3676641.3716248"
+      },
+      "authors": [
+        "Shixin Zhao",
+        "Yuming Li",
+        "Bing Li",
+        "Yintao He",
+        "Mengdi Wang",
+        "Yinhe Han",
+        "Ying Wang"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/asplos/ZhaoLLHW0W25,\n  author = {Shixin Zhao and Yuming Li and Bing Li and Yintao He and Mengdi Wang and Yinhe Han and Ying Wang},\n  title = {Be {CIM} or Be Memory: A Dual-mode-aware {DNN} Compiler for {CIM} Accelerators},\n  booktitle = {{ASPLOS} {(2)} 2025},\n  pages = {63--78},\n  publisher = {{ACM}},\n  year = {2025},\n  doi = {10.1145/3676641.3716248},\n  url = {https://doi.org/10.1145/3676641.3716248}\n}",
+      "citation_source": "https://dblp.org/rec/conf/asplos/ZhaoLLHW0W25",
       "summary": "CMSwitch is best classified as a **dual-mode-aware CIM mapping and scheduling compiler** whose central contribution is making the compute-vs-memory mode of each CIM array part of the compilation optimization space. The paper introduces DEHA, a hardware abstraction that records dual-mode array parameters and switch overheads; DACO, a two-stage optimization pass that segments the DNN graph with dynamic programming and solves per-segment compute/memory allocation with mixed-integer programming; and DMO, a small meta-operator extension that expresses array-mode switching through `CM.switch(TOM/TOC, arrayaddr)`. The demonstrated stack takes ONNX-format DNN inference workloads and user-defined CIM hardware parameters, targets a Dynaplasia-like dual-mode CIM accelerator, evaluates CNN and Transformer models with 8-bit weights/activations through simulator-backed experiments, and reports a 1.31× average speedup over CIM-MLC. For CIM compiler/IR research, its most useful abstraction is the array-level resource/mode allocation state rather than a full public compiler IR or reusable backend contract. ([arXiv](https://arxiv.org/pdf/2502.17006v1))",
       "route": "/papers/cmswitch/",
       "links": {
-        "paper": "https://arxiv.org/abs/2502.17006",
+        "paper": "https://doi.org/10.1145/3676641.3716248",
         "artifact": "",
         "docs": "",
         "code": ""
@@ -2320,8 +2668,20 @@
       "short_title": "CoMoNM",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
-      "venue": "arXiv:2508.11451, cs.ET / cs.PL",
-      "authors_or_group": "Hamid Farzaneh, Asif Ali Khan, Jeronimo Castrillon; TU Dresden / ScaDS.AI",
+      "publication": {
+        "venue": "arXiv:2508.11451",
+        "type": "other",
+        "doi": "10.48550/arXiv.2508.11451",
+        "url": "https://doi.org/10.48550/arXiv.2508.11451"
+      },
+      "authors": [
+        "Hamid Farzaneh",
+        "Asif Ali Khan",
+        "Jeronimo Castrillon"
+      ],
+      "author_note": "ScaDS.AI; TU Dresden",
+      "bibtex": "@misc{farzaneh2025comonm,\n  author = {Farzaneh, Hamid and Khan, Asif Ali and Castrillon, Jeronimo},\n  title = {CoMoNM: A Cost Modeling Framework for Compute-Near-Memory Systems},\n  year = {2025},\n  howpublished = {arXiv:2508.11451},\n  doi = {10.48550/arXiv.2508.11451},\n  eprint = {2508.11451},\n  archivePrefix = {arXiv},\n  primaryClass = {cs.ET},\n  url = {https://arxiv.org/abs/2508.11451}\n}",
+      "citation_source": "https://arxiv.org/abs/2508.11451",
       "summary": "CoMoNM is best classified as a CNM latency cost-model framework with a reusable mapping and virtual-instruction interface. It accepts a high-level or low-level application representation, a target CNM configuration, and an explicit hierarchical mapping, then estimates execution time through a split compute-engine/memory-engine execution model. The paper strengthens the cost-model and design-space-exploration layer of the CIM/CNM stack: its most concrete compiler-facing abstractions are the mapping vector, the custom CNM IR, and the `llvcnm` virtual assembly. The demonstrated scope covers UPMEM hardware and Samsung HBM-PIM simulation, with workloads from PrIM and ML kernels/models, and the strongest evidence is latency-prediction accuracy and mapping/hardware what-if exploration rather than end-to-end code generation deployment. ([arXiv](https://arxiv.org/pdf/2508.11451v1))",
       "route": "/papers/comonm/",
       "links": {
@@ -2413,12 +2773,26 @@
       "short_title": "Count2Multiply",
       "subtitle": "Scoped CIM stack note",
       "year": 2026,
-      "venue": "HPCA 2026",
-      "authors_or_group": "João Paulo C. de Lima, Benjamin Morris III, Asif Ali Khan, Jeronimo Castrillon, Alex K. Jones",
+      "publication": {
+        "venue": "HPCA 2026",
+        "type": "conference",
+        "doi": "10.1109/HPCA68181.2026.11408436",
+        "url": "https://doi.org/10.1109/HPCA68181.2026.11408436"
+      },
+      "authors": [
+        "João Paulo C. de Lima",
+        "Benjamin F. Morris III",
+        "Asif Ali Khan",
+        "Jerónimo Castrillón",
+        "Alex K. Jones"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/hpca/LimaMKCJ26,\n  author = {Jo{\\~{a}}o Paulo C. de Lima and Benjamin F. Morris III and Asif Ali Khan and Jer{\\'{o}}nimo Castrill{\\'{o}}n and Alex K. Jones},\n  title = {Count2Multiply: Reliable In-Memory High-Radix Counting},\n  booktitle = {IEEE International Symposium on High-Performance Computer Architecture, {HPCA} 2026},\n  pages = {1--15},\n  publisher = {{IEEE}},\n  year = {2026},\n  doi = {10.1109/HPCA68181.2026.11408436},\n  url = {https://doi.org/10.1109/HPCA68181.2026.11408436}\n}",
+      "citation_source": "https://dblp.org/rec/conf/hpca/LimaMKCJ26",
       "summary": "**Count2Multiply** contributes a digital-CIM masked accumulation primitive for integer-binary and integer-integer matrix operations by storing one operand as bit-sliced mask rows, storing outputs as high-radix Johnson-counter rows, and converting the other operand into host-generated Ambit-style memory-command µPrograms. Its compiler/IR relevance is clearest at the boundary between numeric lowering and backend instruction generation: input values are converted into radix digits, zero digits are skipped, row addresses are populated into preconstructed command macros, and a host-side virtual counter manages delayed carry propagation. The demonstrated stack is an Ambit-style commodity-DRAM CIM design evaluated with a cycle-level NVMain/RTSim extension over GEMV/GEMM-like kernels from LLaMA/LLaMA-2, BERT/LLama-3 attention, DNA pre-alignment filtering, and quantized GNN workloads. The work is best read as a hardware-software co-design and instruction-stream lowering study for digital-CIM arithmetic, with reusable ideas for representing masks, counter state, µProgram templates, and ECC-aware recomputation paths in a future CIM IR. ([CFAED](https://cfaed.tu-dresden.de/files/Images/people/chair-cc/publications/2602_Lima_HPCA.pdf))",
       "route": "/papers/count2multiply/",
       "links": {
-        "paper": "https://arxiv.org/html/2409.10136v3",
+        "paper": "https://doi.org/10.1109/HPCA68181.2026.11408436",
         "artifact": "https://github.com/SU-JonesLab/C2M",
         "docs": "",
         "code": ""
@@ -2492,8 +2866,25 @@
       "short_title": "DaPPA",
       "subtitle": "Scoped CIM stack note",
       "year": 2023,
-      "venue": "arXiv preprint; PACT 2023 ACM Student Research Competition presentation/poster context",
-      "authors_or_group": "Geraldo F. Oliveira, Alain Kohli, David Novo, Ataberk Olgun, A. Giray Yağlıkçı, Saugata Ghose, Juan Gómez-Luna, Onur Mutlu",
+      "publication": {
+        "venue": "arXiv:2310.10168",
+        "type": "other",
+        "doi": "10.48550/arXiv.2310.10168",
+        "url": "https://doi.org/10.48550/arXiv.2310.10168"
+      },
+      "authors": [
+        "Geraldo F. Oliveira",
+        "Alain Kohli",
+        "David Novo",
+        "Ataberk Olgun",
+        "A. Giray Yaglikci",
+        "Saugata Ghose",
+        "Juan Gómez-Luna",
+        "Onur Mutlu"
+      ],
+      "author_note": null,
+      "bibtex": "@misc{oliveira2023dappa,\n  author = {Oliveira, Geraldo F. and Kohli, Alain and Novo, David and Olgun, Ataberk and Yaglikci, A. Giray and Ghose, Saugata and Gómez-Luna, Juan and Mutlu, Onur},\n  title = {DaPPA: A Data-Parallel Programming Framework for Processing-in-Memory Architectures},\n  year = {2023},\n  howpublished = {arXiv:2310.10168},\n  doi = {10.48550/arXiv.2310.10168},\n  eprint = {2310.10168},\n  archivePrefix = {arXiv},\n  primaryClass = {cs.AR},\n  url = {https://arxiv.org/abs/2310.10168}\n}",
+      "citation_source": "https://arxiv.org/abs/2310.10168",
       "summary": "DaPPA is a UPMEM-oriented programming and dynamic code-generation framework that raises the programmer-facing abstraction from explicit DPU memory movement and tasklet partitioning to C++ data-parallel patterns. Its main reusable contribution is the `Pipeline`/stage abstraction: users express map, reduce, filter, window, group, and composite pattern pipelines, while DaPPA generates UPMEM host/DPU code, arranges MRAM and WRAM data, handles 8-byte alignment, partitions work across DPUs and tasklets, and performs CPU-side leftover or post-processing when required. The paper demonstrates the approach on six PrIM workloads—VA, SEL, UNI, RED, GEMV, and HST-S—on a real UPMEM system with 2,560 DPUs, reporting 2.1× average end-to-end speedup over hand-tuned PrIM implementations and 94% lower effective UPMEM-related LOC. For CIM compiler/IR research, DaPPA is most relevant as a layer-specific frontend-to-backend stack where the first-class object is a data-parallel pipeline plus UPMEM memory-layout/runtime state, rather than an explicit portable IR, instruction dialect, analog-CIM value trajectory, or hardware-model schema. ([arXiv](https://arxiv.org/pdf/2310.10168))",
       "route": "/papers/dappa/",
       "links": {
@@ -2576,12 +2967,29 @@
       "short_title": "DMS",
       "subtitle": "Scoped CIM stack note",
       "year": 2026,
-      "venue": "CIDR 2026",
-      "authors_or_group": "Jeronimo Castrillon, Jana Giceva, Yu Hua, Kimberly Keeton, Akhil Shekar, Kevin Skadron, Tianzheng Wang, Huanchen Zhang",
+      "publication": {
+        "venue": "CIDR 2026",
+        "type": "conference",
+        "doi": "",
+        "url": "https://www.vldb.org/cidrdb/papers/2026/p21-castrillon.pdf"
+      },
+      "authors": [
+        "Jeronimo Castrillon",
+        "Jana Giceva",
+        "Yu Hua",
+        "Kimberly Keeton",
+        "Akhil Shekar",
+        "Kevin Skadron",
+        "Tianzheng Wang",
+        "Huanchen Zhang"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/cidr/CastrillonGHKSS26,\n  author       = {Jeronimo Castrillon and\n                  Jana Giceva and\n                  Yu Hua and\n                  Kimberly Keeton and\n                  Akhil Shekar and\n                  Kevin Skadron and\n                  Tianzheng Wang and\n                  Huanchen Zhang},\n  title        = {Declarative Memory Services},\n  booktitle    = {16th Conference on Innovative Data Systems Research, {CIDR} 2026,\n                  Chaminade, HI, USA, January 18-21, 2026},\n  year         = {2026},\n  url          = {https://www.vldb.org/cidrdb/papers/2026/p21-castrillon.pdf}\n}",
+      "citation_source": "https://dblp.org/rec/conf/cidr/CastrillonGHKSS26",
       "summary": "**Declarative Memory Services** is a CIDR 2026 vision paper that argues future memory programming should expose desired memory properties rather than hand-coded device-specific mechanisms. Its main contribution is a layered abstraction: applications annotate logical memory regions and dataflow tasks with properties such as cacheability, coherence, latency, bandwidth, replication, compression, and offloadability; a calibration layer records device capabilities and APIs; and a memory-services runtime maps those declarations to heterogeneous devices including local DRAM, CXL memory, and PIM-style computational memory. The strongest demonstrated scope is conceptual and DBMS-oriented: disaggregated B+-trees, PIM filtering, and tiered-memory buffer caching motivate the abstraction. For a CIM compiler/IR corpus, the paper is most useful as a runtime/property-abstraction reference: it does not define a CIM operator IR, numeric trajectory IR, or instruction lowering path, but it clearly identifies the kinds of memory-service contracts a higher-level compiler might need to preserve when targeting PIM or heterogeneous memory backends. ([VLDB](https://www.vldb.org/cidrdb/papers/2026/p21-castrillon.pdf))",
       "route": "/papers/declarative-memory-services/",
       "links": {
-        "paper": "https://www.cidrdb.org/cidr2026/papers/p21-castrillon.pdf",
+        "paper": "https://www.vldb.org/cidrdb/2026/declarative-memory-services.html",
         "artifact": "",
         "docs": "",
         "code": ""
@@ -2653,8 +3061,22 @@
       "short_title": "DNN+NeuroSim",
       "subtitle": "Scoped CIM stack note",
       "year": 2021,
-      "venue": "IEEE TCAD",
-      "authors_or_group": "Shimeng Yu group / NeuroSim authors",
+      "publication": {
+        "venue": "IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems",
+        "type": "article",
+        "doi": "10.1109/TCAD.2020.3043731",
+        "url": "https://doi.org/10.1109/TCAD.2020.3043731"
+      },
+      "authors": [
+        "Xiaochen Peng",
+        "Shanshi Huang",
+        "Hongwu Jiang",
+        "Anni Lu",
+        "Shimeng Yu"
+      ],
+      "author_note": null,
+      "bibtex": "@article{peng2021dnnneurosim,\n  title = {DNN+NeuroSim V2.0: An End-to-End Benchmarking Framework for Compute-in-Memory Accelerators for On-Chip Training},\n  author = {Peng, Xiaochen and Huang, Shanshi and Jiang, Hongwu and Lu, Anni and Yu, Shimeng},\n  journal = {IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems},\n  volume = {40},\n  number = {11},\n  pages = {2306--2319},\n  year = {2021},\n  doi = {10.1109/TCAD.2020.3043731}\n}",
+      "citation_source": "https://ieee-ceda.org/media/697",
       "summary": "**NeuroSIM / DNN+NeuroSim** is best classified as a CIM **device–circuit–architecture simulator with a narrow DNN-to-CIM evaluation flow**. The original NeuroSim contribution is a C++ macro model that estimates area, latency, energy, leakage, and accuracy for SRAM and emerging-memory CIM designs using a bottom-up hierarchy of device, array, peripheral, and architecture models; DNN+NeuroSim then wraps this backend with PyTorch/TensorFlow or PyTorch workflows that extract network topology, weights, activations, and training traces, map them onto a fixed chip/tile/PE/synaptic-array organization, and report accuracy and hardware metrics. ([NSF Public Access Repository](https://par.nsf.gov/servlets/purl/10109970)) For CIM compiler/IR research, the work is most useful as a **backend contract and cost-model reference**: it exposes concrete CIM resources, precision fields, ADC/sensing assumptions, device nonidealities, and layer-wise hardware reports, while the reusable compiler boundary is mainly expressed through configuration files, traces, and C++ simulator interfaces rather than a standalone IR, ISA, or modular lowering pipeline. ([arXiv](https://arxiv.org/pdf/2003.06471))",
       "route": "/papers/neurosim/",
       "links": {
@@ -2740,12 +3162,29 @@
       "short_title": "DyPIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
-      "venue": "DATE 2024",
-      "authors_or_group": "Tongxin Xie, Tianchen Zhao, Zhenhua Zhu, Xuefei Ning, Bing Li, Guohao Dai, Huazhong Yang, Yu Wang",
+      "publication": {
+        "venue": "DATE 2024",
+        "type": "conference",
+        "doi": "10.23919/DATE58400.2024.10546612",
+        "url": "https://doi.org/10.23919/DATE58400.2024.10546612"
+      },
+      "authors": [
+        "Tongxin Xie",
+        "Tianchen Zhao",
+        "Zhenhua Zhu",
+        "Xuefei Ning",
+        "Bing Li",
+        "Guohao Dai",
+        "Huazhong Yang",
+        "Yu Wang"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/date/XieZZNLDY024,\n  author = {Xie, Tongxin and Zhao, Tianchen and Zhu, Zhenhua and Ning, Xuefei and Li, Bing and Dai, Guohao and Yang, Huazhong and Wang, Yu},\n  title = {DyPIM: Dynamic-Inference-Enabled Processing-In-Memory Accelerator},\n  booktitle = {Design, Automation & Test in Europe Conference & Exhibition, DATE 2024, Valencia, Spain, March 25-27, 2024},\n  pages = {1--6},\n  publisher = {IEEE},\n  year = {2024},\n  doi = {10.23919/DATE58400.2024.10546612},\n  url = {https://doi.org/10.23919/DATE58400.2024.10546612}\n}",
+      "citation_source": "https://dblp.org/rec/conf/date/XieZZNLDY024",
       "summary": "DyPIM is a DATE 2024 hardware–software co-design study for dynamic CNN inference on an RRAM-based PIM accelerator. Its main contribution is not a general-purpose CIM compiler, but a set of reusable dynamic-execution abstractions: Channel-Net separates channel-mask generation from intermediate feature readiness to recover inter-layer pipelining; channel grouping and dynamic operation-unit formation align pruning granularity with PIM crossbar execution granularity; and a throughput-oriented loss uses layer latency rather than total MAC reduction as the training proxy. The demonstrated setting is ResNet-20/32/56 on CIFAR-10 and CIFAR-100, evaluated with MNSIM 2.0 after adding dynamic control flows, using a 128×128 crossbar and 16×8 operation unit. For CIM compiler/IR research, the paper is most useful as a hidden-stack example in which the effective IR is distributed across runtime masks, dynamic tables, OU formation rules, latency targets, and simulator assumptions rather than exposed as a named, serializable compiler representation. ([dai.sjtu.edu.cn](https://dai.sjtu.edu.cn/my_file/pdf/c69aff31-5bbd-45dc-8e2c-40deb0c504d7.pdf))",
       "route": "/papers/dypim/",
       "links": {
-        "paper": "https://dai.sjtu.edu.cn/my_file/pdf/c69aff31-5bbd-45dc-8e2c-40deb0c504d7.pdf",
+        "paper": "https://doi.org/10.23919/DATE58400.2024.10546612",
         "artifact": "",
         "docs": "",
         "code": ""
@@ -2818,8 +3257,21 @@
       "short_title": "SparseBD-LLM CIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
-      "venue": "IEEE Cross-disciplinary Conference on Memory-Centric Computing (CCMCC), to appear / arXiv v1",
-      "authors_or_group": "João Paulo C. de Lima, Marc Dietrich, Jeronimo Castrillon, Asif Ali Khan",
+      "publication": {
+        "venue": "CCMCC 2025",
+        "type": "conference",
+        "doi": "10.48550/arXiv.2510.11192",
+        "url": "https://doi.org/10.48550/arXiv.2510.11192"
+      },
+      "authors": [
+        "João Paulo Cardoso de Lima",
+        "Marc Dietrich",
+        "Jeronimo Castrillon",
+        "Asif Ali Khan"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{delima2025efficient,\n  author = {de Lima, João Paulo Cardoso and Dietrich, Marc and Castrillon, Jeronimo and Khan, Asif Ali},\n  title = {Efficient In-Memory Acceleration of Sparse Block Diagonal LLMs},\n  booktitle = {IEEE Cross-disciplinary Conference on Memory-Centric Computing, CCMCC 2025},\n  year = {2025},\n  doi = {10.48550/arXiv.2510.11192},\n  eprint = {2510.11192},\n  archivePrefix = {arXiv},\n  primaryClass = {cs.AR},\n  url = {https://arxiv.org/abs/2510.11192}\n}",
+      "citation_source": "https://arxiv.org/abs/2510.11192",
       "summary": "This paper is best read as a focused hardware-software co-design study for mapping Monarch-style block-diagonal transformer weights onto analog CIM crossbars. Its core contribution is not a general CIM compiler IR, but a set of mapping and scheduling rules that make block-diagonal structure usable on CIM arrays: a latency-oriented sparse mapping, a capacity-oriented dense packing, diagonal-index placement with rotation cancellation, permutation folding, and mapping-aware temporal row/column activation. The demonstrated workload is transformer inference over parameterized matmuls in BERT-large, BART-large, and GPT-2-Medium, evaluated through a simulator based on IBM’s PCM-oriented 3D AIMC modeling stack with ADC/DAC design-space variation. For CIM compiler/IR research, the paper is valuable because it exposes a compact “hidden IR” centered on packed array layout, diagonal offsets, ADC sharing, and schedule timestamps—objects that a future explicit IR could name, type, verify, serialize, and lower to a backend. ([arXiv](https://arxiv.org/pdf/2510.11192v1))",
       "route": "/papers/efficient-in-memory-acceleration-of-sparse-block-diagonal-llms/",
       "links": {
@@ -2898,8 +3350,30 @@
       "short_title": "MCC CIM DSE",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
-      "venue": "IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems, 44(11):4181-4194",
-      "authors_or_group": "Yongkun Wu, Xiaomeng Wang, Jia Chen, Zhenhua Zhu, Jingyu He, Pingcheng Dong, Yonghao Tan, Xin Zhao, Liang Chang, Yu Wang, Fengbin Tu, Chi-Ying Tsui, Kwang-Ting Cheng",
+      "publication": {
+        "venue": "IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems",
+        "type": "article",
+        "doi": "10.1109/TCAD.2025.3565487",
+        "url": "https://doi.org/10.1109/TCAD.2025.3565487"
+      },
+      "authors": [
+        "Yongkun Wu",
+        "Xiaomeng Wang",
+        "Jia Chen",
+        "Zhenhua Zhu",
+        "Jingyu He",
+        "Pingcheng Dong",
+        "Yonghao Tan",
+        "Xin Zhao",
+        "Liang Chang",
+        "Yu Wang",
+        "Fengbin Tu",
+        "Chi-Ying Tsui",
+        "Kwang-Ting Cheng"
+      ],
+      "author_note": null,
+      "bibtex": "@article{DBLP:journals/tcad/WuWCZHDTZCWTTC25,\n  author       = {Yongkun Wu and\n                  Xiaomeng Wang and\n                  Jia Chen and\n                  Zhenhua Zhu and\n                  Jingyu He and\n                  Pingcheng Dong and\n                  Yonghao Tan and\n                  Xin Zhao and\n                  Liang Chang and\n                  Yu Wang and\n                  Fengbin Tu and\n                  Chi-Ying Tsui and\n                  Kwang-Ting Cheng},\n  title        = {Exploiting the Memory-Compute-Coupling Feature for {CIM} Accelerator\n                  Design Optimization},\n  journal      = {{IEEE} Transactions on Computer-Aided Design of Integrated Circuits\n                  and Systems},\n  volume       = {44},\n  number       = {11},\n  pages        = {4181--4194},\n  year         = {2025},\n  doi          = {10.1109/TCAD.2025.3565487},\n  url          = {https://doi.org/10.1109/TCAD.2025.3565487}\n}",
+      "citation_source": "https://dblp.org/rec/journals/tcad/WuWCZHDTZCWTTC25",
       "summary": "This paper’s public-facing contribution is best read as an **architecture-mapping design-space exploration framework for SRAM CIM accelerators**. The central abstraction is the **memory-compute-coupling** problem: because each CIM macro couples storage capacity and compute parallelism, the compiler/mapper must choose the macro **memory-compute ratio** and map NN layers so that memory capacity, layer fusion, load balance, layer residency, and memory traffic are optimized together. The most explicit stack object is the **three-axis CIM division mapping**, described as interleaving multiple layers inside each macro while reserving part of CIM memory for layer pinning. The demonstrated result reported in public records is **1.4×–8.3× EDP reduction** versus a baseline architecture and mapping across various workloads and chip areas, but the exact benchmark list, equations, search algorithm, simulator implementation, and serialized IR boundary are not available in the checked public sources. ([HKUST](https://researchportal.hkust.edu.hk/en/publications/exploiting-the-memory-compute-coupling-feature-for-cim-accelerato/))",
       "route": "/papers/exploiting-the-memory-compute-coupling-feature-for-cim-accelerator-design-optimization/",
       "links": {
@@ -2968,12 +3442,26 @@
       "short_title": "GENIEx",
       "subtitle": "Scoped CIM stack note",
       "year": 2020,
-      "venue": "DAC 2020 / arXiv 2020",
-      "authors_or_group": "Indranil Chakraborty, Mustafa Fayez Ali, Dong Eun Kim, Aayush Ankit, Kaushik Roy",
+      "publication": {
+        "venue": "DAC 2020",
+        "type": "conference",
+        "doi": "10.1109/DAC18072.2020.9218688",
+        "url": "https://doi.org/10.1109/DAC18072.2020.9218688"
+      },
+      "authors": [
+        "Indranil Chakraborty",
+        "Mustafa Fayez Ali",
+        "Dong Eun Kim",
+        "Aayush Ankit",
+        "Kaushik Roy"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/dac/ChakrabortyAKA020,\n  author = {Chakraborty, Indranil and Ali, Mustafa Fayez and Kim, Dong Eun and Ankit, Aayush and Roy, Kaushik},\n  title = {GENIEx: A Generalized Approach to Emulating Non-Ideality in Memristive Xbars using Neural Networks},\n  booktitle = {57th ACM/IEEE Design Automation Conference, DAC 2020, San Francisco, CA, USA, July 20-24, 2020},\n  pages = {1--6},\n  publisher = {IEEE},\n  year = {2020},\n  doi = {10.1109/DAC18072.2020.9218688},\n  url = {https://doi.org/10.1109/DAC18072.2020.9218688}\n}",
+      "citation_source": "https://dblp.org/rec/conf/dac/ChakrabortyAKA020",
       "summary": "GENIEx is best read as a calibrated nonideality-modeling layer for analog memristive-crossbar CIM, coupled to a PyTorch functional simulator for DNN accuracy studies. Its central technical contribution is a learned surrogate for data-dependent MVM nonidealities: the model consumes an input-voltage vector and conductance matrix, predicts a per-column current correction ratio, and is trained from HSPICE-generated crossbar data. The demonstrated stack path replaces selected PyTorch convolution and linear layers with tiled, bit-sliced MVM execution, injects GENIEx nonideal current behavior, reconstructs digital outputs through ADC and shift-add operations, and evaluates classification accuracy on ResNet-style image-classification workloads. For CIM compiler/IR research, the reusable boundary is clearest as a backend accuracy plugin and as a concrete example of how bit-slice, tile, ADC, and parasitic parameters can be carried through functional simulation, while compiler-facing IR, pass interfaces, instruction streams, runtime scheduling, memory/communication timing, and energy/area modeling are outside the demonstrated abstraction. ([arXiv](https://arxiv.org/pdf/2003.06902))",
       "route": "/papers/geniex/",
       "links": {
-        "paper": "https://arxiv.org/pdf/2003.06902",
+        "paper": "https://doi.org/10.1109/DAC18072.2020.9218688",
         "artifact": "https://github.com/Aayush-Ankit/puma-functional-model",
         "docs": "",
         "code": ""
@@ -3041,13 +3529,29 @@
       "title": "Gibbon: An Efficient Co-Exploration Framework of NN Model and Processing-In-Memory Architecture",
       "short_title": "Gibbon",
       "subtitle": "Scoped CIM stack note",
-      "year": 2022,
-      "venue": "DATE 2022; IEEE TCAD 2023",
-      "authors_or_group": "Yannan N. Wu, Peiyu Y. Chen, H. H. Li, Yiran Chen, Yingyan Lin, Yu Wang, Yuan Xie, Cheng Zhuo",
+      "year": 2023,
+      "publication": {
+        "venue": "IEEE Trans. Comput. Aided Des. Integr. Circuits Syst.",
+        "type": "article",
+        "doi": "10.1109/TCAD.2023.3262201",
+        "url": "https://doi.org/10.1109/TCAD.2023.3262201"
+      },
+      "authors": [
+        "Hanbo Sun",
+        "Zhenhua Zhu",
+        "Chenyu Wang",
+        "Xuefei Ning",
+        "Guohao Dai",
+        "Huazhong Yang",
+        "Yu Wang"
+      ],
+      "author_note": null,
+      "bibtex": "@article{DBLP:journals/tcad/SunZWNDYW23,\n  author = {Hanbo Sun and Zhenhua Zhu and Chenyu Wang and Xuefei Ning and Guohao Dai and Huazhong Yang and Yu Wang},\n  title = {Gibbon: An Efficient Co-Exploration Framework of {NN} Model and Processing-In-Memory Architecture},\n  journal = {{IEEE} Trans. Comput. Aided Des. Integr. Circuits Syst.},\n  volume = {42},\n  number = {11},\n  pages = {4075--4089},\n  year = {2023},\n  doi = {10.1109/TCAD.2023.3262201},\n  url = {https://doi.org/10.1109/TCAD.2023.3262201}\n}",
+      "citation_source": "https://dblp.org/rec/journals/tcad/SunZWNDYW23",
       "summary": "Gibbon is best read as a memristor/RRAM PIM hardware-software co-exploration framework rather than as an explicit CIM compiler IR stack. Its contribution is a PIM-oriented neural-network/hardware search space, an entropy-and-intensity guided evolutionary search method called ESAPP, and an RNN-based surrogate predictor trained from MNSIM 2.0 simulator results. The demonstrated workload setting is static CNN inference on CIFAR-10 and CIFAR-100 over a MultiPrecision-style memristor PIM accelerator parameter space, including crossbar size, ADC/DAC resolution, memristor precision, and quantization choices. For CIM compiler/IR research, Gibbon is useful because it exposes which design-choice variables and metric-provenance fields become important when NN structure, precision, and PIM hardware are optimized together, even though its reusable boundary is more clearly a search candidate/configuration interface than a typed, serializable compiler IR. ([dai.sjtu.edu.cn](https://dai.sjtu.edu.cn/my_file/pdf/f8091be3-32b0-486b-a2a8-c738f07e0d0f.pdf))",
       "route": "/papers/gibbon/",
       "links": {
-        "paper": "https://dai.sjtu.edu.cn/my_file/pdf/f8091be3-32b0-486b-a2a8-c738f07e0d0f.pdf",
+        "paper": "https://doi.org/10.1109/TCAD.2023.3262201",
         "artifact": "https://sites.google.com/view/nas-nicsefc/home/application-on-efficiency/gibbon",
         "docs": "",
         "code": ""
@@ -3114,16 +3618,30 @@
     },
     {
       "slug": "harmoni",
-      "title": "HARMONI: A Hardware-Software Co-Design Framework for Efficient LLM Inference on Hybrid Memory Cube Based Near-Memory Processing Systems",
+      "title": "HARMONI: Hierarchical ARchitecture MOdeling for LLMs with Near/In Memory Computing",
       "short_title": "HARMONI",
       "subtitle": "Scoped CIM stack note",
       "year": 2026,
-      "venue": "ISPASS 2026 inferred from repository PDF/release naming; exact paper metadata not confirmed from extracted PDF text",
-      "authors_or_group": "LAVAlab / University of Virginia; exact author list unknown from checked sources",
+      "publication": {
+        "venue": "ISPASS 2026",
+        "type": "conference",
+        "doi": "",
+        "url": "https://github.com/UVA-LavaLab/HARMONI/blob/main/HARMONI_ISPASS2026.pdf"
+      },
+      "authors": [
+        "Khyati Kiyawat",
+        "Yasas Seneviratne",
+        "Zhenxing Fan",
+        "Morteza Baradaran",
+        "Kevin Skadron"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{kiyawat2026harmoni,\n  author = {Kiyawat, Khyati and Seneviratne, Yasas and Fan, Zhenxing and Baradaran, Morteza and Skadron, Kevin},\n  title = {HARMONI: Hierarchical ARchitecture MOdeling for LLMs with Near/In Memory Computing},\n  booktitle = {IEEE International Symposium on Performance Analysis of Systems and Software, ISPASS 2026},\n  year = {2026},\n  url = {https://github.com/UVA-LavaLab/HARMONI/blob/main/HARMONI_ISPASS2026.pdf}\n}",
+      "citation_source": "https://github.com/UVA-LavaLab/HARMONI/blob/main/HARMONI_ISPASS2026.pdf",
       "summary": "HARMONI is best read as a modeling, mapping, and simulation stack for LLM inference on hierarchical DRAM-PIM / near-memory systems. Its strongest reusable contribution is the combination of a Python-generated Transformer task graph, tensor placement metadata, hierarchical memory/logic-unit binding, and analytic latency/energy/resource modeling. The public artifact demonstrates the stack through configurable LLM model presets, DRAM hierarchy strings, batch/token settings, fusion flags, mapping options, network/GEMM trace generation, and ISPASS artifact-evaluation scripts. For CIM compiler/IR research, HARMONI is most useful as a simulator-backend and benchmark-harness reference: it shows how an LLM task graph can be enriched with placement, phase, communication, and hardware-binding information before being evaluated by a memory-system cost model. ([GitHub](https://github.com/UVA-LavaLab/HARMONI))",
       "route": "/papers/harmoni/",
       "links": {
-        "paper": "https://arxiv.org/abs/2511.12286v1",
+        "paper": "https://github.com/UVA-LavaLab/HARMONI/blob/main/HARMONI_ISPASS2026.pdf",
         "artifact": "https://github.com/UVA-LavaLab/HARMONI",
         "docs": "",
         "code": ""
@@ -3203,12 +3721,24 @@
       "short_title": "HASTILY",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
-      "venue": "IEEE Transactions on Circuits and Systems for Artificial Intelligence; arXiv:2502.12344",
-      "authors_or_group": "Dong Eun Kim, Tanvi Sharma, Kaushik Roy",
+      "publication": {
+        "venue": "IEEE Transactions on Circuits and Systems for Artificial Intelligence",
+        "type": "article",
+        "doi": "10.1109/TCASAI.2025.3601975",
+        "url": "https://doi.org/10.1109/TCASAI.2025.3601975"
+      },
+      "authors": [
+        "Dong Eun Kim",
+        "Tanvi Sharma",
+        "Kaushik Roy"
+      ],
+      "author_note": null,
+      "bibtex": "@article{hastily,\n  author       = {Dong Eun Kim and\n                  Tanvi Sharma and\n                  Kaushik Roy},\n  title        = {{HASTILY:} Hardware-Software Co-Design for Accelerating Transformer\n                  Inference Leveraging Compute-in-Memory},\n  journal      = {{IEEE} Transactions on Circuits and Systems for Artificial Intelligence},\n  year         = {2025},\n  doi          = {10.1109/TCASAI.2025.3601975},\n  url          = {https://doi.org/10.1109/TCASAI.2025.3601975}\n}",
+      "citation_source": "https://doi.org/10.1109/TCASAI.2025.3601975",
       "summary": "HASTILY is a hardware-software co-design for BERT-style transformer encoder inference on an SRAM-based analog-CIM spatial accelerator. Its central contribution is the **Unified Compute and Lookup Module**: an 8T-SRAM CIM structure that can perform both matrix-vector multiplication and exponent-table lookup, enabling softmax acceleration inside the CIM core rather than relegating exponentiation entirely to a vector functional unit. The compiler-facing part of the work is clearest in its vector-level scheduling strategy and ISA extensions: transformer encoder layers are decomposed into row/vector MVM stages, Q/K/V and attention computations are pipelined through UCLMs, K/V are dynamically written as CIM weights, and softmax maxima/sums are reduced across cores through a tree-style gather. For CIM compiler/IR research, HASTILY is best read as a narrow but informative end-to-end stack whose reusable semantics are concentrated in the mapping schedule, UCLM mode model, softmax reduction state, and PUMASim-derived backend contract, rather than in an auditable standalone IR. ([arXiv](https://arxiv.org/pdf/2502.12344)) |",
       "route": "/papers/hastily/",
       "links": {
-        "paper": "https://arxiv.org/pdf/2502.12344",
+        "paper": "https://doi.org/10.1109/TCASAI.2025.3601975",
         "artifact": "",
         "docs": "",
         "code": ""
@@ -3297,8 +3827,22 @@
       "short_title": "LearnCNM2Predict",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
-      "venue": "25th IEEE International Conference on Embedded Computer Systems: Architectures, Modeling and Simulation (SAMOS 2025)",
-      "authors_or_group": "Anderson Faustino da Silva; Hamid Farzaneh; João Paulo C. de Lima; Asif Ali Khan; Jeronimo Castrillon",
+      "publication": {
+        "venue": "SAMOS 2025",
+        "type": "conference",
+        "doi": "",
+        "url": "https://cfaed.tu-dresden.de/publications?pubId=3839"
+      },
+      "authors": [
+        "Anderson Faustino da Silva",
+        "Hamid Farzaneh",
+        "João Paulo Cardoso de Lima",
+        "Asif Ali Khan",
+        "Jeronimo Castrillon"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{dasilva2025learncnm2predict,\n  author = {da Silva, Anderson Faustino and Farzaneh, Hamid and de Lima, João Paulo Cardoso and Khan, Asif Ali and Castrillon, Jeronimo},\n  title = {{LearnCNM2Predict}: Transfer Learning-based Performance Model for {CNM} Systems},\n  booktitle = {25th IEEE International Conference on Embedded Computer Systems: Architectures, Modeling and Simulation (SAMOS 2025)},\n  publisher = {Springer-Verlag},\n  address = {Berlin, Heidelberg},\n  year = {2025},\n  month = jul,\n  note = {Best paper award candidate},\n  url = {https://cfaed.tu-dresden.de/publications?pubId=3839}\n}",
+      "citation_source": "https://cfaed.tu-dresden.de/publications?pubId=3839",
       "summary": "**LearnCNM2Predict** contributes a transfer-learning performance model for UPMEM-style compute-near-memory systems: it compiles CNM benchmark programs under different compiler-pass and hardware configurations, extracts static opcode-histogram features from compiled programs, augments them with DPU/tasklet and workload parameters, and trains an MLP to predict runtime and speedup for new target applications after limited fine-tuning. Its strongest CIM-stack contribution is a learned cost-model layer for ranking or filtering CNM program variants, rather than a new compiler IR, mapping language, or backend ISA. The demonstrated setting is UPMEM C/C++ benchmark code drawn from PrIM, PIM-ML, and Cinnamon-generated variants, measured on a 2048-DPU UPMEM system and evaluated across compiler pass sequences, DPU/tasklet counts, and benchmark parameters. For CIM compiler/IR research, the paper is most useful as evidence that a compact “feature-record IR” — instruction-mix summary plus hardware/compiler/workload configuration — can serve as a practical prediction boundary for digital CNM design-space exploration. ([cfaed.tu-dresden.de](https://cfaed.tu-dresden.de/files/Images/people/chair-cc/publications/2507_daSilva_SAMOS.pdf))",
       "route": "/papers/learncnm2predict/",
       "links": {
@@ -3380,12 +3924,28 @@
       "short_title": "CIM-MXU",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
-      "venue": "DATE 2025 (accepted; arXiv:2503.00461)",
-      "authors_or_group": "Zhantong Zhu, Hongou Li, Wenjie Ren, Meng Wu, Le Ye, Ru Huang, Tianyu Jia",
+      "publication": {
+        "venue": "DATE 2025",
+        "type": "conference",
+        "doi": "10.23919/DATE64628.2025.10993224",
+        "url": "https://doi.org/10.23919/DATE64628.2025.10993224"
+      },
+      "authors": [
+        "Zhantong Zhu",
+        "Hongou Li",
+        "Wenjie Ren",
+        "Meng Wu",
+        "Le Ye",
+        "Ru Huang",
+        "Tianyu Jia"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/date/ZhuLR0Y0J25,\n  author = {Zhantong Zhu and Hongou Li and Wenjie Ren and Meng Wu and Le Ye and Ru Huang and Tianyu Jia},\n  title = {Leveraging Compute-in-Memory for Efficient Generative Model Inference in {TPUs}},\n  booktitle = {Design, Automation {\\&} Test in Europe Conference {\\&} Exhibition, {DATE} 2025},\n  pages = {1--7},\n  publisher = {{IEEE}},\n  year = {2025},\n  doi = {10.23919/DATE64628.2025.10993224},\n  url = {https://doi.org/10.23919/DATE64628.2025.10993224}\n}",
+      "citation_source": "https://dblp.org/rec/conf/date/ZhuLR0Y0J25",
       "summary": "**CIM-MXU** studies how a digital SRAM compute-in-memory matrix unit could replace the conventional systolic MXU inside a TPUv4i-like inference accelerator. Its main contribution is a hardware/software co-design and modeling study: a CIM-MXU microarchitecture built from a systolic grid of CIM cores, a TPU-level architecture model with VMEM/CMEM/HBM-style hierarchy, a mapping engine for Transformer-layer operators, and architecture exploration over CIM-MXU array size and count. The demonstrated workloads are representative generative-model inference kernels, especially GPT-3-30B Transformer-layer evaluation and DiT-XL/2 block evaluation, with INT8 experiments and BF16 support described at the microarchitecture level. For CIM compiler/IR research, the paper is most useful as a hardware-resource and cost-model case study: it shows what a backend would need to know about CIM-core grids, weight-update paths, tiling, memory hierarchy, and precision modes, while the reusable compiler boundary is clearest at the mapping/configuration state rather than at an explicit IR or instruction stream. ([arXiv](https://arxiv.org/pdf/2503.00461))",
       "route": "/papers/cim-mxu/",
       "links": {
-        "paper": "https://arxiv.org/abs/2503.00461",
+        "paper": "https://doi.org/10.23919/DATE64628.2025.10993224",
         "artifact": "",
         "docs": "",
         "code": ""
@@ -3467,12 +4027,30 @@
       "short_title": "Hermes",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
-      "venue": "HPCA 2025",
-      "authors_or_group": "Lian Liu, Shixin Zhao, Bing Li, Haimeng Ren, Zhaohui Xu, Mengdi Wang, Xiaowei Li, Yinhe Han, Ying Wang",
+      "publication": {
+        "venue": "HPCA 2025",
+        "type": "conference",
+        "doi": "10.1109/HPCA61900.2025.00129",
+        "url": "https://doi.org/10.1109/HPCA61900.2025.00129"
+      },
+      "authors": [
+        "Lian Liu",
+        "Shixin Zhao",
+        "Bing Li",
+        "Haimeng Ren",
+        "Zhaohui Xu",
+        "Mengdi Wang",
+        "Xiaowei Li",
+        "Yinhe Han",
+        "Ying Wang"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/hpca/LiuZ0RXW00W25,\n  author = {Lian Liu and Shixin Zhao and Bing Li and Haimeng Ren and Zhaohui Xu and Mengdi Wang and Xiaowei Li and Yinhe Han and Ying Wang},\n  title = {Make {LLM} Inference Affordable to Everyone: Augmenting {GPU} Memory with {NDP-DIMM}},\n  booktitle = {IEEE International Symposium on High-Performance Computer Architecture, {HPCA} 2025},\n  pages = {1751--1765},\n  publisher = {{IEEE}},\n  year = {2025},\n  doi = {10.1109/HPCA61900.2025.00129},\n  url = {https://doi.org/10.1109/HPCA61900.2025.00129}\n}",
+      "citation_source": "https://dblp.org/rec/conf/hpca/LiuZ0RXW00W25",
       "summary": "Hermes, formally “Make LLM Inference Affordable to Everyone: Augmenting GPU Memory with NDP-DIMM,” is an HPCA 2025 hardware–software co-design for activation-sparse LLM inference on a consumer-grade GPU augmented by digital near-data-processing DIMMs. Its core contribution is not a general CIM compiler IR, but a specialized runtime mapping and scheduling layer: frequently active “hot” neurons are kept on the GPU, while less frequently active “cold” neurons remain in NDP-DIMMs, with an offline ILP initializer, a lightweight online predictor, and a window-based DIMM load-balancing scheduler. The paper demonstrates this design for OPT, LLaMA2, and Falcon-style models under ReLU-based activation sparsity, using an RTX 4090, eight modeled DDR4 NDP-DIMMs, measured GPU kernels, a modified Ramulator 2.0 simulator, and RTL-synthesized NDP cores. For CIM compiler/IR research, Hermes is most useful as a runtime-state and mapping case study: it names neuron activity, placement, and remapping as first-class scheduling objects, while the compiler-visible value trajectory remains implicit in the scheduler, commands, barriers, and simulator assumptions. ([arXiv](https://arxiv.org/abs/2502.16963?utm_source=chatgpt.com))",
       "route": "/papers/hermes/",
       "links": {
-        "paper": "https://arxiv.org/abs/2502.16963",
+        "paper": "https://doi.org/10.1109/HPCA61900.2025.00129",
         "artifact": "https://huggingface.co/SparseLLM",
         "docs": "",
         "code": ""
@@ -3543,8 +4121,22 @@
       "short_title": "MIREDO",
       "subtitle": "Scoped CIM stack note",
       "year": 2026,
-      "venue": "ASP-DAC 2026",
-      "authors_or_group": "Xiaolin He, Cenlin Duan, Yingjie Qi, Xiao Ma, Jianlei Yang / Beihang University CI-Lab",
+      "publication": {
+        "venue": "ASP-DAC 2026",
+        "type": "conference",
+        "doi": "10.48550/arXiv.2510.26463",
+        "url": "https://doi.org/10.48550/arXiv.2510.26463"
+      },
+      "authors": [
+        "Xiaolin He",
+        "Cenlin Duan",
+        "Yingjie Qi",
+        "Xiao Ma",
+        "Jianlei Yang"
+      ],
+      "author_note": "Beihang University CI-Lab",
+      "bibtex": "@inproceedings{he2026miredo,\n  author = {He, Xiaolin and Duan, Cenlin and Qi, Yingjie and Ma, Xiao and Yang, Jianlei},\n  title = {MIREDO: MIP-Driven Resource-Efficient Dataflow Optimization for Computing-in-Memory Accelerator},\n  booktitle = {ASP-DAC 2026},\n  year = {2026},\n  doi = {10.48550/arXiv.2510.26463},\n  eprint = {2510.26463},\n  archivePrefix = {arXiv},\n  primaryClass = {cs.AR},\n  url = {https://arxiv.org/abs/2510.26463}\n}",
+      "citation_source": "https://arxiv.org/abs/2510.26463",
       "summary": "**MIREDO** is best read as a CIM dataflow mapping framework that makes loop-factor placement, operand-specific memory hierarchy use, transfer paths, and buffering decisions explicit inside a Mixed-Integer Programming formulation. The paper’s strongest contribution is not a public compiler IR or instruction stack, but a stall-aware analytical model for SRAM-CIM accelerator mapping: it captures memory-capacity constraints, bus-width-derived transfer latency, single-versus-double buffering, and recursive loop-level latency to select a dataflow for DNN inference. The demonstrated workload setting is primarily INT8 CNN inference, with ResNet-18/ImageNet used as the baseline case and additional DNN/hardware sweeps reported through simulator-backed experiments. For CIM compiler/IR research, MIREDO is valuable as evidence that a useful “hidden IR” for CIM mapping can be a structured optimization state: constants, binary variables, enumerated data-size candidates, loop-factor placements, memory-level bindings, and latency recurrences. ([arXiv](https://arxiv.org/pdf/2510.26463))",
       "route": "/papers/miredo/",
       "links": {
@@ -3625,12 +4217,25 @@
       "short_title": "NAX",
       "subtitle": "Scoped CIM stack note",
       "year": 2022,
-      "venue": "DAC 2022 / Proceedings of the 59th ACM/IEEE Design Automation Conference",
-      "authors_or_group": "Shubham Negi, Indranil Chakraborty, Aayush Ankit, Kaushik Roy",
+      "publication": {
+        "venue": "DAC 2022",
+        "type": "conference",
+        "doi": "10.1145/3489517.3530477",
+        "url": "https://doi.org/10.1145/3489517.3530477"
+      },
+      "authors": [
+        "Shubham Negi",
+        "Indranil Chakraborty",
+        "Aayush Ankit",
+        "Kaushik Roy"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/dac/NegiCA022,\n  author = {Shubham Negi and Indranil Chakraborty and Aayush Ankit and Kaushik Roy},\n  title = {{NAX}: neural architecture and memristive xbar based accelerator co-design},\n  booktitle = {59th {ACM/IEEE} Design Automation Conference, {DAC} 2022},\n  pages = {451--456},\n  publisher = {{ACM}},\n  year = {2022},\n  doi = {10.1145/3489517.3530477},\n  url = {https://doi.org/10.1145/3489517.3530477}\n}",
+      "citation_source": "https://dblp.org/rec/conf/dac/NegiCA022",
       "summary": "NAX is a hardware-aware neural architecture search framework for CNN inference on memristive crossbar array IMC accelerators. Its main contribution is not a general compiler IR, but a search formulation that makes **per-layer coupling between neural operation choice and crossbar-size binding** explicit: convolution kernels in a ResNet-derived super-network are searched together with crossbar sizes, and the selected architecture is evaluated against accuracy, energy, and area-normalized latency objectives. The stack slice strengthened by the paper is the mapper/DSE layer between a CNN graph and a PUMA-like analog crossbar accelerator model, with nonideality feedback supplied through GENIEx and hardware-efficiency feedback through per-operation lookup-table costs. The demonstrated setting is static CNN inference on CIFAR-10 and Tiny ImageNet using ResNet-20/ResNet-18-derived search spaces, with simulator-backed comparisons against homogeneous-crossbar ResNet baselines. ([arXiv](https://arxiv.org/pdf/2106.12125)) |",
       "route": "/papers/nax/",
       "links": {
-        "paper": "https://arxiv.org/pdf/2106.12125",
+        "paper": "https://doi.org/10.1145/3489517.3530477",
         "artifact": "",
         "docs": "",
         "code": ""
@@ -3699,12 +4304,28 @@
       "short_title": "NS-Cache",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
-      "venue": "IEEE Transactions on Computers; arXiv preprint also available",
-      "authors_or_group": "Faaiq Waqar, Jungyoun Kwak, Junmo Lee, Minji Shon, Mohammadhosein Gholamrezaei, Kevin Skadron, Shimeng Yu",
+      "publication": {
+        "venue": "IEEE Transactions on Computers",
+        "type": "article",
+        "doi": "10.1109/TC.2025.3625490",
+        "url": "https://doi.org/10.1109/TC.2025.3625490"
+      },
+      "authors": [
+        "Faaiq Waqar",
+        "Jungyoun Kwak",
+        "Junmo Lee",
+        "Minji Shon",
+        "Mohammadhosein Gholamrezaei",
+        "Kevin Skadron",
+        "Shimeng Yu"
+      ],
+      "author_note": null,
+      "bibtex": "@article{ns-cache,\n  author       = {Faaiq Waqar and\n                  Jungyoun Kwak and\n                  Junmo Lee and\n                  Minji Shon and\n                  Mohammadhosein Gholamrezaei and\n                  Kevin Skadron and\n                  Shimeng Yu},\n  title        = {{NS-Cache:} Optimization and Benchmarking of Monolithically Stackable\n                  Gain Cell Memory for Last-Level Cache},\n  journal      = {{IEEE} Transactions on Computers},\n  year         = {2025},\n  doi          = {10.1109/TC.2025.3625490},\n  url          = {https://doi.org/10.1109/TC.2025.3625490}\n}",
+      "citation_source": "https://doi.org/10.1109/TC.2025.3625490",
       "summary": "**NS-Cache**, formally *Optimization and Benchmarking of Monolithically Stackable Gain Cell Memory for Last-Level Cache*, contributes a public early-exploration framework for advanced last-level-cache memory technologies, especially monolithically stacked amorphous-oxide-semiconductor 2T gain-cell memories for large LLCs. Its strongest reusable layer is the backend cache/device/circuit PPA model: bank–subarray–mat hierarchy, peripheral and interconnect cost modeling, M3D/TSV-like stacking parameters, access-mode choices, refresh timing, and a Gem5/Ruby benchmarking bridge. The demonstrated workload setting is CPU multicore LLC evaluation using Rodinia and PARSEC/Splash2x benchmarks with Gem5 statistics and NS-Cache-derived cache timing/energy parameters, rather than a neural operator graph or CIM tensor compiler. For a CIM compiler/IR corpus, NS-Cache is most useful as a **cost-model and backend-contract case study**: the first-class object is an advanced cache-memory configuration and its timing/energy consequences, while tensor-CIM scheduling, ISA lowering, analog partial-sum semantics, and value-trajectory rewrites remain outside the demonstrated abstraction. ([arXiv](https://arxiv.org/pdf/2503.06304))",
       "route": "/papers/ns-cache/",
       "links": {
-        "paper": "https://arxiv.org/pdf/2503.06304",
+        "paper": "https://doi.org/10.1109/TC.2025.3625490",
         "artifact": "https://github.com/neurosim/NS-Cache",
         "docs": "",
         "code": ""
@@ -3779,8 +4400,28 @@
       "short_title": "OpenACMv2",
       "subtitle": "Scoped CIM stack note",
       "year": 2026,
-      "venue": "DAC 2026 / arXiv preprint",
-      "authors_or_group": "Yiqi Zhou, Yue Yuan, Yikai Wang, Bohao Liu, Qinxin Mei, Zhuohua Liu, Shan Shen, Wei Xing, Daying Sun, Li Li, Guozhu Liu",
+      "publication": {
+        "venue": "DAC 2026",
+        "type": "conference",
+        "doi": "10.48550/arXiv.2603.13042",
+        "url": "https://doi.org/10.48550/arXiv.2603.13042"
+      },
+      "authors": [
+        "Yiqi Zhou",
+        "Yue Yuan",
+        "Yikai Wang",
+        "Bohao Liu",
+        "Qinxin Mei",
+        "Zhuohua Liu",
+        "Shan Shen",
+        "Wei Xing",
+        "Daying Sun",
+        "Li Li",
+        "Guozhu Liu"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{zhou2026openacmv2,\n  author = {Zhou, Yiqi and Yuan, Yue and Wang, Yikai and Liu, Bohao and Mei, Qinxin and Liu, Zhuohua and Shen, Shan and Xing, Wei and Sun, Daying and Li, Li and Liu, Guozhu},\n  title = {OpenACMv2: An Accuracy-Constrained Co-Optimization Framework for Approximate DCiM},\n  booktitle = {DAC 2026},\n  year = {2026},\n  doi = {10.48550/arXiv.2603.13042},\n  eprint = {2603.13042},\n  archivePrefix = {arXiv},\n  primaryClass = {cs.LG},\n  url = {https://arxiv.org/abs/2603.13042}\n}",
+      "citation_source": "https://arxiv.org/abs/2603.13042",
       "summary": "OpenACMv2 contributes an accuracy-constrained architecture–circuit co-optimization flow for approximate digital SRAM-based compute-in-memory processing elements. Its strongest reusable layer is the design-space exploration and cost-model boundary: Level-I encodes approximate multiplier choices and SRAM macro parameters as optimizer states, evaluates multiplier error/PPA through PEA-GNN, and selects Pareto candidates under MRED/NMED budgets; Level-II refines selected compressor cells and SRAM bitcells through SPICE/PVT/Monte Carlo-style transistor sizing. The demonstrated workloads are image blending for 8-bit multipliers and CIFAR-10 inference for 16-bit multipliers, with hardware evidence centered on 8/16-bit approximate multipliers, SRAM macro configurations, FreePDK45/Nangate45-style cells, OpenROAD/OpenSTA/VCS evaluation, and Xyce/SPICE-style sizing. For CIM compiler/IR research, the paper is most useful as a concrete example of making approximate arithmetic choices, SRAM macro parameters, and circuit-validity constraints first-class optimization objects, while high-level workload ingestion, tensor IR, instruction lowering, and runtime abstractions remain outside the paper’s main demonstrated interface. ([arXiv](https://arxiv.org/pdf/2603.13042))",
       "route": "/papers/openacmv2/",
       "links": {
@@ -3854,8 +4495,23 @@
       "short_title": "OpenC2",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
-      "venue": "DATE 2025",
-      "authors_or_group": "Tianchu Dong, Shaoxuan Li, Yihang Zuo, Hongwu Jiang, Yuzhe Ma, Shanshi Huang; HKUST(GZ)",
+      "publication": {
+        "venue": "DATE 2025",
+        "type": "conference",
+        "doi": "10.23919/DATE64628.2025.10992965",
+        "url": "https://doi.org/10.23919/DATE64628.2025.10992965"
+      },
+      "authors": [
+        "Tianchu Dong",
+        "Shaoxuan Li",
+        "Yihang Zuo",
+        "Hongwu Jiang",
+        "Yuzhe Ma",
+        "Shanshi Huang"
+      ],
+      "author_note": "HKUST(GZ)",
+      "bibtex": "@inproceedings{DBLP:conf/date/DongLZJMH25,\n  author       = {Tianchu Dong and\n                  Shaoxuan Li and\n                  Yihang Zuo and\n                  Hongwu Jiang and\n                  Yuzhe Ma and\n                  Shanshi Huang},\n  title        = {{OpenC\\({}^{\\mbox{2}}\\)}: An Open-Source End-to-End Hardware Compiler\n                  Development Framework for Digital Compute-in-Memory Macro},\n  booktitle    = {Design, Automation {\\&} Test in Europe Conference {\\&} Exhibition,\n                  {DATE} 2025, Lyon, France, March 31 - April 2, 2025},\n  pages        = {1--2},\n  publisher    = {{IEEE}},\n  year         = {2025},\n  doi          = {10.23919/DATE64628.2025.10992965},\n  url          = {https://doi.org/10.23919/DATE64628.2025.10992965}\n}",
+      "citation_source": "https://dblp.org/rec/conf/date/DongLZJMH25",
       "summary": "OpenC² contributes an open-source, template-based hardware generation and physical-design flow for digital SRAM compute-in-memory macros. Its strongest demonstrated stack layer is the backend macro generator: from top-level macro parameters, customized cells, and 45 nm FreePDK technology/library inputs, it emits Verilog and SPICE front-end netlists plus DEF/GDSII layout artifacts through open-source EDA tools. The paper demonstrates this flow for DCIM macro construction, including a 64×64, 4-bit-by-4-bit example and macro-level area, power, and energy-efficiency comparisons. For CIM compiler/IR research, OpenC² is best read as a backend-plugin case study: it makes macro shape, precision fields, hardware hierarchy, and physical layout generation concrete, while the effective intermediate semantics are distributed across configuration values, Python templates, generated netlists, Yosys scripts, and DEF/LEF/GDS metadata rather than a standalone CIM IR. ([zyh0911.github.io](https://zyh0911.github.io/assets/pdf/OpenC2.pdf))",
       "route": "/papers/openc2/",
       "links": {
@@ -3929,8 +4585,25 @@
       "short_title": "Ouroboros",
       "subtitle": "Scoped CIM stack note",
       "year": 2026,
-      "venue": "ASPLOS 2026",
-      "authors_or_group": "Yiqi Liu, Yudong Pan, Mengdi Wang, Shixin Zhao, Haonan Zhu, Yinhe Han, Lei Zhang, Ying Wang",
+      "publication": {
+        "venue": "ASPLOS 2026",
+        "type": "conference",
+        "doi": "10.48550/arXiv.2603.02737",
+        "url": "https://doi.org/10.48550/arXiv.2603.02737"
+      },
+      "authors": [
+        "Yiqi Liu",
+        "Yudong Pan",
+        "Mengdi Wang",
+        "Shixin Zhao",
+        "Haonan Zhu",
+        "Yinhe Han",
+        "Lei Zhang",
+        "Ying Wang"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{liu2026ouroboros,\n  author = {Liu, Yiqi and Pan, Yudong and Wang, Mengdi and Zhao, Shixin and Zhu, Haonan and Han, Yinhe and Zhang, Lei and Wang, Ying},\n  title = {Ouroboros: Wafer-Scale SRAM CIM with Token-Grained Pipelining for Large Language Model Inference},\n  booktitle = {ASPLOS 2026},\n  year = {2026},\n  doi = {10.48550/arXiv.2603.02737},\n  eprint = {2603.02737},\n  archivePrefix = {arXiv},\n  primaryClass = {cs.AR},\n  url = {https://arxiv.org/abs/2603.02737}\n}",
+      "citation_source": "https://arxiv.org/abs/2603.02737",
       "summary": "**Ouroboros** is best classified as a narrow end-to-end hardware–software co-design for wafer-scale **digital SRAM compute-in-memory** LLM inference. The paper’s central stack contribution is not a general CIM compiler IR, but a coherent target-specific execution stack: token-grained pipelining for causal decoder inference, communication- and fault-aware layer-to-core mapping, H-tree-aware intra-core placement, distributed dynamic KV-cache management, and a simulator-backed evaluation loop. Its demonstrated setting is LLM inference over a proposed 54 GB SRAM-CIM wafer-scale architecture, evaluated with decoder-only models such as LLaMA/Baichuan/Qwen and encoder-containing models such as T5/BERT. For CIM compiler/IR research, Ouroboros is valuable because it exposes a rich “hidden IR” made from mapping variables, pipeline stages, KV runtime tables, hardware-resource coordinates, and simulator parameters, even though those interfaces are paper-internal rather than released as a reusable dialect or instruction stream. ([arXiv](https://arxiv.org/html/2603.02737v1))",
       "route": "/papers/ouroboros/",
       "links": {
@@ -4012,12 +4685,30 @@
       "short_title": "PAPI",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
-      "venue": "ASPLOS 2025",
-      "authors_or_group": "Yintao He, Haiyu Mao, Christina Giannoula, Mohammad Sadrosadati, Juan Gómez-Luna, Huawei Li, Xiaowei Li, Ying Wang, Onur Mutlu",
+      "publication": {
+        "venue": "ASPLOS (2) 2025",
+        "type": "conference",
+        "doi": "10.1145/3676641.3716009",
+        "url": "https://doi.org/10.1145/3676641.3716009"
+      },
+      "authors": [
+        "Yintao He",
+        "Haiyu Mao",
+        "Christina Giannoula",
+        "Mohammad Sadrosadati",
+        "Juan Gómez-Luna",
+        "Huawei Li",
+        "Xiaowei Li",
+        "Ying Wang",
+        "Onur Mutlu"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/asplos/HeMGSGLLWM25,\n  author = {Yintao He and Haiyu Mao and Christina Giannoula and Mohammad Sadrosadati and Juan G{\\'{o}}mez{-}Luna and Huawei Li and Xiaowei Li and Ying Wang and Onur Mutlu},\n  title = {{PAPI}: Exploiting Dynamic Parallelism in Large Language Model Decoding with a Processing-In-Memory-Enabled Computing System},\n  booktitle = {{ASPLOS} {(2)} 2025},\n  pages = {766--782},\n  publisher = {{ACM}},\n  year = {2025},\n  doi = {10.1145/3676641.3716009},\n  url = {https://doi.org/10.1145/3676641.3716009}\n}",
+      "citation_source": "https://dblp.org/rec/conf/asplos/HeMGSGLLWM25",
       "summary": "**PAPI** is a heterogeneous HBM/DRAM-PIM architecture and runtime scheduling framework for LLM decoding. Its central contribution is not an explicit compiler IR, but a runtime decision layer that observes request-level parallelism and token-level parallelism, estimates whether fully connected kernels are compute- or memory-bound, and then maps those kernels either to GPU-like processing units or to FC-PIM, while attention/KV-cache-heavy work is assigned to disaggregated Attn-PIM devices. The demonstrated stack is simulator-backed: the paper evaluates LLaMA-65B, GPT-3 66B, and GPT-3 175B on Dolly creative-writing and general-QA tasks using Ramulator2/AttAcc-derived modeling. For CIM compiler/IR research, PAPI is most useful as a runtime-state and hardware-resource case study: it makes dynamic batching/speculation state first-class enough to schedule over heterogeneous PIM resources, but the reusable compiler boundary remains embedded in scheduler equations, hardware assumptions, data partitioning rules, and simulator setup rather than a serialized IR. ([arXiv](https://arxiv.org/html/2502.15470v1))",
       "route": "/papers/papi/",
       "links": {
-        "paper": "https://arxiv.org/pdf/2502.15470v2",
+        "paper": "https://doi.org/10.1145/3676641.3716009",
         "artifact": "",
         "docs": "",
         "code": ""
@@ -4091,8 +4782,16 @@
       "short_title": "PIM EDA Suite",
       "subtitle": "Scoped CIM stack note",
       "year": 2023,
-      "venue": "Repository-centered suite; associated papers include DAC 2023, IEEE TCAD, DATE 2024",
-      "authors_or_group": "Xiaoming Chen group / ICT CAS and collaborators",
+      "publication": {
+        "venue": "GitHub repository",
+        "type": "other",
+        "doi": "",
+        "url": "https://github.com/chenxm1986/PIM-Toolchain"
+      },
+      "authors": [],
+      "author_note": "Xiaoming Chen group / ICT CAS and collaborators",
+      "bibtex": "@misc{pim-eda,\n  title = {PIM EDA Suite / PIM Toolchain},\n  year = {2023},\n  howpublished = {GitHub repository},\n  url = {https://github.com/chenxm1986/PIM-Toolchain},\n  note = {Repository-centered suite; associated papers include DAC 2023, IEEE TCAD, and DATE 2024}\n}",
+      "citation_source": "https://github.com/chenxm1986/PIM-Toolchain",
       "summary": "**PIM EDA Suite / PIM Toolchain** is best read as a crossbar-PIM DNN/CNN inference toolchain family rather than a single compiler paper. Its strongest contribution for a CIM compiler/IR corpus is the way it exposes several adjacent compiler boundaries: PIMSYN-NN synthesizes a parameterized macro/PE/crossbar accelerator and dataflow under a power constraint; PIMCOMP-NN lowers ONNX models through structure/weight representations, array-group partitioning, weight replication, core mapping, and HT/LL scheduling into pseudo-instruction or simulator inputs; PIMSIM-NN evaluates ISA/program-instruction streams against architecture/NoC configuration; and PIMACC evaluates inference accuracy under configurable nonidealities. The demonstrated setting is static DNN/CNN inference on configurable crossbar/RRAM-style PIM accelerators, with reusable evidence strongest at the hardware-template/config, mapping-state, pseudo-instruction, and simulator-input boundaries. ([GitHub](https://github.com/chenxm1986/PIM-Toolchain))",
       "route": "/papers/pim-eda/",
       "links": {
@@ -4193,12 +4892,29 @@
       "short_title": "PIM-HLS",
       "subtitle": "Scoped CIM stack note",
       "year": 2023,
-      "venue": "DAC 2023",
-      "authors_or_group": "Yu Zhu, Zhenhua Zhu, Guohao Dai, Fengbin Tu, Hanbo Sun, Kwang-Ting Cheng, Huazhong Yang, Yu Wang",
+      "publication": {
+        "venue": "DAC 2023",
+        "type": "conference",
+        "doi": "10.1109/DAC56929.2023.10247755",
+        "url": "https://doi.org/10.1109/DAC56929.2023.10247755"
+      },
+      "authors": [
+        "Yu Zhu",
+        "Zhenhua Zhu",
+        "Guohao Dai",
+        "Fengbin Tu",
+        "Hanbo Sun",
+        "Kwang Ting Cheng",
+        "Huazhong Yang",
+        "Yu Wang"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{54975a0b99ec4ceaad7177162844574f,\n  title = {PIM-HLS: An Automatic Hardware Generation Tool for Heterogeneous Processing-In-Memory-based Neural Network Accelerators},\n  author = {Zhu, Yu and Zhu, Zhenhua and Dai, Guohao and Tu, Fengbin and Sun, Hanbo and Cheng, Kwang Ting and Yang, Huazhong and Wang, Yu},\n  series = {Proceedings - Design Automation Conference},\n  publisher = {Institute of Electrical and Electronics Engineers Inc.},\n  booktitle = {2023 60th ACM/IEEE Design Automation Conference, DAC 2023},\n  year = {2023},\n  doi = {10.1109/DAC56929.2023.10247755}\n}",
+      "citation_source": "https://researchportal.hkust.edu.hk/en/publications/pim-hls-an-automatic-hardware-generation-tool-for-heterogeneous-p",
       "summary": "**PIM-HLS** is a DAC 2023 tool paper that frames heterogeneous SRAM/RRAM PIM accelerator generation as an area-constrained mapping, scheduling, and hardware-parameter optimization problem for CNN inference. Its clearest contribution is not a general-purpose CIM compiler IR, but a hardware-aware optimization flow: a manually written NN description is parsed into a DFG, MNSIM-derived latency/area choices are used to rank SRAM/RRAM and array/interface options, layers are grouped and remapped under area constraints, bottleneck layers can be split or duplicated, and Verilog-style hardware templates plus module-level control/instruction information are generated. The demonstrated scope is static VGG-8 and ResNet-18 CNN inference over simulated SRAM/RRAM PIM configurations, with the most reusable compiler insight lying in the mapping state: layer groups, device binding, tile-set allocation, weight remapping cost, and area/latency-driven hardware choice. ([dai.sjtu.edu.cn](https://dai.sjtu.edu.cn/my_file/pdf/fab6156a-f133-4b35-929a-b0e65c7387ad.pdf)) |",
       "route": "/papers/pim-hls/",
       "links": {
-        "paper": "https://dai.sjtu.edu.cn/my_file/pdf/fab6156a-f133-4b35-929a-b0e65c7387ad.pdf",
+        "paper": "https://doi.org/10.1109/DAC56929.2023.10247755",
         "artifact": "https://github.com/Hazuyuki/PIM-HLS",
         "docs": "",
         "code": ""
@@ -4276,12 +4992,30 @@
       "short_title": "PIM-Opt",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
-      "venue": "PACT 2024",
-      "authors_or_group": "Steve Rhyner, Haocong Luo, Juan Gómez-Luna, Mohammad Sadrosadati, Jiawei Jiang, Ataberk Olgun, Harshita Gupta, Ce Zhang, Onur Mutlu",
+      "publication": {
+        "venue": "PACT 2024",
+        "type": "conference",
+        "doi": "10.1145/3656019.3676947",
+        "url": "https://doi.org/10.1145/3656019.3676947"
+      },
+      "authors": [
+        "Steve Rhyner",
+        "Haocong Luo",
+        "Juan Gómez-Luna",
+        "Mohammad Sadrosadati",
+        "Jiawei Jiang",
+        "Ataberk Olgun",
+        "Harshita Gupta",
+        "Ce Zhang",
+        "Onur Mutlu"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/IEEEpact/RhynerLGS0OG0M24,\n  author = {Rhyner, Steve and Luo, Haocong and Gómez-Luna, Juan and Sadrosadati, Mohammad and Jiang, Jiawei and Olgun, Ataberk and Gupta, Harshita and Zhang, Ce and Mutlu, Onur},\n  title = {PIM-Opt: Demystifying Distributed Optimization Algorithms on a Real-World Processing-In-Memory System},\n  booktitle = {Proceedings of the 33rd International Conference on Parallel Architectures and Compilation Techniques, PACT 2024, Long Beach, CA, USA, October 14-16, 2024},\n  pages = {201--218},\n  publisher = {ACM},\n  year = {2024},\n  doi = {10.1145/3656019.3676947},\n  url = {https://doi.org/10.1145/3656019.3676947}\n}",
+      "citation_source": "https://dblp.org/rec/conf/IEEEpact/RhynerLGS0OG0M24",
       "summary": "PIM-Opt is a real-hardware UPMEM PIM study and reproducible evaluation framework for distributed optimization in linear ML training. Its main contribution is the implementation and measurement of MA-SGD, GA-SGD, and ADMM for logistic regression and SVM training on YFCC100M-HNfc6 and Criteo, including UPMEM execution, CPU/GPU baselines, preprocessing/postprocessing scripts, and figure-generation artifacts. The stack contribution is strongest at the runtime, benchmarking, and hardware-software co-design boundary: the paper makes host–DPU data movement, parameter-server synchronization, DPU/tasklet parallelism, and fixed-point backend constraints visible as performance-critical objects. For CIM compiler/IR research, PIM-Opt is most useful as a real-system backend and benchmark corpus rather than as an explicit IR stack: its reusable semantics are distributed across C structs, Makefiles, experiment scripts, timing logs, and host aggregation code. ([arXiv](https://arxiv.org/pdf/2404.07164v2))",
       "route": "/papers/pim-opt/",
       "links": {
-        "paper": "https://arxiv.org/pdf/2404.07164v2",
+        "paper": "https://doi.org/10.1145/3656019.3676947",
         "artifact": "https://github.com/CMU-SAFARI/PIM-Opt",
         "docs": "",
         "code": ""
@@ -4358,8 +5092,16 @@
       "short_title": "PIMACC",
       "subtitle": "Scoped CIM stack note",
       "year": null,
-      "venue": "Unknown / artifact and toolchain documentation found",
-      "authors_or_group": "Haocheng Han; Xiaoming Chen group / PIMCOMP-NN toolchain",
+      "publication": {
+        "venue": "Public software artifact",
+        "type": "other",
+        "doi": "",
+        "url": "https://github.com/HertzHan/PIMACC-simulator"
+      },
+      "authors": [],
+      "author_note": "Haocheng Han; Xiaoming Chen group / PIMCOMP-NN toolchain",
+      "bibtex": "@misc{pimacc,\n  title        = {{PIMACC:} Processing-in-Memory Accuracy Simulator for Neural Network Inference},\n  organization = {PIMACC simulator project},\n  howpublished = {Public software artifact},\n  url          = {https://github.com/HertzHan/PIMACC-simulator}\n}",
+      "citation_source": "https://github.com/HertzHan/PIMACC-simulator",
       "summary": "PIMACC is best understood as a CIM/PIM neural-network **accuracy simulation backend** coupled to the PIMCOMP-NN compiler flow. The public artifact demonstrates a workflow in which PIMCOMP-NN compiles an ONNX neural network, emits verification/mapping/instruction information, and PIMACC replays the compiled computation while injecting CIM nonidealities such as quantization effects, conductance variation, IR-drop approximations, and stuck-at faults. Its strongest contribution to a CIM compiler/IR corpus is not a new IR syntax, but a concrete backend contract: a generated verification state plus a hardware/nonideality configuration that connects high-level network nodes to crossbar-level numeric behavior. For compiler/IR research, PIMACC is valuable as evidence that accuracy verification needs its own lower-level representation of bit significance, signed decomposition, cell precision, DAC/ADC-related parameters, fault masks, and mapping provenance. ([GitHub](https://github.com/HertzHan/PIMACC-simulator/blob/main/README.md))",
       "route": "/papers/pimacc/",
       "links": {
@@ -4446,13 +5188,27 @@
       "title": "PIMCOMP: An End-to-End DNN Compiler for Processing-In-Memory Accelerators",
       "short_title": "PIMCOMP",
       "subtitle": "Scoped CIM stack note",
-      "year": 2024,
-      "venue": "IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems / arXiv v1",
-      "authors_or_group": "Xiaotian Sun, Xinyu Wang, Wanqian Li, Yinhe Han, Xiaoming Chen",
+      "year": 2025,
+      "publication": {
+        "venue": "IEEE Trans. Comput. Aided Des. Integr. Circuits Syst.",
+        "type": "article",
+        "doi": "10.1109/TCAD.2024.3496847",
+        "url": "https://doi.org/10.1109/TCAD.2024.3496847"
+      },
+      "authors": [
+        "Xiaotian Sun",
+        "Xinyu Wang",
+        "Wanqian Li",
+        "Yinhe Han",
+        "Xiaoming Chen"
+      ],
+      "author_note": null,
+      "bibtex": "@article{DBLP:journals/tcad/SunWLHC25,\n  author = {Xiaotian Sun and Xinyu Wang and Wanqian Li and Yinhe Han and Xiaoming Chen},\n  title = {{PIMCOMP}: An End-to-End {DNN} Compiler for Processing-In-Memory Accelerators},\n  journal = {{IEEE} Trans. Comput. Aided Des. Integr. Circuits Syst.},\n  volume = {44},\n  number = {5},\n  pages = {1745--1759},\n  year = {2025},\n  doi = {10.1109/TCAD.2024.3496847},\n  url = {https://doi.org/10.1109/TCAD.2024.3496847}\n}",
+      "citation_source": "https://dblp.org/rec/journals/tcad/SunWLHC25",
       "summary": "PIMCOMP is best read as a crossbar-PIM/CIM DNN deployment compiler whose most reusable contribution is the middle/backend optimizer: it converts an ONNX-style DNN description into a structure IR plus weight data, partitions weights into **array groups**, optimizes weight replication and AG layout across cores, schedules high-throughput or low-latency inter-layer pipelines, and emits pseudo-instruction/configuration artifacts for verification and simulation. The paper strengthens the CIM compiler stack at the mapping/scheduling boundary rather than at a formal general-purpose IR boundary: its named abstractions are structure IR, hardware configuration, array groups, mapping info, pseudo-instructions, and pixel-level runtime management. The demonstrated setting is static DNN inference on configurable NVM crossbar-style PIM accelerators, evaluated with simulator-backed experiments over VGG/ResNet/GoogleNet-style workloads and three abstracted architecture instances. ([arXiv](https://arxiv.org/pdf/2411.09159v1))",
       "route": "/papers/pimcomp/",
       "links": {
-        "paper": "https://arxiv.org/pdf/2411.09159v1",
+        "paper": "https://doi.org/10.1109/TCAD.2024.3496847",
         "artifact": "https://github.com/sunxt99/PIMCOMP-NN",
         "docs": "",
         "code": ""
@@ -4538,12 +5294,25 @@
       "short_title": "PIMSIM-NN",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
-      "venue": "DATE 2024 Late Breaking Results",
-      "authors_or_group": "Xinyu Wang, Xiaotian Sun, Yinhe Han, Xiaoming Chen",
+      "publication": {
+        "venue": "DATE 2024",
+        "type": "conference",
+        "doi": "10.23919/DATE58400.2024.10546788",
+        "url": "https://doi.org/10.23919/DATE58400.2024.10546788"
+      },
+      "authors": [
+        "Xinyu Wang",
+        "Xiaotian Sun",
+        "Yinhe Han",
+        "Xiaoming Chen"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/date/WangS0024,\n  author = {Xinyu Wang and Xiaotian Sun and Yinhe Han and Xiaoming Chen},\n  title = {{PIMSIM-NN}: An {ISA}-based Simulation Framework for Processing-in-Memory Accelerators},\n  booktitle = {Design, Automation {\\&} Test in Europe Conference {\\&} Exhibition, {DATE} 2024},\n  pages = {1--2},\n  publisher = {{IEEE}},\n  year = {2024},\n  doi = {10.23919/DATE58400.2024.10546788},\n  url = {https://doi.org/10.23919/DATE58400.2024.10546788}\n}",
+      "citation_source": "https://dblp.org/rec/conf/date/WangS0024",
       "summary": "PIMSIM-NN is best read as an ISA-centered simulation framework for crossbar-based PIM neural-network inference. The paper’s main contribution is the instruction-sequence boundary between software mapping/code generation and a configurable SystemC simulator: DNNs are compiled into per-core instructions, then evaluated against hardware and NoC configuration files for latency, power, energy, and throughput. The demonstrated paper scope is static DNN inference on memristor/RRAM-style crossbar accelerators, with experiments over CNN workloads such as AlexNet, GoogLeNet, ResNet-18, SqueezeNet, VGG-8, and VGG-16; the public simulator artifact is clearest for precompiled instruction streams and JSON hardware configs, while ONNX-to-instruction compilation is documented through the companion PIMCOMP-NN repository. For CIM compiler/IR research, PIMSIM-NN is valuable less as a general-purpose IR stack and more as a concrete backend contract: it shows which CIM details must be named at the ISA/config boundary for simulator-backed exploration. ([arXiv](https://arxiv.org/html/2402.18089v1))",
       "route": "/papers/pimsim-nn/",
       "links": {
-        "paper": "https://arxiv.org/html/2402.18089v1",
+        "paper": "https://doi.org/10.23919/DATE58400.2024.10546788",
         "artifact": "https://github.com/wangxy-2000/pimsim-nn",
         "docs": "",
         "code": ""
@@ -4629,12 +5398,27 @@
       "short_title": "PIMSYN-NN",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
-      "venue": "DATE 2024",
-      "authors_or_group": "Wanqian Li, Xiaotian Sun, Xinyu Wang, Lei Wang, Yinhe Han, Xiaoming Chen",
+      "publication": {
+        "venue": "DATE 2024",
+        "type": "conference",
+        "doi": "10.23919/DATE58400.2024.10546740",
+        "url": "https://doi.org/10.23919/DATE58400.2024.10546740"
+      },
+      "authors": [
+        "Wanqian Li",
+        "Xiaotian Sun",
+        "Xinyu Wang",
+        "Lei Wang",
+        "Yinhe Han",
+        "Xiaoming Chen"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/date/LiSWW0024,\n  author = {Wanqian Li and Xiaotian Sun and Xinyu Wang and Lei Wang and Yinhe Han and Xiaoming Chen},\n  title = {{PIMSYN}: Synthesizing Processing-in-Memory {CNN} Accelerators},\n  booktitle = {Design, Automation {\\&} Test in Europe Conference {\\&} Exhibition, {DATE} 2024},\n  pages = {1--6},\n  publisher = {{IEEE}},\n  year = {2024},\n  doi = {10.23919/DATE58400.2024.10546740},\n  url = {https://doi.org/10.23919/DATE58400.2024.10546740}\n}",
+      "citation_source": "https://dblp.org/rec/conf/date/LiSWW0024",
       "summary": "PIMSYN-NN, published as **PIMSYN: Synthesizing Processing-in-memory CNN Accelerators**, contributes an automatic synthesis and design-space-exploration flow for crossbar-based PIM CNN accelerators. Its central compiler/IR contribution is an IR-based dataflow DAG used to express computation, intra-macro communication, and inter-macro communication while the DSE flow searches weight duplication, DAC/ReRAM/crossbar settings, macro partitioning, macro sharing, and peripheral allocation. The demonstrated stack is strongest for **static CNN inference** from ONNX-format model structure plus a power budget into a synthesized macro/PE/crossbar architecture and dataflow schedule, with evaluation through a cycle-accurate IR-based behavior-level simulator. For CIM compiler/IR research, PIMSYN-NN is most useful as a mapping/scheduling and hardware-resource synthesis case study: it makes several CIM architectural objects first-class, while its IR semantics are most reusable when read together with the DAG construction rules, component-allocation model, JSON configs, and downstream PIMCOMP/PIMSIM toolchain interfaces. ([arXiv](https://arxiv.org/pdf/2402.18114))",
       "route": "/papers/pimsyn-nn/",
       "links": {
-        "paper": "https://arxiv.org/pdf/2402.18114",
+        "paper": "https://doi.org/10.23919/DATE58400.2024.10546740",
         "artifact": "https://github.com/lixixi-jook/PIMSYN-NN",
         "docs": "",
         "code": ""
@@ -4713,12 +5497,27 @@
       "short_title": "PIMsynth",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
-      "venue": "IEEE Computer Architecture Letters",
-      "authors_or_group": "Deyuan Guo, Mohammadhosein Gholamrezaei, Matthew Hofmann, Ashish Venkat, Zhiru Zhang, Kevin Skadron",
+      "publication": {
+        "venue": "IEEE Comput. Archit. Lett.",
+        "type": "article",
+        "doi": "10.1109/LCA.2025.3600588",
+        "url": "https://doi.org/10.1109/LCA.2025.3600588"
+      },
+      "authors": [
+        "Deyuan Guo",
+        "MohammadHosein Gholamrezaei",
+        "Matthew Hofmann",
+        "Ashish Venkat",
+        "Zhiru Zhang",
+        "Kevin Skadron"
+      ],
+      "author_note": null,
+      "bibtex": "@article{DBLP:journals/cal/GuoGHVZS25,\n  author = {Deyuan Guo and MohammadHosein Gholamrezaei and Matthew Hofmann and Ashish Venkat and Zhiru Zhang and Kevin Skadron},\n  title = {{PIMsynth}: A Unified Compiler Framework for Bit-Serial Processing-in-Memory Architectures},\n  journal = {{IEEE} Comput. Archit. Lett.},\n  volume = {24},\n  number = {2},\n  pages = {277--280},\n  year = {2025},\n  doi = {10.1109/LCA.2025.3600588},\n  url = {https://doi.org/10.1109/LCA.2025.3600588}\n}",
+      "citation_source": "https://dblp.org/rec/journals/cal/GuoGHVZS25",
       "summary": "PIMsynth is a public compiler framework for generating bit-serial PIM microprograms from bit-parallel combinational Verilog. Its clearest contribution is an automated lowering path that combines Yosys/ABC logic synthesis, a GenLib-described bit-serial PIM instruction set, analog-PIM-specific transformations for TRA/MAJ/DCC behavior, LLVM-based scheduling and register allocation, and PIMeval-backed functional/performance validation. The demonstrated setting is fixed-width integer and bitwise combinational kernels over 8/16/32/64-bit operands, evaluated on representative digital and analog DRAM-PIM programming models with small single-bit register sets. For CIM compiler/IR research, PIMsynth is most useful as a bit-level compiler-stack example where the first-class object is neither a neural-network tensor graph nor an array placement map, but a bit-serial operation DAG plus a constrained register/simulator instruction interface. ([University of Virginia Computer Science](https://www.cs.virginia.edu/venkat/papers/cal2025.pdf))",
       "route": "/papers/pimsynth/",
       "links": {
-        "paper": "https://www.cs.virginia.edu/~av6ds/papers/cal2025.pdf",
+        "paper": "https://doi.org/10.1109/LCA.2025.3600588",
         "artifact": "https://github.com/UVA-LavaLab/PIMsynth",
         "docs": "",
         "code": ""
@@ -4795,9 +5594,22 @@
       "title": "Polyhedral-Based Compilation Framework for In-Memory Neural Network Accelerators",
       "short_title": "Polyhedral CIM",
       "subtitle": "Scoped CIM stack note",
-      "year": 2021,
-      "venue": "ACM Journal on Emerging Technologies in Computing Systems",
-      "authors_or_group": "Jianhui Han, Xiang Fei, Zhaolin Li, Youhui Zhang",
+      "year": 2022,
+      "publication": {
+        "venue": "ACM Journal on Emerging Technologies in Computing Systems",
+        "type": "article",
+        "doi": "10.1145/3469847",
+        "url": "https://doi.org/10.1145/3469847"
+      },
+      "authors": [
+        "Jianhui Han",
+        "Xiang Fei",
+        "Zhaolin Li",
+        "Youhui Zhang"
+      ],
+      "author_note": null,
+      "bibtex": "@article{DBLP:journals/jetc/HanFLZ22,\n  author       = {Jianhui Han and\n                  Xiang Fei and\n                  Zhaolin Li and\n                  Youhui Zhang},\n  title        = {Polyhedral-Based Compilation Framework for In-Memory Neural Network Accelerators},\n  journal      = {{ACM} Journal on Emerging Technologies in Computing Systems},\n  volume       = {18},\n  number       = {1},\n  pages        = {15:1--15:23},\n  year         = {2022},\n  doi          = {10.1145/3469847},\n  url          = {https://doi.org/10.1145/3469847}\n}",
+      "citation_source": "https://dblp.org/rec/journals/jetc/HanFLZ22",
       "summary": "**Polyhedral-Based Compilation Framework for In-Memory Neural Network Accelerators** presents PolyXB, a source-to-source compiler that uses the polyhedral model to recognize affine C loop nests implementing NN operators and rewrite them into calls or generated schedule regions for memristor-based neural-network accelerators. Its most relevant contribution for CIM compiler/IR research is the shift from single-kernel MV/MM offload toward a narrow vertical flow that also recognizes convolution, pooling, and fused initialization/activation patterns, then optionally forms a pipeline and allocates PE resources across matched operators. The demonstrated stack slice is static C/PET/ISL compilation for dense, affine NN inference kernels, with paper-level evaluation over synthetic kernels and NN benchmarks and case studies for ISAAC- and FPSA-like architectures; the public artifact exposes the compiler, options, tests, and benchmark kernels, while the reusable IR boundary is clearest in the schedule-tree marks, `ast_info` metadata, tiling options, and emitted accelerator API calls. ([CRAFT Lab](https://craft.cs.tsinghua.edu.cn/publication/polyhedral-based-compilation-framework-for-in-memory-neural-network-accelerators/))",
       "route": "/papers/polyhedral-based-compilation-framework-for-in-memory-neural-network-accelerators/",
       "links": {
@@ -4874,8 +5686,28 @@
       "short_title": "PUMA",
       "subtitle": "Scoped CIM stack note",
       "year": 2019,
-      "venue": "ASPLOS 2019",
-      "authors_or_group": "Aayush Ankit, Izzat El Hajj, Sai Rahul Chalamalasetti, Geoffrey Ndu, Martin Foltin, R. Stanley Williams, Paolo Faraboschi, Wen-mei Hwu, John Paul Strachan, Kaushik Roy, Dejan S. Milojicic",
+      "publication": {
+        "venue": "ASPLOS 2019",
+        "type": "conference",
+        "doi": "10.1145/3297858.3304049",
+        "url": "https://doi.org/10.1145/3297858.3304049"
+      },
+      "authors": [
+        "Aayush Ankit",
+        "Izzat El Hajj",
+        "Sai Rahul Chalamalasetti",
+        "Geoffrey Ndu",
+        "Martin Foltin",
+        "R. Stanley Williams",
+        "Paolo Faraboschi",
+        "Wen Mei Hwu",
+        "John Paul Strachan",
+        "Kaushik Roy",
+        "Dejan S. Milojicic"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{313143e4e4b34d1c86fe03fed54ea332,\n  title = {PUMA: A Programmable Ultra-efficient Memristor-based Accelerator for Machine Learning Inference},\n  author = {Ankit, Aayush and El Hajj, Izzat and Chalamalasetti, Sai Rahul and Ndu, Geoffrey and Foltin, Martin and Williams, R. Stanley and Faraboschi, Paolo and Hwu, Wen Mei and Strachan, John Paul and Roy, Kaushik and Milojicic, Dejan S.},\n  year = {2019},\n  month = apr,\n  day = {4},\n  doi = {10.1145/3297858.3304049},\n  series = {International Conference on Architectural Support for Programming Languages and Operating Systems - ASPLOS},\n  publisher = {Association for Computing Machinery},\n  pages = {715--731},\n  booktitle = {ASPLOS 2019 - 24th International Conference on Architectural Support for Programming Languages and Operating Systems},\n  address = {United States}\n}",
+      "citation_source": "https://experts.illinois.edu/en/publications/puma-a-programmable-ultra-efficient-memristor-based-accelerator-f",
       "summary": "PUMA is an ASPLOS 2019 hardware–software co-design for ML inference on a hybrid CMOS–memristor spatial accelerator. Its core contribution is a concrete, ISA-programmable CIM backend: a core/tile/node microarchitecture with memristor MVM units and digital functional units, a PUMA ISA with MVM, vector, memory, communication, and control instructions, a compiler that builds and partitions a model graph into per-core/per-tile assembly, and PUMAsim for functionality/timing/power evaluation. The demonstrated setting is static, MVM-heavy DNN inference—MLPs, LSTMs, and CNNs—with 16-bit fixed-point operations realized over conservative 2-bit memristor cells via bit-slicing. For CIM compiler/IR research, PUMA is most useful as a concrete example of a narrow end-to-end stack where graph partitioning, resource binding, inter-tile communication, and instruction scheduling are made compiler-visible for one architecture, while a more portable CIM IR would likely factor those internal states into explicit, verifiable, backend-independent objects. ([Izzat El Hajj](https://ielhajj.github.io/publications/paper/paper-puma-asplos19.pdf))",
       "route": "/papers/puma/",
       "links": {
@@ -4966,8 +5798,24 @@
       "short_title": "ReSCIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
-      "venue": "ICCAD 2024",
-      "authors_or_group": "Xiaomeng Wang, Jingyu He, Kunming Shao, Jiakun Zheng, Fengshi Tian, Tim Kwang-Ting Cheng, Chi-Ying Tsui",
+      "publication": {
+        "venue": "ICCAD 2024",
+        "type": "conference",
+        "doi": "10.1145/3676536.3676751",
+        "url": "https://doi.org/10.1145/3676536.3676751"
+      },
+      "authors": [
+        "Xiaomeng Wang",
+        "Jingyu He",
+        "Kunming Shao",
+        "Jiakun Zheng",
+        "Fengshi Tian",
+        "Kwang-Ting (Tim) Cheng",
+        "Chi-Ying Tsui"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/iccad/WangHSZTCT24,\n  author       = {Xiaomeng Wang and\n                  Jingyu He and\n                  Kunming Shao and\n                  Jiakun Zheng and\n                  Fengshi Tian and\n                  Kwang-Ting (Tim) Cheng and\n                  Chi-Ying Tsui},\n  title        = {{ReSCIM:} Variation-Resilient High Weight-Loading Bandwidth In-Memory\n                  Computation Based on Fine-Grained Hybrid Integration of Multi-Level\n                  {ReRAM} and {SRAM} Cells},\n  booktitle    = {Proceedings of the 43rd {IEEE/ACM} International Conference on\n                  Computer-Aided Design, {ICCAD} 2024, Newark, NJ, USA, October\n                  27-31, 2024},\n  pages        = {213:1--213:9},\n  publisher    = {{IEEE}},\n  year         = {2024},\n  doi          = {10.1145/3676536.3676751},\n  url          = {https://doi.org/10.1145/3676536.3676751}\n}",
+      "citation_source": "https://dblp.org/rec/conf/iccad/WangHSZTCT24",
       "summary": "**ReSCIM** contributes a fine-grained hybrid CIM architecture that integrates compact MLC ReRAM storage with SRAM-CIM computation, using local ReRAM-to-SRAM weight loading, differential sensing, and folded weight mapping to improve storage density and variation resilience for DNN inference. Its strongest contribution is at the device/cell/macro/accelerator boundary: the paper names a ReSCIM array segment, embeds a 1T1R ReRAM crossbar with an SRAM cell, supports both analog- and digital-based SRAM-CIM computation, and evaluates accelerator-level energy, latency, area efficiency, and inference accuracy, including AlexNet-reported improvements. For CIM compiler/IR research, ReSCIM is best read as a hardware-software co-design case whose “middle representation” is an implicit combination of weight-placement state, MLC encoding, sensing assumptions, and accelerator simulation parameters rather than an explicit graph/loop/ISA compiler stack. ([ACM Digital Library](https://dl.acm.org/doi/epdf/10.1145/3676536.3676751?utm_source=chatgpt.com))",
       "route": "/papers/rescim/",
       "links": {
@@ -5036,12 +5884,29 @@
       "short_title": "SEGA-DCIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
-      "venue": "DATE 2025; arXiv v1 submitted 2025-05-14",
-      "authors_or_group": "Haikang Diao, Haoyi Zhang, Jiahao Song, Haoyang Luo, Yibo Lin, Runsheng Wang, Yuan Wang, Xiyuan Tang",
+      "publication": {
+        "venue": "DATE 2025",
+        "type": "conference",
+        "doi": "10.23919/DATE64628.2025.10993192",
+        "url": "https://doi.org/10.23919/DATE64628.2025.10993192"
+      },
+      "authors": [
+        "Haikang Diao",
+        "Haoyi Zhang",
+        "Jiahao Song",
+        "Haoyang Luo",
+        "Yibo Lin",
+        "Runsheng Wang",
+        "Yuan Wang",
+        "Xiyuan Tang"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/date/DiaoZSLLW0T25,\n  author = {Haikang Diao and Haoyi Zhang and Jiahao Song and Haoyang Luo and Yibo Lin and Runsheng Wang and Yuan Wang and Xiyuan Tang},\n  title = {{SEGA-DCIM}: Design Space Exploration-Guided Automatic Digital {CIM} Compiler with Multiple Precision Support},\n  booktitle = {Design, Automation {\\&} Test in Europe Conference {\\&} Exhibition, {DATE} 2025},\n  pages = {1--7},\n  publisher = {{IEEE}},\n  year = {2025},\n  doi = {10.23919/DATE64628.2025.10993192},\n  url = {https://doi.org/10.23919/DATE64628.2025.10993192}\n}",
+      "citation_source": "https://dblp.org/rec/conf/date/DiaoZSLLW0T25",
       "summary": "SEGA-DCIM is a digital SRAM-CIM macro-generation and design-space-exploration framework for producing Pareto-frontier DCIM macro designs across integer and floating-point precision choices. Its strongest contribution is the combination of a parameterized synthesizable DCIM architecture, normalized analytical area/delay/energy/throughput models, an NSGA-II-based multi-objective search over macro parameters, and a template-based Verilog/netlist/layout generation flow that relies on user-provided cell/layout resources and commercial EDA tools. The demonstrated workload abstraction is matrix-vector multiplication with static stored weights and streamed input vectors, evaluated mainly through macro-level PPA trends, generated layouts, and comparisons against published DCIM macro results. For CIM compiler/IR research, SEGA-DCIM is most useful as a hardware-generation and backend-cost-model reference: it makes DCIM macro structure and numeric precision choices first-class, while workload graph import, tensor IR, CIM ISA, runtime state, and simulator-facing instruction streams sit outside the demonstrated interface. ([arXiv](https://arxiv.org/abs/2505.09451)) |",
       "route": "/papers/sega-dcim/",
       "links": {
-        "paper": "https://arxiv.org/abs/2505.09451",
+        "paper": "https://doi.org/10.23919/DATE64628.2025.10993192",
         "artifact": "",
         "docs": "",
         "code": ""
@@ -5112,8 +5977,24 @@
       "short_title": "SHERLOCK",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
-      "venue": "DAC 2024",
-      "authors_or_group": "Hamid Farzaneh; João Paulo C. de Lima; Ali Nezhadi Khelejani; Asif Ali Khan; Mahta Mayahinia; Mehdi Tahoori; Jeronimo Castrillon",
+      "publication": {
+        "venue": "DAC 2024",
+        "type": "conference",
+        "doi": "10.1145/3649329.3658485",
+        "url": "https://doi.org/10.1145/3649329.3658485"
+      },
+      "authors": [
+        "Hamid Farzaneh",
+        "João Paulo C. de Lima",
+        "Ali Nezhadi Khelejani",
+        "Asif Ali Khan",
+        "Mahta Mayahinia",
+        "Mehdi B. Tahoori",
+        "Jerónimo Castrillón"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/dac/FarzanehLKKMTC24,\n  author       = {Hamid Farzaneh and\n                  Jo{\\~{a}}o Paulo C. de Lima and\n                  Ali Nezhadi Khelejani and\n                  Asif Ali Khan and\n                  Mahta Mayahinia and\n                  Mehdi B. Tahoori and\n                  Jer{\\'{o}}nimo Castrill{\\'{o}}n},\n  title        = {{SHERLOCK:} Scheduling Efficient and Reliable Bulk Bitwise Operations\n                  in NVMs},\n  booktitle    = {Proceedings of the 61st {ACM/IEEE} Design Automation Conference,\n                  {DAC} 2024, San Francisco, CA, USA, June 23-27, 2024},\n  pages        = {293:1--293:6},\n  publisher    = {{ACM}},\n  year         = {2024},\n  doi          = {10.1145/3649329.3658485},\n  url          = {https://doi.org/10.1145/3649329.3658485}\n}",
+      "citation_source": "https://dblp.org/rec/conf/dac/FarzanehLKKMTC24",
       "summary": "**SHERLOCK** is a mapping and scheduling framework for bulk bitwise logic in memristive NVM compute-in-memory systems. Its main compiler contribution is to treat a bulk-bitwise program as a DAG of operand and operation nodes, cluster dependent operations so their operands fit NVM array columns, bind those clusters to row/column resources, and generate simulator-compatible read/write/shift/CIM instructions while accounting for the latency–energy–reliability tradeoff of multi-row activation. The demonstrated flow starts from C bulk-bitwise kernels parsed with pycparser, targets scouting-logic-style ReRAM and STT-MRAM arrays, and evaluates BitWeaving, bit-sliced Sobel, and Usuba-generated bit-sliced AES through an extended gem5 + NVSim + SPICE/statistical-modeling backend. For CIM compiler/IR research, SHERLOCK is best read as a graph-to-hardware-layout compiler whose reusable semantics are clearest in the DAG, cluster/layout state, instruction format, and reliability-aware MRA model. ([cfaed.tu-dresden.de](https://cfaed.tu-dresden.de/files/Images/people/chair-cc/publications/2406_Farzaneh_DAC.pdf))",
       "route": "/papers/sherlock/",
       "links": {
@@ -5191,12 +6072,26 @@
       "short_title": "SimplePIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2023,
-      "venue": "PACT 2023",
-      "authors_or_group": "Jinfan Chen, Juan Gómez-Luna, Izzat El Hajj, Yuxin Guo, Onur Mutlu",
+      "publication": {
+        "venue": "PACT 2023",
+        "type": "conference",
+        "doi": "10.1109/PACT58117.2023.00017",
+        "url": "https://doi.org/10.1109/PACT58117.2023.00017"
+      },
+      "authors": [
+        "Jinfan Chen",
+        "Juan Gómez-Luna",
+        "Izzat El Hajj",
+        "Yuxin Guo",
+        "Onur Mutlu"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/IEEEpact/ChenGHGM23,\n  author = {Jinfan Chen and Juan G{\\'{o}}mez{-}Luna and Izzat El Hajj and Yuxin Guo and Onur Mutlu},\n  title = {{SimplePIM}: A Software Framework for Productive and Efficient Processing-in-Memory},\n  booktitle = {32nd International Conference on Parallel Architectures and Compilation Techniques, {PACT} 2023},\n  pages = {99--111},\n  publisher = {{IEEE}},\n  year = {2023},\n  doi = {10.1109/PACT58117.2023.00017},\n  url = {https://doi.org/10.1109/PACT58117.2023.00017}\n}",
+      "citation_source": "https://dblp.org/rec/conf/IEEEpact/ChenGHGM23",
       "summary": "**SimplePIM** is a C-level programming framework for UPMEM-style processing-in-memory systems that makes PIM-resident arrays, host-managed metadata, communication collectives, and array iterators the primary reusable objects. Its contribution is clearest as a runtime/programming layer: users register or create arrays, move them with scatter/gather/broadcast/allreduce/allgather, and invoke map, general reduction, or zip iterators through host-side calls while the framework handles DPU allocation, alignment, per-DPU partitioning, scratchpad-aware execution, and DPU binary loading. The paper demonstrates this stack on real UPMEM hardware across reduction, vector addition, histogram, linear regression, logistic regression, and K-means, reporting both LoC reduction and runtime comparisons against hand-optimized UPMEM baselines. For CIM compiler/IR research, SimplePIM is most useful as an example of a “hidden IR” embedded in runtime metadata and DPU argument structs: the stack does not center on an explicit graph or dialect, but it does expose a concrete backend contract for naming PIM arrays, preserving placement state, and lowering high-level array operations to real PIM execution. ([arXiv](https://arxiv.org/html/2310.01893v1))",
       "route": "/papers/simplepim/",
       "links": {
-        "paper": "https://arxiv.org/html/2310.01893v1",
+        "paper": "https://doi.org/10.1109/PACT58117.2023.00017",
         "artifact": "https://github.com/CMU-SAFARI/SimplePIM",
         "docs": "",
         "code": ""
@@ -5272,8 +6167,23 @@
       "short_title": "SparseP",
       "subtitle": "Scoped CIM stack note",
       "year": 2022,
-      "venue": "Proceedings of the ACM on Measurement and Analysis of Computing Systems (POMACS), Vol. 6, No. 1, Article 21; SIGMETRICS/PERFORMANCE 2022 companion presentation",
-      "authors_or_group": "Christina Giannoula, Ivan Fernandez, Juan Gómez-Luna, Nectarios Koziris, Georgios Goumas, Onur Mutlu",
+      "publication": {
+        "venue": "Proc. ACM Meas. Anal. Comput. Syst.",
+        "type": "article",
+        "doi": "10.1145/3508041",
+        "url": "https://doi.org/10.1145/3508041"
+      },
+      "authors": [
+        "Christina Giannoula",
+        "Ivan Fernandez",
+        "Juan Gómez-Luna",
+        "Nectarios Koziris",
+        "Georgios I. Goumas",
+        "Onur Mutlu"
+      ],
+      "author_note": null,
+      "bibtex": "@article{DBLP:journals/pomacs/GiannoulaFGKGM22,\n  author = {Christina Giannoula and Ivan Fernandez and Juan G{\\'{o}}mez{-}Luna and Nectarios Koziris and Georgios I. Goumas and Onur Mutlu},\n  title = {{SparseP}: Towards Efficient Sparse Matrix Vector Multiplication on Real Processing-In-Memory Architectures},\n  journal = {Proc. {ACM} Meas. Anal. Comput. Syst.},\n  volume = {6},\n  number = {1},\n  pages = {21:1--21:49},\n  year = {2022},\n  doi = {10.1145/3508041},\n  url = {https://doi.org/10.1145/3508041}\n}",
+      "citation_source": "https://dblp.org/rec/journals/pomacs/GiannoulaFGKGM22",
       "summary": "SparseP is a real-system sparse linear algebra study and software library for SpMV on UPMEM near-bank digital PIM. Its concrete contribution is a family of 25 hand-written host/DPU kernels covering CSR, COO, BCSR, and BCOO sparse formats, multiple scalar data types, 1D and 2D matrix partitioning, PIM-core load balancing, tasklet-level load balancing, and synchronization choices, evaluated on a 20-DIMM UPMEM system against CPU and GPU baselines. ([arXiv](https://arxiv.org/pdf/2201.05072)) For CIM compiler/IR research, SparseP is most useful as a sparse-mapping and backend-contract case study: it exposes what a compiler would need to represent for real near-bank PIM execution, including sparse format metadata, host–PIM transfer phases, DPU memory placement, tasklet schedules, partial-output merging, and reproducibility constraints around hardware, SDK, and benchmark preparation. The demonstrated abstraction is a library-plus-configuration stack rather than a standalone compiler IR, but its artifact makes the hidden mapping state unusually concrete. ([GitHub](https://github.com/CMU-SAFARI/SparseP))",
       "route": "/papers/sparsep/",
       "links": {
@@ -5351,12 +6261,36 @@
       "short_title": "SynDCIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
-      "venue": "DATE 2025",
-      "authors_or_group": "Kunming Shao, Fengshi Tian, Xiaomeng Wang, Jiakun Zheng, Jia Chen, Jingyu He, Hui Wu, Jinbo Chen, Xihao Guan, Yi Deng, Fengbin Tu, Jie Yang, Mohamad Sawan, Tim Kwang-Ting Cheng, Chi-Ying Tsui",
+      "publication": {
+        "venue": "DATE 2025",
+        "type": "conference",
+        "doi": "10.23919/DATE64628.2025.10992849",
+        "url": "https://doi.org/10.23919/DATE64628.2025.10992849"
+      },
+      "authors": [
+        "Kunming Shao",
+        "Fengshi Tian",
+        "Xiaomeng Wang",
+        "Jiakun Zheng",
+        "Jia Chen",
+        "Jingyu He",
+        "Hui Wu",
+        "Jinbo Chen",
+        "Xihao Guan",
+        "Yi Deng",
+        "Fengbin Tu",
+        "Jie Yang",
+        "Mohamad Sawan",
+        "Tim Kwang-Ting Cheng",
+        "Chi-Ying Tsui"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/date/ShaoTWZCHWCGDTY25,\n  author = {Kunming Shao and Fengshi Tian and Xiaomeng Wang and Jiakun Zheng and Jia Chen and Jingyu He and Hui Wu and Jinbo Chen and Xihao Guan and Yi Deng and Fengbin Tu and Jie Yang and Mohamad Sawan and Tim Kwang{-}Ting Cheng and Chi{-}Ying Tsui},\n  title = {{SynDCIM}: A Performance-Aware Digital Computing-in-Memory Compiler with Multi-Spec-Oriented Subcircuit Synthesis},\n  booktitle = {Design, Automation {\\&} Test in Europe Conference {\\&} Exhibition, {DATE} 2025},\n  pages = {1--7},\n  publisher = {{IEEE}},\n  year = {2025},\n  doi = {10.23919/DATE64628.2025.10992849},\n  url = {https://doi.org/10.23919/DATE64628.2025.10992849}\n}",
+      "citation_source": "https://dblp.org/rec/conf/date/ShaoTWZCHWCGDTY25",
       "summary": "SynDCIM is a performance-aware SRAM-based digital CIM macro compiler whose evidenced contribution is a macro-generation EDA flow: a user provides architectural parameters and PPA-oriented performance constraints, the tool forms a subcircuit search space from a characterized library, applies a heuristic multi-spec search, emits RTL/netlists and circuit constraints, and then uses commercial synthesis, APR, timing, DRC/LVS, and post-layout simulation to obtain a layout. The paper strengthens the lower compiler/backend side of the CIM stack: subcircuit libraries, resource-level architectural search, layout-aware backend integration, and silicon validation. The demonstrated workloads are macro-level MAC operations under precision modes such as INT4/8, FP8, BF16, FP4/8, and silicon test modes for a 64×64 MCR=2 macro, rather than a public model-graph frontend or reusable tensor IR. For CIM compiler/IR research, SynDCIM is best read as a hardware-resource/configuration compiler whose “IR-like” semantics live in the macro spec, subcircuit-library choices, timing constraints, and generated RTL/netlist/layout flow. ([arXiv](https://arxiv.org/html/2411.16806v2))",
       "route": "/papers/syndcim/",
       "links": {
-        "paper": "https://arxiv.org/pdf/2411.16806",
+        "paper": "https://doi.org/10.23919/DATE64628.2025.10992849",
         "artifact": "",
         "docs": "",
         "code": ""
@@ -5422,12 +6356,25 @@
     },
     {
       "slug": "turbo-charged-mapper",
-      "title": "The Turbo-Charged Mapper",
+      "title": "The Turbo-Charged Mapper: Fast and Optimal Mapping for Energy-efficient and Low-latency Accelerator Design",
       "short_title": "Turbo-Charged Mapper",
       "subtitle": "Scoped CIM stack note seed",
       "year": 2026,
-      "venue": "arXiv",
-      "authors_or_group": "TCM authors",
+      "publication": {
+        "venue": "arXiv:2602.15172",
+        "type": "other",
+        "doi": "10.48550/arXiv.2602.15172",
+        "url": "https://doi.org/10.48550/arXiv.2602.15172"
+      },
+      "authors": [
+        "Michael Gilbert",
+        "Tanner Andrulis",
+        "Vivienne Sze",
+        "Joel S. Emer"
+      ],
+      "author_note": null,
+      "bibtex": "@misc{gilbert2026turbo,\n  author = {Gilbert, Michael and Andrulis, Tanner and Sze, Vivienne and Emer, Joel S.},\n  title = {The Turbo-Charged Mapper: Fast and Optimal Mapping for Energy-efficient and Low-latency Accelerator Design},\n  year = {2026},\n  howpublished = {arXiv:2602.15172},\n  doi = {10.48550/arXiv.2602.15172},\n  eprint = {2602.15172},\n  archivePrefix = {arXiv},\n  primaryClass = {cs.AR},\n  url = {https://arxiv.org/abs/2602.15172}\n}",
+      "citation_source": "https://arxiv.org/abs/2602.15172",
       "summary": "The Turbo-Charged Mapper is a mapping-search and schedule-representation contribution for tensor-algebra accelerators, centered on dataplacement, LoopTree mappings, symbolic pruning, and curried analytical modeling.",
       "route": "/papers/turbo-charged-mapper/",
       "links": {
@@ -5510,12 +6457,30 @@
       "short_title": "Hybrid PIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
-      "venue": "ICCAD 2024",
-      "authors_or_group": "Lidong Guo, Zhenhua Zhu, Tengxuan Liu, Xuefei Ning, Shiyao Li, Guohao Dai, Huazhong Yang, Wangyang Fu, Yu Wang",
+      "publication": {
+        "venue": "ICCAD 2024",
+        "type": "conference",
+        "doi": "10.1145/3676536.3676776",
+        "url": "https://doi.org/10.1145/3676536.3676776"
+      },
+      "authors": [
+        "Lidong Guo",
+        "Zhenhua Zhu",
+        "Tengxuan Liu",
+        "Xuefei Ning",
+        "Shiyao Li",
+        "Guohao Dai",
+        "Huazhong Yang",
+        "Wangyang Fu",
+        "Yu Wang"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/iccad/GuoZLNLDYF024,\n  author = {Lidong Guo and Zhenhua Zhu and Tengxuan Liu and Xuefei Ning and Shiyao Li and Guohao Dai and Huazhong Yang and Wangyang Fu and Yu Wang},\n  title = {Towards Floating Point-Based Attention-Free {LLM}: Hybrid {PIM} with Non-Uniform Data Format and Reduced Multiplications},\n  booktitle = {{IEEE/ACM} International Conference on Computer-Aided Design, {ICCAD} 2024},\n  pages = {177:1--177:9},\n  publisher = {{ACM}},\n  year = {2024},\n  doi = {10.1145/3676536.3676776},\n  url = {https://doi.org/10.1145/3676536.3676776}\n}",
+      "citation_source": "https://dblp.org/rec/conf/iccad/GuoZLNLDYF024",
       "summary": "This paper contributes a hardware-software co-design for attention-free LLM inference that makes the MVM/EWM split in Mamba and RWKV the central optimization boundary. Its clearest CIM-stack contribution is a precision-and-arithmetic layer: PN, a PIM-oriented exponent-free non-uniform weight format that preserves bit-sliced analog RRAM MVM execution, and a multiplication-free approximate FP16 EWM implementation mapped onto a proposed 3D-SRAM digital PIM array. The demonstrated path is not a general compiler IR, but it does expose useful compiler/IR ingredients: a named numeric representation, a group-wise offline parameter-search algorithm, an operator-to-hardware mapping rule, a PN shift configuration boundary, conversion units between INT and FP stages, and simulator/synthesis-backed hardware evaluation for Mamba/RWKV families. The work is therefore best placed as a narrow end-to-end co-design with a strong isolated precision/mapping abstraction, relevant to CIM compiler research as evidence for treating bit significance, scaling-factor propagation, operator sensitivity, and domain transition as first-class lowering state. ([NIC SEFC](https://nicsefc.ee.tsinghua.edu.cn/nics_file/pdf/3b18c2b6-a7c4-439d-9fa8-d6276749f085.pdf))",
       "route": "/papers/hybrid-pim-for-attention-free-llm/",
       "links": {
-        "paper": "https://nicsefc.ee.tsinghua.edu.cn/nics_file/pdf/3b18c2b6-a7c4-439d-9fa8-d6276749f085.pdf",
+        "paper": "https://doi.org/10.1145/3676536.3676776",
         "artifact": "https://github.com/gld17/PN",
         "docs": "",
         "code": ""
@@ -5599,8 +6564,26 @@
       "short_title": "UniNDP",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
-      "venue": "IEEE HPCA 2025",
-      "authors_or_group": "Tongxin Xie, Zhenhua Zhu, Bing Li, Yukai He, Cong Li, Guangyu Sun, Huazhong Yang, Yuan Xie, Yu Wang",
+      "publication": {
+        "venue": "HPCA 2025",
+        "type": "conference",
+        "doi": "10.1109/HPCA61900.2025.00054",
+        "url": "https://doi.org/10.1109/HPCA61900.2025.00054"
+      },
+      "authors": [
+        "Tongxin Xie",
+        "Zhenhua Zhu",
+        "Bing Li",
+        "Yukai He",
+        "Cong Li",
+        "Guangyu Sun",
+        "Huazhong Yang",
+        "Yuan Xie",
+        "Yu Wang"
+      ],
+      "author_note": null,
+      "bibtex": "@inproceedings{DBLP:conf/hpca/XieZLHL0Y0025,\n  author       = {Tongxin Xie and\n                  Zhenhua Zhu and\n                  Bing Li and\n                  Yukai He and\n                  Cong Li and\n                  Guangyu Sun and\n                  Huazhong Yang and\n                  Yuan Xie and\n                  Yu Wang},\n  title        = {{UniNDP:} A Unified Compilation and Simulation Tool for Near {DRAM}\n                  Processing Architectures},\n  booktitle    = {31st {IEEE} International Symposium on High-Performance Computer\n                  Architecture, {HPCA} 2025, Las Vegas, NV, USA, March 1-5,\n                  2025},\n  pages        = {624--640},\n  publisher    = {{IEEE}},\n  year         = {2025},\n  doi          = {10.1109/HPCA61900.2025.00054},\n  url          = {https://doi.org/10.1109/HPCA61900.2025.00054}\n}",
+      "citation_source": "https://dblp.org/rec/conf/hpca/XieZLHL0Y0025",
       "summary": "UniNDP is best read as a unified mapping-and-simulation framework for **DRAM-based near-data / near-DRAM processing architectures**. Its main contribution is a narrow but concrete stack that takes ML operator descriptions and hardware configuration, enumerates partition and data-layout strategies across DRAM hierarchy levels, prunes and ranks those strategies with DRAM-timing-derived predictors, lowers top candidates to a small NDP instruction abstraction, and evaluates them with an instruction-driven timing simulator. The paper strengthens the CIM/PIM stack at the **mapping, hardware-resource abstraction, cost-model, and simulator-backend** layers rather than at the frontend language or formal IR-verification layer. The demonstrated scope is ML operators from CNN and LLM workloads—especially MM and MVM shapes—on bank-, device-, and rank-level NDP architectures modeled after UPMEM, AiM, HBM-PIM, and DIMMining-like organizations. ([nicsefc.ee.tsinghua.edu.cn](https://nicsefc.ee.tsinghua.edu.cn/nics_file/pdf/d356f1fd-6204-4b21-8849-a9c3b2e15065.pdf))",
       "route": "/papers/unindp/",
       "links": {

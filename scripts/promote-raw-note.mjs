@@ -156,6 +156,42 @@ function yamlList(values, indent = '') {
   return `\n${items.map((value) => `${indent}- ${quote(value)}`).join('\n')}`;
 }
 
+function publicationType(value) {
+  const text = String(value || '').toLowerCase();
+  if (text.includes('arxiv')) return 'preprint';
+  if (text.includes('journal') || text.includes('transactions') || text.includes('letters')) return 'article';
+  if (text.includes('repository') || text.includes('github') || text.includes('artifact')) return 'artifact';
+  if (text.trim()) return 'conference';
+  return '';
+}
+
+function bibtexKey(slug) {
+  return slug.replace(/[^A-Za-z0-9:_-]/g, '');
+}
+
+function bibtexEntry(slug, title, year, publication, authors, authorNote) {
+  const entryType = publication.type === 'article'
+    ? 'article'
+    : publication.type === 'conference'
+      ? 'inproceedings'
+      : 'misc';
+  const lines = [
+    `@${entryType}{${bibtexKey(slug)},`,
+    `  title = {${String(title).replace(/[{}]/g, '')}},`
+  ];
+  if (authors.length) {
+    lines.push(`  author = {${authors.map((author) => String(author).replace(/[{}]/g, '')).join(' and ')}},`);
+  } else if (authorNote) {
+    lines.push(`  author = {${String(authorNote).replace(/[{}]/g, '')}},`);
+  }
+  if (year) lines.push(`  year = {${year}},`);
+  if (publication.venue) lines.push(`  howpublished = {${String(publication.venue).replace(/[{}]/g, '')}},`);
+  if (publication.doi) lines.push(`  doi = {${publication.doi}},`);
+  if (publication.url) lines.push(`  url = {${publication.url}},`);
+  lines.push('}');
+  return lines.map((line) => `  ${line}`).join('\n');
+}
+
 function buildFrontmatter(slug, metadata, summary, file) {
   const title = metadata.paper || metadata.title;
   if (!title) throw new Error(`${slug}: missing paper/title field`);
@@ -184,6 +220,16 @@ function buildFrontmatter(slug, metadata, summary, file) {
     warn(file, `non-URL artifact.url "${artifact.url}" converted to blank/null`);
   }
 
+  const publicationInput = metadata.publication || {};
+  const publication = {
+    venue: publicationInput.venue || metadata.venue || '',
+    type: publicationInput.type || publicationType(publicationInput.venue || metadata.venue),
+    doi: publicationInput.doi || '',
+    url: schemaUrl(publicationInput.url)
+  };
+  const authors = Array.isArray(metadata.authors) ? metadata.authors : [];
+  const authorNote = metadata.author_note || metadata.authors_or_group || '';
+
   const reproducibility = ['high', 'medium', 'low', 'unknown'].includes(metadata.reproducibility_level)
     ? metadata.reproducibility_level
     : 'unknown';
@@ -196,8 +242,14 @@ function buildFrontmatter(slug, metadata, summary, file) {
     `title: ${quote(title)}\n` +
     `subtitle: "Scoped CIM stack note"\n` +
     `year: ${year}\n` +
-    `venue: ${quote(metadata.venue)}\n` +
-    `authors_or_group: ${quote(metadata.authors_or_group)}\n` +
+    `publication:\n` +
+    `  venue: ${quote(publication.venue)}\n` +
+    `  type: ${quote(publication.type)}\n` +
+    `  doi: ${quote(publication.doi)}\n` +
+    `  url: ${quote(publication.url)}\n` +
+    `authors:${yamlList(authors, '  ')}\n` +
+    (authorNote && !authors.length ? `author_note: ${quote(authorNote)}\n` : '') +
+    `bibtex: |\n${bibtexEntry(slug, title, year, publication, authors, authorNote)}\n` +
     `summary: ${blockScalar(summary)}\n` +
     `links:\n` +
     `  paper:\n` +

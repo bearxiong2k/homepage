@@ -11,6 +11,7 @@
     "qa": "node scripts/qa-library.mjs",
     "validate": "node scripts/validate-library.mjs",
     "new:paper": "node scripts/scaffold-paper.mjs",
+    "sync:citation-metadata": "node scripts/sync-bibtex-display-metadata.mjs",
     "export:atlas": "node scripts/export-atlas-manifest.mjs",
     "contract:website": "node scripts/check-website-contract.mjs",
     "smoke:website": "node scripts/website-devkit-smoke.mjs"

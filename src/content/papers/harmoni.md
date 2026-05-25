@@ -1,15 +1,33 @@
 ---
 slug: harmoni
-title: "HARMONI: A Hardware-Software Co-Design Framework for Efficient LLM Inference on Hybrid Memory Cube Based Near-Memory Processing Systems"
+title: "HARMONI: Hierarchical ARchitecture MOdeling for LLMs with Near/In Memory Computing"
 short_title: "HARMONI"
 subtitle: "Scoped CIM stack note"
 year: 2026
-venue: "ISPASS 2026 inferred from repository PDF/release naming; exact paper metadata not confirmed from extracted PDF text"
-authors_or_group: "LAVAlab / University of Virginia; exact author list unknown from checked sources"
+publication:
+  venue: "ISPASS 2026"
+  type: "conference"
+  doi: 
+  url: "https://github.com/UVA-LavaLab/HARMONI/blob/main/HARMONI_ISPASS2026.pdf"
+authors:
+  - "Khyati Kiyawat"
+  - "Yasas Seneviratne"
+  - "Zhenxing Fan"
+  - "Morteza Baradaran"
+  - "Kevin Skadron"
+bibtex: |
+  @inproceedings{kiyawat2026harmoni,
+    author = {Kiyawat, Khyati and Seneviratne, Yasas and Fan, Zhenxing and Baradaran, Morteza and Skadron, Kevin},
+    title = {HARMONI: Hierarchical ARchitecture MOdeling for LLMs with Near/In Memory Computing},
+    booktitle = {IEEE International Symposium on Performance Analysis of Systems and Software, ISPASS 2026},
+    year = {2026},
+    url = {https://github.com/UVA-LavaLab/HARMONI/blob/main/HARMONI_ISPASS2026.pdf}
+  }
+citation_source: https://github.com/UVA-LavaLab/HARMONI/blob/main/HARMONI_ISPASS2026.pdf
 summary: >-
   HARMONI is best read as a modeling, mapping, and simulation stack for LLM inference on hierarchical DRAM-PIM / near-memory systems. Its strongest reusable contribution is the combination of a Python-generated Transformer task graph, tensor placement metadata, hierarchical memory/logic-unit binding, and analytic latency/energy/resource modeling. The public artifact demonstrates the stack through configurable LLM model presets, DRAM hierarchy strings, batch/token settings, fusion flags, mapping options, network/GEMM trace generation, and ISPASS artifact-evaluation scripts. For CIM compiler/IR research, HARMONI is most useful as a simulator-backend and benchmark-harness reference: it shows how an LLM task graph can be enriched with placement, phase, communication, and hardware-binding information before being evaluated by a memory-system cost model. ([GitHub](https://github.com/UVA-LavaLab/HARMONI))
 links:
-  paper: https://arxiv.org/abs/2511.12286v1
+  paper: https://github.com/UVA-LavaLab/HARMONI/blob/main/HARMONI_ISPASS2026.pdf
   artifact: https://github.com/UVA-LavaLab/HARMONI
   docs:
   code:
@@ -73,7 +91,7 @@ takeaways: []
 
 # HARMONI — scoped CIM stack note
 
-**Source note.** I found the public HARMONI repository, README, scripts, code, license, release metadata, and the paper PDF file in the repository. In this session, the PDF body could not be extracted as a PDF text/screenshot source, so paper-section-level statements are kept conservative and the audit emphasis is on the public artifact/code evidence. The repository names the work “HARMONI: Hierarchical ARchitecture MOdeling for LLMs with Near/In Memory Computing.” ([GitHub](https://github.com/UVA-LavaLab/HARMONI))
+**Source note.** I found the public HARMONI repository, README, scripts, code, license, release metadata, and the paper PDF file in the repository. The PDF title/author header was extracted and used for the citation metadata; paper-section-level statements remain conservative and the audit emphasis is on the public artifact/code evidence. The repository names the work “HARMONI: Hierarchical ARchitecture MOdeling for LLMs with Near/In Memory Computing.” ([GitHub](https://github.com/UVA-LavaLab/HARMONI))
 
 ## 1. Corpus classification snapshot
 
@@ -286,7 +304,7 @@ The AE parameter file includes Mistral-7B and LLaMA2-7B cases, BF16 dtype, multi
 - **What the artifact appears to omit:** A standalone textual IR schema, a backend instruction-set/codegen target, real-hardware runtime integration, and fully extracted paper-text metadata were not found in the checked sources. Calibration provenance is partial in the inspected code.  
 - **Minimal documented workflow:** The README documents cloning, creating a Python 3.10 conda environment, installing `graphviz`, installing requirements, sourcing `env.sh`, and running `python3 run.py --simulate ...` with a LLaMA2-7B BF16 DDR5 example. ([GitHub](https://github.com/UVA-LavaLab/HARMONI))  
 - **AE workflow:** `run_ae.sh` initializes outputs and calls `launch_ae_jobs.sh`; `launch_ae_jobs.sh` supports Slurm or local execution and named experiment sizes; `analyse_ae.sh` summarizes outputs and generates figure data/plots. ([GitHub](https://raw.githubusercontent.com/UVA-LavaLab/HARMONI/main/run_ae.sh))  
-- **Whether paper figures appear reproducible from the artifact:** **Partial / unknown.** The artifact contains AE scripts and figure-generation scripts, but figure-for-figure reproduction was not executed in this session and the paper PDF body could not be extracted for figure matching. ([GitHub](https://raw.githubusercontent.com/UVA-LavaLab/HARMONI/main/analyse_ae.sh))
+- **Whether paper figures appear reproducible from the artifact:** **Partial / unknown.** The artifact contains AE scripts and figure-generation scripts, but figure-for-figure reproduction was not executed in this session and the paper figures were not matched against generated outputs. ([GitHub](https://raw.githubusercontent.com/UVA-LavaLab/HARMONI/main/analyse_ae.sh))
 
 ### 8.2 Auditability checklist
 

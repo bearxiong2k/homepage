@@ -4,8 +4,52 @@ title: "CLEAR: a full-stack chip-in-loop emulator for analog RRAM based computin
 short_title: "CLEAR"
 subtitle: "Scoped CIM stack note"
 year: 2023
-venue: "Science China Information Sciences 66(12):229402"
-authors_or_group: "Ruihua Yu, Wenqiang Zhang, Bin Gao, Yiwen Geng, Peng Yao, Yuyi Liu, Qingtian Zhang, Jianshi Tang, Dong Wu, Hu He, Ning Deng, He Qian, Huaqiang Wu; Tsinghua University"
+publication:
+  venue: "Science China Information Sciences"
+  type: "article"
+  doi: "10.1007/s11432-022-3756-3"
+  url: "https://doi.org/10.1007/s11432-022-3756-3"
+authors:
+  - "Ruihua Yu"
+  - "Wenqiang Zhang"
+  - "Bin Gao"
+  - "Yiwen Geng"
+  - "Peng Yao"
+  - "Yuyi Liu"
+  - "Qingtian Zhang"
+  - "Jianshi Tang"
+  - "Dong Wu"
+  - "Hu He"
+  - "Ning Deng"
+  - "He Qian"
+  - "Huaqiang Wu"
+author_note: "Tsinghua University"
+citation_source: https://dblp.org/rec/journals/chinaf/YuZGGYLZTWHDQW23
+bibtex: |
+  @article{DBLP:journals/chinaf/YuZGGYLZTWHDQW23,
+    author       = {Ruihua Yu and
+                    Wenqiang Zhang and
+                    Bin Gao and
+                    Yiwen Geng and
+                    Peng Yao and
+                    Yuyi Liu and
+                    Qingtian Zhang and
+                    Jianshi Tang and
+                    Dong Wu and
+                    Hu He and
+                    Ning Deng and
+                    He Qian and
+                    Huaqiang Wu},
+    title        = {{CLEAR:} a full-stack chip-in-loop emulator for analog {RRAM} based
+                    computing-in-memory system},
+    journal      = {Science China Information Sciences},
+    volume       = {66},
+    number       = {12},
+    pages        = {229402},
+    year         = {2023},
+    doi          = {10.1007/s11432-022-3756-3},
+    url          = {https://doi.org/10.1007/s11432-022-3756-3}
+  }
 summary: >-
   CLEAR is a chip-in-loop stack for analog RRAM computing-in-memory that connects chip-aware DNN training, a compiler, an “emulation-oriented IR,” and a calibrated emulator capable of switching parts of execution between a real chip and an analog computing model. Its most distinctive compiler/IR contribution is the use of backend addresses as part of the model representation: a layer can be mapped to a concrete chip/tile/XB coordinate and weight rectangle, or marked virtual for simulator/off-hardware execution. The demonstrated compiler scope is DNN-centric: ONNX-style neural-network graphs are optimized through operator fusion/splitting and critical-path resource reallocation, then evaluated on VGG/ResNet-style inference workloads and prior RRAM chip settings. For CIM compiler/IR research, CLEAR is most useful as an example of a hardware-addressed graph IR coupled tightly to calibration and chip-in-loop backend selection. ([SciEngine](https://cdn.sciengine.com/doi/pdf/761A2F2A63E7408AB2AE3B565114BDCC))
 links:

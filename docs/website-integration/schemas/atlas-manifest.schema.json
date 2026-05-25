@@ -128,12 +128,29 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["slug", "title", "route", "summary", "axis_A", "axis_B"],
+        "required": ["slug", "title", "route", "publication", "authors", "bibtex", "summary", "axis_A", "axis_B"],
         "additionalProperties": true,
         "properties": {
           "slug": { "type": "string" },
           "title": { "type": "string" },
           "route": { "type": "string" },
+          "publication": {
+            "type": "object",
+            "required": ["venue", "type", "doi", "url"],
+            "properties": {
+              "venue": { "type": ["string", "null"] },
+              "type": { "type": ["string", "null"] },
+              "doi": { "type": ["string", "null"] },
+              "url": { "type": ["string", "null"] }
+            }
+          },
+          "authors": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "author_note": { "type": ["string", "null"] },
+          "bibtex": { "type": ["string", "null"] },
+          "citation_source": { "type": ["string", "null"] },
           "summary": { "type": "string" },
           "axis_A": { "type": "object" },
           "axis_B": {

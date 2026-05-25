@@ -4,12 +4,43 @@ title: "SynDCIM: A Performance-Aware Digital Computing-in-Memory Compiler with M
 short_title: "SynDCIM"
 subtitle: "Scoped CIM stack note"
 year: 2025
-venue: "DATE 2025"
-authors_or_group: "Kunming Shao, Fengshi Tian, Xiaomeng Wang, Jiakun Zheng, Jia Chen, Jingyu He, Hui Wu, Jinbo Chen, Xihao Guan, Yi Deng, Fengbin Tu, Jie Yang, Mohamad Sawan, Tim Kwang-Ting Cheng, Chi-Ying Tsui"
+publication:
+  venue: "DATE 2025"
+  type: "conference"
+  doi: "10.23919/DATE64628.2025.10992849"
+  url: "https://doi.org/10.23919/DATE64628.2025.10992849"
+authors:
+  - "Kunming Shao"
+  - "Fengshi Tian"
+  - "Xiaomeng Wang"
+  - "Jiakun Zheng"
+  - "Jia Chen"
+  - "Jingyu He"
+  - "Hui Wu"
+  - "Jinbo Chen"
+  - "Xihao Guan"
+  - "Yi Deng"
+  - "Fengbin Tu"
+  - "Jie Yang"
+  - "Mohamad Sawan"
+  - "Tim Kwang-Ting Cheng"
+  - "Chi-Ying Tsui"
+bibtex: |
+  @inproceedings{DBLP:conf/date/ShaoTWZCHWCGDTY25,
+    author = {Kunming Shao and Fengshi Tian and Xiaomeng Wang and Jiakun Zheng and Jia Chen and Jingyu He and Hui Wu and Jinbo Chen and Xihao Guan and Yi Deng and Fengbin Tu and Jie Yang and Mohamad Sawan and Tim Kwang{-}Ting Cheng and Chi{-}Ying Tsui},
+    title = {{SynDCIM}: A Performance-Aware Digital Computing-in-Memory Compiler with Multi-Spec-Oriented Subcircuit Synthesis},
+    booktitle = {Design, Automation {\&} Test in Europe Conference {\&} Exhibition, {DATE} 2025},
+    pages = {1--7},
+    publisher = {{IEEE}},
+    year = {2025},
+    doi = {10.23919/DATE64628.2025.10992849},
+    url = {https://doi.org/10.23919/DATE64628.2025.10992849}
+  }
+citation_source: https://dblp.org/rec/conf/date/ShaoTWZCHWCGDTY25
 summary: >-
   SynDCIM is a performance-aware SRAM-based digital CIM macro compiler whose evidenced contribution is a macro-generation EDA flow: a user provides architectural parameters and PPA-oriented performance constraints, the tool forms a subcircuit search space from a characterized library, applies a heuristic multi-spec search, emits RTL/netlists and circuit constraints, and then uses commercial synthesis, APR, timing, DRC/LVS, and post-layout simulation to obtain a layout. The paper strengthens the lower compiler/backend side of the CIM stack: subcircuit libraries, resource-level architectural search, layout-aware backend integration, and silicon validation. The demonstrated workloads are macro-level MAC operations under precision modes such as INT4/8, FP8, BF16, FP4/8, and silicon test modes for a 64×64 MCR=2 macro, rather than a public model-graph frontend or reusable tensor IR. For CIM compiler/IR research, SynDCIM is best read as a hardware-resource/configuration compiler whose “IR-like” semantics live in the macro spec, subcircuit-library choices, timing constraints, and generated RTL/netlist/layout flow. ([arXiv](https://arxiv.org/html/2411.16806v2))
 links:
-  paper: https://arxiv.org/pdf/2411.16806
+  paper: https://doi.org/10.23919/DATE64628.2025.10992849
   artifact:
   docs:
   code:

@@ -4,12 +4,33 @@ title: "ARES: A Mapping Framework of DNNs towards Diverse PIMs with General Abst
 short_title: "ARES"
 subtitle: "Scoped CIM stack note"
 year: 2023
-venue: "ICCAD 2023"
-authors_or_group: "Xiuping Cui, Size Zheng, Tianyu Jia, Le Ye, Yun Liang"
+publication:
+  venue: "ICCAD 2023"
+  type: "conference"
+  doi: "10.1109/ICCAD57390.2023.10323777"
+  url: "https://doi.org/10.1109/ICCAD57390.2023.10323777"
+authors:
+  - "Xiuping Cui"
+  - "Size Zheng"
+  - "Tianyu Jia"
+  - "Le Ye"
+  - "Yun Liang"
+bibtex: |
+  @inproceedings{DBLP:conf/iccad/CuiZJYL23,
+    author = {Cui, Xiuping and Zheng, Size and Jia, Tianyu and Ye, Le and Liang, Yun},
+    title = {ARES: A Mapping Framework of DNNs Towards Diverse PIMs with General Abstractions},
+    booktitle = {IEEE/ACM International Conference on Computer-Aided Design, ICCAD 2023, San Francisco, CA, USA, October 29 - November 2, 2023},
+    pages = {1--9},
+    publisher = {IEEE},
+    year = {2023},
+    doi = {10.1109/ICCAD57390.2023.10323777},
+    url = {https://doi.org/10.1109/ICCAD57390.2023.10323777}
+  }
+citation_source: https://dblp.org/rec/conf/iccad/CuiZJYL23
 summary: >-
   ARES is a compiler-mapping framework for placing static DNN tensor operators onto multiple PIM/CIM-like hardware classes. Its main contribution is a pair of reusable abstractions: a compute abstraction that describes a PIM primitive as a tensorized compute equation, and a memory abstraction that encodes bit-level operand placement through mapping matrices and offsets. These abstractions are used to derive a mapping space over tensor binding, loop binding, loop sizes, resource allocation, execution order, and data movement. The demonstrated setting is simulator-backed DNN inference mapping on four adapted platforms: logic-DRAM, logic-SRAM, MVM-ReRAM, and near-DRAM / PIM-HBM-like hardware.
 links:
-  paper: https://sizezheng.github.io/files/ARES_A_Mapping_Framework_of_DNNs_Towards_Diverse_PIMs_with_General_Abstractions.pdf
+  paper: https://doi.org/10.1109/ICCAD57390.2023.10323777
   artifact:
   docs:
   code:

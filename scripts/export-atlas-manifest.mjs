@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { citationDisplayMetadata } from '../src/lib/bibtex.js';
 
 const root = process.cwd();
 const args = process.argv.slice(2);
@@ -101,6 +102,16 @@ function scalar(frontmatter, key) {
       .trim();
   }
   return stripQuotes(raw);
+}
+
+function blockScalar(frontmatter, key) {
+  const lines = linesOf(frontmatter);
+  const hit = findTopLevel(lines, key);
+  if (!hit || !/^[>|]/.test(hit.value.trim())) return scalar(frontmatter, key);
+  return collectIndented(lines, hit.index)
+    .map((line) => line.replace(/^\s{2}/, ''))
+    .join('\n')
+    .trim();
 }
 
 function list(frontmatter, key) {
@@ -273,7 +284,10 @@ for (const file of files) {
   const title = scalar(frontmatter, 'title');
   if (!slug || !title) fail(`${file}: missing slug or title`);
 
-  const year = asYear(scalar(frontmatter, 'year'));
+  const bibtex = blockScalar(frontmatter, 'bibtex') || null;
+  const citationSource = scalar(frontmatter, 'citation_source') || null;
+  const citation = citationSource ? citationDisplayMetadata(bibtex) : null;
+  const year = citation?.year ?? asYear(scalar(frontmatter, 'year'));
   if (year) years.push(year);
 
   const axisA = {
@@ -289,6 +303,15 @@ for (const file of files) {
   const technology = list(frontmatter, 'technology');
   const workloads = list(frontmatter, 'workloads');
   const tags = list(frontmatter, 'tags');
+  const frontmatterPublication = {
+    venue: nestedScalar(frontmatter, 'publication', 'venue') || null,
+    type: nestedScalar(frontmatter, 'publication', 'type') || null,
+    doi: nestedScalar(frontmatter, 'publication', 'doi') || null,
+    url: nestedScalar(frontmatter, 'publication', 'url') || null
+  };
+  const publication = citation?.publication.venue ? citation.publication : frontmatterPublication;
+  const authors = citation?.authors.length ? citation.authors : list(frontmatter, 'authors');
+  const authorNote = scalar(frontmatter, 'author_note') || null;
   const links = {
     paper: nestedScalar(frontmatter, 'links', 'paper'),
     artifact: nestedScalar(frontmatter, 'links', 'artifact'),
@@ -311,8 +334,11 @@ for (const file of files) {
     short_title: scalar(frontmatter, 'short_title') || title,
     subtitle: scalar(frontmatter, 'subtitle') || null,
     year,
-    venue: scalar(frontmatter, 'venue') || null,
-    authors_or_group: scalar(frontmatter, 'authors_or_group') || null,
+    publication,
+    authors,
+    author_note: authorNote,
+    bibtex,
+    citation_source: citationSource,
     summary: scalar(frontmatter, 'summary'),
     route: `/papers/${slug}/`,
     links,

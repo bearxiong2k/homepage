@@ -4,8 +4,21 @@ title: "PIMACC: Processing-in-Memory Accuracy Simulator for Neural Network Infer
 short_title: "PIMACC"
 subtitle: "Scoped CIM stack note"
 year: 
-venue: "Unknown / artifact and toolchain documentation found"
-authors_or_group: "Haocheng Han; Xiaoming Chen group / PIMCOMP-NN toolchain"
+publication:
+  venue: "Public software artifact"
+  type: "other"
+  doi: 
+  url: "https://github.com/HertzHan/PIMACC-simulator"
+authors: []
+author_note: "Haocheng Han; Xiaoming Chen group / PIMCOMP-NN toolchain"
+citation_source: https://github.com/HertzHan/PIMACC-simulator
+bibtex: |
+  @misc{pimacc,
+    title        = {{PIMACC:} Processing-in-Memory Accuracy Simulator for Neural Network Inference},
+    organization = {PIMACC simulator project},
+    howpublished = {Public software artifact},
+    url          = {https://github.com/HertzHan/PIMACC-simulator}
+  }
 summary: >-
   PIMACC is best understood as a CIM/PIM neural-network **accuracy simulation backend** coupled to the PIMCOMP-NN compiler flow. The public artifact demonstrates a workflow in which PIMCOMP-NN compiles an ONNX neural network, emits verification/mapping/instruction information, and PIMACC replays the compiled computation while injecting CIM nonidealities such as quantization effects, conductance variation, IR-drop approximations, and stuck-at faults. Its strongest contribution to a CIM compiler/IR corpus is not a new IR syntax, but a concrete backend contract: a generated verification state plus a hardware/nonideality configuration that connects high-level network nodes to crossbar-level numeric behavior. For compiler/IR research, PIMACC is valuable as evidence that accuracy verification needs its own lower-level representation of bit significance, signed decomposition, cell precision, DAC/ADC-related parameters, fault masks, and mapping provenance. ([GitHub](https://github.com/HertzHan/PIMACC-simulator/blob/main/README.md))
 links:

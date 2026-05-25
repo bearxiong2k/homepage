@@ -4,8 +4,29 @@ title: "DNN+NeuroSim V2.0: An End-to-End Benchmarking Framework for Compute-in-M
 short_title: "DNN+NeuroSim"
 subtitle: "Scoped CIM stack note"
 year: 2021
-venue: "IEEE TCAD"
-authors_or_group: "Shimeng Yu group / NeuroSim authors"
+publication:
+  venue: "IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems"
+  type: "article"
+  doi: "10.1109/TCAD.2020.3043731"
+  url: "https://doi.org/10.1109/TCAD.2020.3043731"
+authors:
+  - "Xiaochen Peng"
+  - "Shanshi Huang"
+  - "Hongwu Jiang"
+  - "Anni Lu"
+  - "Shimeng Yu"
+bibtex: |
+  @article{peng2021dnnneurosim,
+    title = {DNN+NeuroSim V2.0: An End-to-End Benchmarking Framework for Compute-in-Memory Accelerators for On-Chip Training},
+    author = {Peng, Xiaochen and Huang, Shanshi and Jiang, Hongwu and Lu, Anni and Yu, Shimeng},
+    journal = {IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems},
+    volume = {40},
+    number = {11},
+    pages = {2306--2319},
+    year = {2021},
+    doi = {10.1109/TCAD.2020.3043731}
+  }
+citation_source: https://ieee-ceda.org/media/697
 summary: >-
   **NeuroSIM / DNN+NeuroSim** is best classified as a CIM **device–circuit–architecture simulator with a narrow DNN-to-CIM evaluation flow**. The original NeuroSim contribution is a C++ macro model that estimates area, latency, energy, leakage, and accuracy for SRAM and emerging-memory CIM designs using a bottom-up hierarchy of device, array, peripheral, and architecture models; DNN+NeuroSim then wraps this backend with PyTorch/TensorFlow or PyTorch workflows that extract network topology, weights, activations, and training traces, map them onto a fixed chip/tile/PE/synaptic-array organization, and report accuracy and hardware metrics. ([NSF Public Access Repository](https://par.nsf.gov/servlets/purl/10109970)) For CIM compiler/IR research, the work is most useful as a **backend contract and cost-model reference**: it exposes concrete CIM resources, precision fields, ADC/sensing assumptions, device nonidealities, and layer-wise hardware reports, while the reusable compiler boundary is mainly expressed through configuration files, traces, and C++ simulator interfaces rather than a standalone IR, ISA, or modular lowering pipeline. ([arXiv](https://arxiv.org/pdf/2003.06471))
 links:

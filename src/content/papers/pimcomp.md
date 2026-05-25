@@ -3,13 +3,35 @@ slug: pimcomp
 title: "PIMCOMP: An End-to-End DNN Compiler for Processing-In-Memory Accelerators"
 short_title: "PIMCOMP"
 subtitle: "Scoped CIM stack note"
-year: 2024
-venue: "IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems / arXiv v1"
-authors_or_group: "Xiaotian Sun, Xinyu Wang, Wanqian Li, Yinhe Han, Xiaoming Chen"
+year: 2025
+publication:
+  venue: "IEEE Trans. Comput. Aided Des. Integr. Circuits Syst."
+  type: "article"
+  doi: "10.1109/TCAD.2024.3496847"
+  url: "https://doi.org/10.1109/TCAD.2024.3496847"
+authors:
+  - "Xiaotian Sun"
+  - "Xinyu Wang"
+  - "Wanqian Li"
+  - "Yinhe Han"
+  - "Xiaoming Chen"
+bibtex: |
+  @article{DBLP:journals/tcad/SunWLHC25,
+    author = {Xiaotian Sun and Xinyu Wang and Wanqian Li and Yinhe Han and Xiaoming Chen},
+    title = {{PIMCOMP}: An End-to-End {DNN} Compiler for Processing-In-Memory Accelerators},
+    journal = {{IEEE} Trans. Comput. Aided Des. Integr. Circuits Syst.},
+    volume = {44},
+    number = {5},
+    pages = {1745--1759},
+    year = {2025},
+    doi = {10.1109/TCAD.2024.3496847},
+    url = {https://doi.org/10.1109/TCAD.2024.3496847}
+  }
+citation_source: https://dblp.org/rec/journals/tcad/SunWLHC25
 summary: >-
   PIMCOMP is best read as a crossbar-PIM/CIM DNN deployment compiler whose most reusable contribution is the middle/backend optimizer: it converts an ONNX-style DNN description into a structure IR plus weight data, partitions weights into **array groups**, optimizes weight replication and AG layout across cores, schedules high-throughput or low-latency inter-layer pipelines, and emits pseudo-instruction/configuration artifacts for verification and simulation. The paper strengthens the CIM compiler stack at the mapping/scheduling boundary rather than at a formal general-purpose IR boundary: its named abstractions are structure IR, hardware configuration, array groups, mapping info, pseudo-instructions, and pixel-level runtime management. The demonstrated setting is static DNN inference on configurable NVM crossbar-style PIM accelerators, evaluated with simulator-backed experiments over VGG/ResNet/GoogleNet-style workloads and three abstracted architecture instances. ([arXiv](https://arxiv.org/pdf/2411.09159v1))
 links:
-  paper: https://arxiv.org/pdf/2411.09159v1
+  paper: https://doi.org/10.1109/TCAD.2024.3496847
   artifact: https://github.com/sunxt99/PIMCOMP-NN
   docs:
   code:

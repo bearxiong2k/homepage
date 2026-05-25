@@ -4,8 +4,22 @@ title: "CIMA_COMP: CIMA compiler and backend artifact for a CIMA-specific CIM de
 short_title: "CIMA_COMP"
 subtitle: "Scoped CIM stack note"
 year:
-venue: "unknown for exact CIMA_COM; related paper: Nature Communications"
-authors_or_group: "Tsinghua-LEMON-Lab; related paper includes Ruihua Yu, Ze Wang, Qi Liu, Bin Gao, Huaqiang Wu, et al."
+publication:
+  venue: "Public software artifact"
+  type: "other"
+  doi: 
+  url: "https://github.com/Tsinghua-LEMON-Lab/CIMA_COMP"
+authors: []
+author_note: "Tsinghua-LEMON-Lab; related paper includes Ruihua Yu, Ze Wang, Qi Liu, Bin Gao, Huaqiang Wu, et al."
+citation_source: https://github.com/Tsinghua-LEMON-Lab/CIMA_COMP
+bibtex: |
+  @misc{cima-com,
+    title        = {{CIMA\_COMP:} CIMA compiler and backend artifact for a CIMA-specific CIM deployment pipeline},
+    organization = {Tsinghua LEMON Lab},
+    howpublished = {Public software artifact},
+    note         = {Related article: A full-stack memristor-based computation-in-memory system with software-hardware co-development, Nature Communications 16, 2123 (2025)},
+    url          = {https://github.com/Tsinghua-LEMON-Lab/CIMA_COMP}
+  }
 summary: >-
   CIMA_COM / CIMA_COMP is best read as a CIMA-specific compiler and backend artifact that makes a practical CIM deployment pipeline concrete: it imports an ONNX-style DNN workload, converts it into a YAML/JSON-serializable graph IR, maps the graph onto a fixed CIMA hardware topology, attaches CIMA mapping and calculation metadata, and emits SystemC/UVM/chip-side JSON, weight, and activation-LUT artifacts for a YOLOv5m-style demonstration. Its strongest contribution to CIM compiler/IR research is the exposed boundary between graph-level model representation, CIM placement/splitting state, and backend code-generation contracts. The demonstrated scope is architecture-specific and artifact-centered: reuse is clearest for researchers interested in how a CIMA mapper/backend serializes graph, placement, precision, memory, and chip-configuration state across a narrow end-to-end stack. ([GitHub](https://github.com/Tsinghua-LEMON-Lab/CIMA_COMP/blob/main/))
 links:

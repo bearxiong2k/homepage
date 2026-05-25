@@ -1,11 +1,32 @@
 ---
 slug: turbo-charged-mapper
-title: The Turbo-Charged Mapper
+title: "The Turbo-Charged Mapper: Fast and Optimal Mapping for Energy-efficient and Low-latency Accelerator Design"
 short_title: "Turbo-Charged Mapper"
 subtitle: Scoped CIM stack note seed
 year: 2026
-venue: arXiv
-authors_or_group: TCM authors
+publication:
+  venue: "arXiv:2602.15172"
+  type: "other"
+  doi: "10.48550/arXiv.2602.15172"
+  url: "https://doi.org/10.48550/arXiv.2602.15172"
+authors:
+  - "Michael Gilbert"
+  - "Tanner Andrulis"
+  - "Vivienne Sze"
+  - "Joel S. Emer"
+bibtex: |
+  @misc{gilbert2026turbo,
+    author = {Gilbert, Michael and Andrulis, Tanner and Sze, Vivienne and Emer, Joel S.},
+    title = {The Turbo-Charged Mapper: Fast and Optimal Mapping for Energy-efficient and Low-latency Accelerator Design},
+    year = {2026},
+    howpublished = {arXiv:2602.15172},
+    doi = {10.48550/arXiv.2602.15172},
+    eprint = {2602.15172},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.AR},
+    url = {https://arxiv.org/abs/2602.15172}
+  }
+citation_source: https://arxiv.org/abs/2602.15172
 summary: >-
   The Turbo-Charged Mapper is a mapping-search and schedule-representation contribution for tensor-algebra accelerators, centered on dataplacement, LoopTree mappings, symbolic pruning, and curried analytical modeling.
 links:

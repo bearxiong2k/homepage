@@ -4,8 +4,41 @@ title: "A full-stack memristor-based computation-in-memory system with software-
 short_title: "OpenCIMTC"
 subtitle: "Scoped CIM stack note"
 year: 2025
-venue: "Nature Communications"
-authors_or_group: "Tsinghua LEMON Lab and collaborators"
+publication:
+  venue: "Nature Communications"
+  type: "article"
+  doi: "10.1038/s41467-025-57183-0"
+  url: "https://doi.org/10.1038/s41467-025-57183-0"
+authors:
+  - "Ruihua Yu"
+  - "Ze Wang"
+  - "Qi Liu"
+  - "Bin Gao"
+  - "Zhenqi Hao"
+  - "Tao Guo"
+  - "Sanchuan Ding"
+  - "Junyang Zhang"
+  - "Qi Qin"
+  - "Dong Wu"
+  - "Peng Yao"
+  - "Qingtian Zhang"
+  - "Jianshi Tang"
+  - "He Qian"
+  - "Huaqiang Wu"
+author_note: "Tsinghua LEMON Lab and collaborators"
+citation_source: https://www.nature.com/articles/s41467-025-57183-0
+bibtex: |
+  @article{Yu2025FullStackMemristorCIM,
+    author  = {Ruihua Yu and Ze Wang and Qi Liu and Bin Gao and Zhenqi Hao and Tao Guo and Sanchuan Ding and Junyang Zhang and Qi Qin and Dong Wu and Peng Yao and Qingtian Zhang and Jianshi Tang and He Qian and Huaqiang Wu},
+    title   = {A full-stack memristor-based computation-in-memory system with software-hardware co-development},
+    journal = {Nature Communications},
+    volume  = {16},
+    number  = {1},
+    pages   = {2123},
+    year    = {2025},
+    doi     = {10.1038/s41467-025-57183-0},
+    url     = {https://www.nature.com/articles/s41467-025-57183-0}
+  }
 summary: >-
   OpenCIMTC is best read as a concrete end-to-end memristor/RRAM CIM co-design stack whose reusable compiler contribution is a serialized YAML **CIM-IR** separating layer attributes, physical mapping information, and calculation/deployment parameters. The work strengthens the vertical path from ONNX model import to memristor-array placement, simulator or hardware execution, post-deployment training, and simulator-/chip-in-the-loop tuning of hardware-sensitive parameters. The demonstrated system targets static neural-network inference and training-adjustment flows for a specific memristor CIM prototype with FPGA/CPU support, with public artifact support clearest around ResNet-32 simulation and generated training/optimization/inference scripts. For CIM compiler/IR research, its main value is not a broad formal IR, but an auditable example of how mapping state, physical addresses, ADC/integration-time parameters, quantization fields, and backend generation contracts can be made explicit enough to survive a compiler-to-hardware flow. ([Nature](https://www.nature.com/articles/s41467-025-57183-0))
 links:

@@ -4,12 +4,35 @@ title: "Leveraging Compute-in-Memory for Efficient Generative Model Inference in
 short_title: "CIM-MXU"
 subtitle: "Scoped CIM stack note"
 year: 2025
-venue: "DATE 2025 (accepted; arXiv:2503.00461)"
-authors_or_group: "Zhantong Zhu, Hongou Li, Wenjie Ren, Meng Wu, Le Ye, Ru Huang, Tianyu Jia"
+publication:
+  venue: "DATE 2025"
+  type: "conference"
+  doi: "10.23919/DATE64628.2025.10993224"
+  url: "https://doi.org/10.23919/DATE64628.2025.10993224"
+authors:
+  - "Zhantong Zhu"
+  - "Hongou Li"
+  - "Wenjie Ren"
+  - "Meng Wu"
+  - "Le Ye"
+  - "Ru Huang"
+  - "Tianyu Jia"
+bibtex: |
+  @inproceedings{DBLP:conf/date/ZhuLR0Y0J25,
+    author = {Zhantong Zhu and Hongou Li and Wenjie Ren and Meng Wu and Le Ye and Ru Huang and Tianyu Jia},
+    title = {Leveraging Compute-in-Memory for Efficient Generative Model Inference in {TPUs}},
+    booktitle = {Design, Automation {\&} Test in Europe Conference {\&} Exhibition, {DATE} 2025},
+    pages = {1--7},
+    publisher = {{IEEE}},
+    year = {2025},
+    doi = {10.23919/DATE64628.2025.10993224},
+    url = {https://doi.org/10.23919/DATE64628.2025.10993224}
+  }
+citation_source: https://dblp.org/rec/conf/date/ZhuLR0Y0J25
 summary: >-
   **CIM-MXU** studies how a digital SRAM compute-in-memory matrix unit could replace the conventional systolic MXU inside a TPUv4i-like inference accelerator. Its main contribution is a hardware/software co-design and modeling study: a CIM-MXU microarchitecture built from a systolic grid of CIM cores, a TPU-level architecture model with VMEM/CMEM/HBM-style hierarchy, a mapping engine for Transformer-layer operators, and architecture exploration over CIM-MXU array size and count. The demonstrated workloads are representative generative-model inference kernels, especially GPT-3-30B Transformer-layer evaluation and DiT-XL/2 block evaluation, with INT8 experiments and BF16 support described at the microarchitecture level. For CIM compiler/IR research, the paper is most useful as a hardware-resource and cost-model case study: it shows what a backend would need to know about CIM-core grids, weight-update paths, tiling, memory hierarchy, and precision modes, while the reusable compiler boundary is clearest at the mapping/configuration state rather than at an explicit IR or instruction stream. ([arXiv](https://arxiv.org/pdf/2503.00461))
 links:
-  paper: https://arxiv.org/abs/2503.00461
+  paper: https://doi.org/10.23919/DATE64628.2025.10993224
   artifact:
   docs:
   code:

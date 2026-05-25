@@ -4,12 +4,37 @@ title: "PAPI: Exploiting Dynamic Parallelism in Large Language Model Decoding wi
 short_title: "PAPI"
 subtitle: "Scoped CIM stack note"
 year: 2025
-venue: "ASPLOS 2025"
-authors_or_group: "Yintao He, Haiyu Mao, Christina Giannoula, Mohammad Sadrosadati, Juan Gómez-Luna, Huawei Li, Xiaowei Li, Ying Wang, Onur Mutlu"
+publication:
+  venue: "ASPLOS (2) 2025"
+  type: "conference"
+  doi: "10.1145/3676641.3716009"
+  url: "https://doi.org/10.1145/3676641.3716009"
+authors:
+  - "Yintao He"
+  - "Haiyu Mao"
+  - "Christina Giannoula"
+  - "Mohammad Sadrosadati"
+  - "Juan Gómez-Luna"
+  - "Huawei Li"
+  - "Xiaowei Li"
+  - "Ying Wang"
+  - "Onur Mutlu"
+bibtex: |
+  @inproceedings{DBLP:conf/asplos/HeMGSGLLWM25,
+    author = {Yintao He and Haiyu Mao and Christina Giannoula and Mohammad Sadrosadati and Juan G{\'{o}}mez{-}Luna and Huawei Li and Xiaowei Li and Ying Wang and Onur Mutlu},
+    title = {{PAPI}: Exploiting Dynamic Parallelism in Large Language Model Decoding with a Processing-In-Memory-Enabled Computing System},
+    booktitle = {{ASPLOS} {(2)} 2025},
+    pages = {766--782},
+    publisher = {{ACM}},
+    year = {2025},
+    doi = {10.1145/3676641.3716009},
+    url = {https://doi.org/10.1145/3676641.3716009}
+  }
+citation_source: https://dblp.org/rec/conf/asplos/HeMGSGLLWM25
 summary: >-
   **PAPI** is a heterogeneous HBM/DRAM-PIM architecture and runtime scheduling framework for LLM decoding. Its central contribution is not an explicit compiler IR, but a runtime decision layer that observes request-level parallelism and token-level parallelism, estimates whether fully connected kernels are compute- or memory-bound, and then maps those kernels either to GPU-like processing units or to FC-PIM, while attention/KV-cache-heavy work is assigned to disaggregated Attn-PIM devices. The demonstrated stack is simulator-backed: the paper evaluates LLaMA-65B, GPT-3 66B, and GPT-3 175B on Dolly creative-writing and general-QA tasks using Ramulator2/AttAcc-derived modeling. For CIM compiler/IR research, PAPI is most useful as a runtime-state and hardware-resource case study: it makes dynamic batching/speculation state first-class enough to schedule over heterogeneous PIM resources, but the reusable compiler boundary remains embedded in scheduler equations, hardware assumptions, data partitioning rules, and simulator setup rather than a serialized IR. ([arXiv](https://arxiv.org/html/2502.15470v1))
 links:
-  paper: https://arxiv.org/pdf/2502.15470v2
+  paper: https://doi.org/10.1145/3676641.3716009
   artifact:
   docs:
   code:

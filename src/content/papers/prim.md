@@ -4,12 +4,34 @@ title: "Benchmarking a New Paradigm: Experimental Analysis and Characterization 
 short_title: "PrIM"
 subtitle: "Scoped CIM stack note"
 year: 2022
-venue: "IEEE Access"
-authors_or_group: "Juan Gómez-Luna, Izzat El Hajj, Ivan Fernandez, Christina Giannoula, Geraldo F. Oliveira, Onur Mutlu"
+publication:
+  venue: "IEEE Access"
+  type: "article"
+  doi: "10.1109/ACCESS.2022.3174101"
+  url: "https://doi.org/10.1109/ACCESS.2022.3174101"
+authors:
+  - "Juan Gómez-Luna"
+  - "Izzat El Hajj"
+  - "Ivan Fernandez"
+  - "Christina Giannoula"
+  - "Geraldo F. Oliveira"
+  - "Onur Mutlu"
+bibtex: |
+  @article{DBLP:journals/access/Gomez-LunaHFGOM22,
+    author = {Juan G{\'{o}}mez{-}Luna and Izzat El Hajj and Ivan Fernandez and Christina Giannoula and Geraldo F. Oliveira and Onur Mutlu},
+    title = {Benchmarking a New Paradigm: Experimental Analysis and Characterization of a Real Processing-in-Memory System},
+    journal = {{IEEE} Access},
+    volume = {10},
+    pages = {52565--52608},
+    year = {2022},
+    doi = {10.1109/ACCESS.2022.3174101},
+    url = {https://doi.org/10.1109/ACCESS.2022.3174101}
+  }
+citation_source: https://dblp.org/rec/journals/access/Gomez-LunaHFGOM22
 summary: >-
   PrIM is best classified as a real-hardware benchmark and characterization framework for the UPMEM digital DRAM-PIM architecture rather than as an explicit compiler/IR stack. Its main contribution is a public suite of 16 manually ported memory-bound workloads, accompanying microbenchmarks, CPU/GPU baselines, and a measurement methodology for understanding DPU compute throughput, MRAM/WRAM bandwidth, host-DPU transfer behavior, scaling, and energy on 640-DPU and 2,556-DPU UPMEM systems. The reusable stack layer is clearest at the benchmark/reproducibility boundary: host code, DPU kernels, Makefile parameters, run scripts, datasets, and profiling outputs. For CIM compiler/IR research, PrIM is useful as a concrete backend contract for digital DRAM-PIM: it shows which objects a future IR would need to name to target UPMEM-like systems, especially DPU allocation, tasklet count, MRAM/WRAM staging, transfer direction, inter-DPU communication through the host, and workload partitioning. ([cgiannoula.github.io](https://cgiannoula.github.io/assets/publications/Prim_Access22_arxiv.pdf))
 links:
-  paper: https://cgiannoula.github.io/assets/publications/Prim_Access22_arxiv.pdf
+  paper: https://doi.org/10.1109/ACCESS.2022.3174101
   artifact: https://github.com/CMU-SAFARI/prim-benchmarks
   docs:
   code:

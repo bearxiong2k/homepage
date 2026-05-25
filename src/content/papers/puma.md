@@ -4,8 +4,38 @@ title: "PUMA: A Programmable Ultra-efficient Memristor-based Accelerator for Mac
 short_title: "PUMA"
 subtitle: "Scoped CIM stack note"
 year: 2019
-venue: "ASPLOS 2019"
-authors_or_group: "Aayush Ankit, Izzat El Hajj, Sai Rahul Chalamalasetti, Geoffrey Ndu, Martin Foltin, R. Stanley Williams, Paolo Faraboschi, Wen-mei Hwu, John Paul Strachan, Kaushik Roy, Dejan S. Milojicic"
+publication:
+  venue: "ASPLOS 2019"
+  type: "conference"
+  doi: "10.1145/3297858.3304049"
+  url: "https://doi.org/10.1145/3297858.3304049"
+authors:
+  - "Aayush Ankit"
+  - "Izzat El Hajj"
+  - "Sai Rahul Chalamalasetti"
+  - "Geoffrey Ndu"
+  - "Martin Foltin"
+  - "R. Stanley Williams"
+  - "Paolo Faraboschi"
+  - "Wen Mei Hwu"
+  - "John Paul Strachan"
+  - "Kaushik Roy"
+  - "Dejan S. Milojicic"
+bibtex: |
+  @inproceedings{313143e4e4b34d1c86fe03fed54ea332,
+    title = {PUMA: A Programmable Ultra-efficient Memristor-based Accelerator for Machine Learning Inference},
+    author = {Ankit, Aayush and El Hajj, Izzat and Chalamalasetti, Sai Rahul and Ndu, Geoffrey and Foltin, Martin and Williams, R. Stanley and Faraboschi, Paolo and Hwu, Wen Mei and Strachan, John Paul and Roy, Kaushik and Milojicic, Dejan S.},
+    year = {2019},
+    month = apr,
+    day = {4},
+    doi = {10.1145/3297858.3304049},
+    series = {International Conference on Architectural Support for Programming Languages and Operating Systems - ASPLOS},
+    publisher = {Association for Computing Machinery},
+    pages = {715--731},
+    booktitle = {ASPLOS 2019 - 24th International Conference on Architectural Support for Programming Languages and Operating Systems},
+    address = {United States}
+  }
+citation_source: https://experts.illinois.edu/en/publications/puma-a-programmable-ultra-efficient-memristor-based-accelerator-f
 summary: >-
   PUMA is an ASPLOS 2019 hardware–software co-design for ML inference on a hybrid CMOS–memristor spatial accelerator. Its core contribution is a concrete, ISA-programmable CIM backend: a core/tile/node microarchitecture with memristor MVM units and digital functional units, a PUMA ISA with MVM, vector, memory, communication, and control instructions, a compiler that builds and partitions a model graph into per-core/per-tile assembly, and PUMAsim for functionality/timing/power evaluation. The demonstrated setting is static, MVM-heavy DNN inference—MLPs, LSTMs, and CNNs—with 16-bit fixed-point operations realized over conservative 2-bit memristor cells via bit-slicing. For CIM compiler/IR research, PUMA is most useful as a concrete example of a narrow end-to-end stack where graph partitioning, resource binding, inter-tile communication, and instruction scheduling are made compiler-visible for one architecture, while a more portable CIM IR would likely factor those internal states into explicit, verifiable, backend-independent objects. ([Izzat El Hajj](https://ielhajj.github.io/publications/paper/paper-puma-asplos19.pdf))
 links:

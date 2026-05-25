@@ -4,8 +4,30 @@ title: "LearnCNM2Predict: Transfer Learning-based Performance Model for CNM Syst
 short_title: "LearnCNM2Predict"
 subtitle: "Scoped CIM stack note"
 year: 2025
-venue: "25th IEEE International Conference on Embedded Computer Systems: Architectures, Modeling and Simulation (SAMOS 2025)"
-authors_or_group: "Anderson Faustino da Silva; Hamid Farzaneh; João Paulo C. de Lima; Asif Ali Khan; Jeronimo Castrillon"
+publication:
+  venue: "SAMOS 2025"
+  type: "conference"
+  doi: 
+  url: "https://cfaed.tu-dresden.de/publications?pubId=3839"
+authors:
+  - "Anderson Faustino da Silva"
+  - "Hamid Farzaneh"
+  - "João Paulo Cardoso de Lima"
+  - "Asif Ali Khan"
+  - "Jeronimo Castrillon"
+bibtex: |
+  @inproceedings{dasilva2025learncnm2predict,
+    author = {da Silva, Anderson Faustino and Farzaneh, Hamid and de Lima, João Paulo Cardoso and Khan, Asif Ali and Castrillon, Jeronimo},
+    title = {{LearnCNM2Predict}: Transfer Learning-based Performance Model for {CNM} Systems},
+    booktitle = {25th IEEE International Conference on Embedded Computer Systems: Architectures, Modeling and Simulation (SAMOS 2025)},
+    publisher = {Springer-Verlag},
+    address = {Berlin, Heidelberg},
+    year = {2025},
+    month = jul,
+    note = {Best paper award candidate},
+    url = {https://cfaed.tu-dresden.de/publications?pubId=3839}
+  }
+citation_source: https://cfaed.tu-dresden.de/publications?pubId=3839
 summary: >-
   **LearnCNM2Predict** contributes a transfer-learning performance model for UPMEM-style compute-near-memory systems: it compiles CNM benchmark programs under different compiler-pass and hardware configurations, extracts static opcode-histogram features from compiled programs, augments them with DPU/tasklet and workload parameters, and trains an MLP to predict runtime and speedup for new target applications after limited fine-tuning. Its strongest CIM-stack contribution is a learned cost-model layer for ranking or filtering CNM program variants, rather than a new compiler IR, mapping language, or backend ISA. The demonstrated setting is UPMEM C/C++ benchmark code drawn from PrIM, PIM-ML, and Cinnamon-generated variants, measured on a 2048-DPU UPMEM system and evaluated across compiler pass sequences, DPU/tasklet counts, and benchmark parameters. For CIM compiler/IR research, the paper is most useful as evidence that a compact “feature-record IR” — instruction-mix summary plus hardware/compiler/workload configuration — can serve as a practical prediction boundary for digital CNM design-space exploration. ([cfaed.tu-dresden.de](https://cfaed.tu-dresden.de/files/Images/people/chair-cc/publications/2507_daSilva_SAMOS.pdf))
 links:

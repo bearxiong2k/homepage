@@ -3,13 +3,35 @@ slug: cinm
 title: "CINM (Cinnamon): A Compilation Infrastructure for Heterogeneous Compute In-Memory and Compute Near-Memory Paradigms"
 short_title: "CINM"
 subtitle: "Scoped CIM stack note"
-year: 2025
-venue: "ASPLOS '25 / Proceedings of the 29th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 4"
-authors_or_group: "Asif Ali Khan; Hamid Farzaneh; Karl F. A. Friebel; Clément Fournier; Lorenzo Chelini; Jeronimo Castrillon"
+year: 2024
+publication:
+  venue: "ASPLOS (4) 2024"
+  type: "conference"
+  doi: "10.1145/3622781.3674189"
+  url: "https://doi.org/10.1145/3622781.3674189"
+authors:
+  - "Asif Ali Khan"
+  - "Hamid Farzaneh"
+  - "Karl Friedrich Alexander Friebel"
+  - "Clément Fournier"
+  - "Lorenzo Chelini"
+  - "Jerónimo Castrillón"
+bibtex: |
+  @inproceedings{DBLP:conf/asplos/KhanFFFCC24,
+    author = {Asif Ali Khan and Hamid Farzaneh and Karl Friedrich Alexander Friebel and Cl{\'{e}}ment Fournier and Lorenzo Chelini and Jer{\'{o}}nimo Castrill{\'{o}}n},
+    title = {{CINM} (Cinnamon): A Compilation Infrastructure for Heterogeneous Compute In-Memory and Compute Near-Memory Paradigms},
+    booktitle = {{ASPLOS} {(4)} 2024},
+    pages = {31--46},
+    publisher = {{ACM}},
+    year = {2024},
+    doi = {10.1145/3622781.3674189},
+    url = {https://doi.org/10.1145/3622781.3674189}
+  }
+citation_source: https://dblp.org/rec/conf/asplos/KhanFFFCC24
 summary: >-
   CINM, or Cinnamon, contributes an MLIR-based abstraction and lowering stack for compute-in-memory and compute-near-memory systems. Its strongest contribution for a compiler/IR corpus is the explicit hierarchy of dialects: a high-level `cinm` dialect for device-agnostic CINM operations and target-selection hooks, mid-level `cnm` and `cim` dialects for common near-memory and in-memory resource/control patterns, and device dialects such as UPMEM and memristor for backend-specific lowering. The demonstrated scope is CPU+UPMEM on real UPMEM hardware and CPU+memristor-crossbar through an OCC/gem5-style simulation path, with workloads drawn from ML kernels, tensor contractions, MLPs, and selected PriM benchmarks. CINM is therefore best read as a reusable compiler/mapping framework and IR design point for heterogeneous CIM/CNM systems, rather than as a fully calibrated universal CIM runtime or value-trajectory IR. ([arXiv](https://arxiv.org/html/2301.07486v4))
 links:
-  paper: https://arxiv.org/pdf/2301.07486
+  paper: https://doi.org/10.1145/3622781.3674189
   artifact: https://github.com/tud-ccc/Cinnamon
   docs:
   code:

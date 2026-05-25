@@ -4,12 +4,37 @@ title: "Make LLM Inference Affordable to Everyone: Augmenting GPU Memory with ND
 short_title: "Hermes"
 subtitle: "Scoped CIM stack note"
 year: 2025
-venue: "HPCA 2025"
-authors_or_group: "Lian Liu, Shixin Zhao, Bing Li, Haimeng Ren, Zhaohui Xu, Mengdi Wang, Xiaowei Li, Yinhe Han, Ying Wang"
+publication:
+  venue: "HPCA 2025"
+  type: "conference"
+  doi: "10.1109/HPCA61900.2025.00129"
+  url: "https://doi.org/10.1109/HPCA61900.2025.00129"
+authors:
+  - "Lian Liu"
+  - "Shixin Zhao"
+  - "Bing Li"
+  - "Haimeng Ren"
+  - "Zhaohui Xu"
+  - "Mengdi Wang"
+  - "Xiaowei Li"
+  - "Yinhe Han"
+  - "Ying Wang"
+bibtex: |
+  @inproceedings{DBLP:conf/hpca/LiuZ0RXW00W25,
+    author = {Lian Liu and Shixin Zhao and Bing Li and Haimeng Ren and Zhaohui Xu and Mengdi Wang and Xiaowei Li and Yinhe Han and Ying Wang},
+    title = {Make {LLM} Inference Affordable to Everyone: Augmenting {GPU} Memory with {NDP-DIMM}},
+    booktitle = {IEEE International Symposium on High-Performance Computer Architecture, {HPCA} 2025},
+    pages = {1751--1765},
+    publisher = {{IEEE}},
+    year = {2025},
+    doi = {10.1109/HPCA61900.2025.00129},
+    url = {https://doi.org/10.1109/HPCA61900.2025.00129}
+  }
+citation_source: https://dblp.org/rec/conf/hpca/LiuZ0RXW00W25
 summary: >-
   Hermes, formally “Make LLM Inference Affordable to Everyone: Augmenting GPU Memory with NDP-DIMM,” is an HPCA 2025 hardware–software co-design for activation-sparse LLM inference on a consumer-grade GPU augmented by digital near-data-processing DIMMs. Its core contribution is not a general CIM compiler IR, but a specialized runtime mapping and scheduling layer: frequently active “hot” neurons are kept on the GPU, while less frequently active “cold” neurons remain in NDP-DIMMs, with an offline ILP initializer, a lightweight online predictor, and a window-based DIMM load-balancing scheduler. The paper demonstrates this design for OPT, LLaMA2, and Falcon-style models under ReLU-based activation sparsity, using an RTX 4090, eight modeled DDR4 NDP-DIMMs, measured GPU kernels, a modified Ramulator 2.0 simulator, and RTL-synthesized NDP cores. For CIM compiler/IR research, Hermes is most useful as a runtime-state and mapping case study: it names neuron activity, placement, and remapping as first-class scheduling objects, while the compiler-visible value trajectory remains implicit in the scheduler, commands, barriers, and simulator assumptions. ([arXiv](https://arxiv.org/abs/2502.16963?utm_source=chatgpt.com))
 links:
-  paper: https://arxiv.org/abs/2502.16963
+  paper: https://doi.org/10.1109/HPCA61900.2025.00129
   artifact: https://huggingface.co/SparseLLM
   docs:
   code:

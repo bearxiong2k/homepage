@@ -12,8 +12,14 @@ type PaperSummary = {
   slug: string;
   title: string;
   year?: number | null;
-  venue?: string | null;
-  authors_or_group?: string | null;
+  publication?: {
+    venue?: string | null;
+    type?: string | null;
+    doi?: string | null;
+    url?: string | null;
+  };
+  authors?: string[];
+  author_note?: string | null;
   summary: string;
   route: string;
   axis_A: {

@@ -4,8 +4,41 @@ title: "ReSCIM: Variation-Resilient High Weight-Loading Bandwidth In-Memory Comp
 short_title: "ReSCIM"
 subtitle: "Scoped CIM stack note"
 year: 2024
-venue: "ICCAD 2024"
-authors_or_group: "Xiaomeng Wang, Jingyu He, Kunming Shao, Jiakun Zheng, Fengshi Tian, Tim Kwang-Ting Cheng, Chi-Ying Tsui"
+publication:
+  venue: "ICCAD 2024"
+  type: "conference"
+  doi: "10.1145/3676536.3676751"
+  url: "https://doi.org/10.1145/3676536.3676751"
+authors:
+  - "Xiaomeng Wang"
+  - "Jingyu He"
+  - "Kunming Shao"
+  - "Jiakun Zheng"
+  - "Fengshi Tian"
+  - "Kwang-Ting (Tim) Cheng"
+  - "Chi-Ying Tsui"
+citation_source: https://dblp.org/rec/conf/iccad/WangHSZTCT24
+bibtex: |
+  @inproceedings{DBLP:conf/iccad/WangHSZTCT24,
+    author       = {Xiaomeng Wang and
+                    Jingyu He and
+                    Kunming Shao and
+                    Jiakun Zheng and
+                    Fengshi Tian and
+                    Kwang-Ting (Tim) Cheng and
+                    Chi-Ying Tsui},
+    title        = {{ReSCIM:} Variation-Resilient High Weight-Loading Bandwidth In-Memory
+                    Computation Based on Fine-Grained Hybrid Integration of Multi-Level
+                    {ReRAM} and {SRAM} Cells},
+    booktitle    = {Proceedings of the 43rd {IEEE/ACM} International Conference on
+                    Computer-Aided Design, {ICCAD} 2024, Newark, NJ, USA, October
+                    27-31, 2024},
+    pages        = {213:1--213:9},
+    publisher    = {{IEEE}},
+    year         = {2024},
+    doi          = {10.1145/3676536.3676751},
+    url          = {https://doi.org/10.1145/3676536.3676751}
+  }
 summary: >-
   **ReSCIM** contributes a fine-grained hybrid CIM architecture that integrates compact MLC ReRAM storage with SRAM-CIM computation, using local ReRAM-to-SRAM weight loading, differential sensing, and folded weight mapping to improve storage density and variation resilience for DNN inference. Its strongest contribution is at the device/cell/macro/accelerator boundary: the paper names a ReSCIM array segment, embeds a 1T1R ReRAM crossbar with an SRAM cell, supports both analog- and digital-based SRAM-CIM computation, and evaluates accelerator-level energy, latency, area efficiency, and inference accuracy, including AlexNet-reported improvements. For CIM compiler/IR research, ReSCIM is best read as a hardware-software co-design case whose “middle representation” is an implicit combination of weight-placement state, MLC encoding, sensing assumptions, and accelerator simulation parameters rather than an explicit graph/loop/ISA compiler stack. ([ACM Digital Library](https://dl.acm.org/doi/epdf/10.1145/3676536.3676751?utm_source=chatgpt.com))
 links:

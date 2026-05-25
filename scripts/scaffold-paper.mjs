@@ -20,10 +20,20 @@ const today = new Date().toISOString().slice(0, 10);
 const template = `---
 slug: ${slug}
 title: ${JSON.stringify(title)}
+short_title: ${JSON.stringify(title)}
 subtitle: Scoped CIM stack note
 year:
-venue:
-authors_or_group:
+publication:
+  venue:
+  type:
+  doi:
+  url:
+authors: []
+bibtex: |
+  @misc{${slug},
+    title = {${title.replace(/[{}]/g, '')}}
+  }
+citation_source:
 summary: >-
   Replace with a one-paragraph public corpus summary.
 links:

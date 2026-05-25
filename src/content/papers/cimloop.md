@@ -4,12 +4,27 @@ title: "CiMLoop: A Flexible, Accurate, and Fast Compute-In-Memory Modeling Tool"
 short_title: "CiMLoop"
 subtitle: "Scoped CIM stack note"
 year: 2024
-venue: "IEEE International Symposium on Performance Analysis of Systems and Software (ISPASS)"
-authors_or_group: "Tanner Andrulis, Joel S. Emer, Vivienne Sze"
+publication:
+  venue: "ISPASS 2024"
+  type: "conference"
+  doi: "10.1109/ISPASS61541.2024.00012"
+  url: "https://doi.org/10.1109/ISPASS61541.2024.00012"
+authors:
+  - "Tanner Andrulis"
+  - "Joel S. Emer"
+  - "Vivienne Sze"
+bibtex: |
+  @inproceedings{2024_ispass_cimloop,
+    author = {Andrulis, Tanner and Emer, Joel S. and Sze, Vivienne},
+    title = {CiMLoop: A Flexible, Accurate, and Fast Compute-In-Memory Modeling Tool},
+    booktitle = {IEEE International Symposium on Performance Analysis of Systems and Software (ISPASS)},
+    year = {2024}
+  }
+citation_source: https://emze.csail.mit.edu/cimloop
 summary: >-
   CiMLoop is best read as a **CIM-aware modeling, cost-estimation, and mapping-support framework** rather than as a general compiler IR stack. Its contribution is a set of CiM-specific extensions around Timeloop+Accelergy: hierarchical YAML descriptions for circuits and architecture, per-component/per-tensor reuse and coalescing directives, explicit encoding and bit-slicing support, plug-in component models, and a statistical data-value-dependent energy pipeline that amortizes expensive value modeling across many Timeloop mappings. The paper demonstrates the framework on DNN inference workloads and published CiM macros spanning SRAM and ReRAM styles, validating energy/area/throughput against published simulated or silicon-measured macro data and using Timeloop-style mapping search for design-space studies. For CIM compiler/IR research, CiMLoop is most valuable as an example of **config-as-IR plus hardware-resource IR**: it shows how a backend-facing representation can name memory cells, converters, bit slices, reuse semantics, operand distributions, and calibrated component costs, while leaving higher-level graph IR, ISA, runtime protocol, and chip-in-loop execution outside the demonstrated interface. ([People](https://people.csail.mit.edu/emer/media/papers/2024.05.ispass.cimloop.pdf))
 links:
-  paper: https://arxiv.org/abs/2405.07259
+  paper: https://doi.org/10.1109/ISPASS61541.2024.00012
   artifact: https://github.com/mit-emze/cimloop
   docs:
   code:

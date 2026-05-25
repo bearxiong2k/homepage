@@ -4,8 +4,29 @@ title: "CoMoNM: A Cost Modeling Framework for Compute-Near-Memory Systems"
 short_title: "CoMoNM"
 subtitle: "Scoped CIM stack note"
 year: 2025
-venue: "arXiv:2508.11451, cs.ET / cs.PL"
-authors_or_group: "Hamid Farzaneh, Asif Ali Khan, Jeronimo Castrillon; TU Dresden / ScaDS.AI"
+publication:
+  venue: "arXiv:2508.11451"
+  type: "other"
+  doi: "10.48550/arXiv.2508.11451"
+  url: "https://doi.org/10.48550/arXiv.2508.11451"
+authors:
+  - "Hamid Farzaneh"
+  - "Asif Ali Khan"
+  - "Jeronimo Castrillon"
+author_note: "ScaDS.AI; TU Dresden"
+bibtex: |
+  @misc{farzaneh2025comonm,
+    author = {Farzaneh, Hamid and Khan, Asif Ali and Castrillon, Jeronimo},
+    title = {CoMoNM: A Cost Modeling Framework for Compute-Near-Memory Systems},
+    year = {2025},
+    howpublished = {arXiv:2508.11451},
+    doi = {10.48550/arXiv.2508.11451},
+    eprint = {2508.11451},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.ET},
+    url = {https://arxiv.org/abs/2508.11451}
+  }
+citation_source: https://arxiv.org/abs/2508.11451
 summary: >-
   CoMoNM is best classified as a CNM latency cost-model framework with a reusable mapping and virtual-instruction interface. It accepts a high-level or low-level application representation, a target CNM configuration, and an explicit hierarchical mapping, then estimates execution time through a split compute-engine/memory-engine execution model. The paper strengthens the cost-model and design-space-exploration layer of the CIM/CNM stack: its most concrete compiler-facing abstractions are the mapping vector, the custom CNM IR, and the `llvcnm` virtual assembly. The demonstrated scope covers UPMEM hardware and Samsung HBM-PIM simulation, with workloads from PrIM and ML kernels/models, and the strongest evidence is latency-prediction accuracy and mapping/hardware what-if exploration rather than end-to-end code generation deployment. ([arXiv](https://arxiv.org/pdf/2508.11451v1))
 links:

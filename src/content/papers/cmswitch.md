@@ -4,12 +4,35 @@ title: "CMSwitch: Be CIM or Be Memory: A Dual-mode-aware DNN Compiler for CIM Ac
 short_title: "CMSwitch"
 subtitle: "Scoped CIM stack note"
 year: 2025
-venue: "ASPLOS 2025, Proceedings of the 30th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 2"
-authors_or_group: "Shixin Zhao, Yuming Li, Bing Li, Yintao He, Mengdi Wang, Yinhe Han, Ying Wang"
+publication:
+  venue: "ASPLOS (2) 2025"
+  type: "conference"
+  doi: "10.1145/3676641.3716248"
+  url: "https://doi.org/10.1145/3676641.3716248"
+authors:
+  - "Shixin Zhao"
+  - "Yuming Li"
+  - "Bing Li"
+  - "Yintao He"
+  - "Mengdi Wang"
+  - "Yinhe Han"
+  - "Ying Wang"
+bibtex: |
+  @inproceedings{DBLP:conf/asplos/ZhaoLLHW0W25,
+    author = {Shixin Zhao and Yuming Li and Bing Li and Yintao He and Mengdi Wang and Yinhe Han and Ying Wang},
+    title = {Be {CIM} or Be Memory: A Dual-mode-aware {DNN} Compiler for {CIM} Accelerators},
+    booktitle = {{ASPLOS} {(2)} 2025},
+    pages = {63--78},
+    publisher = {{ACM}},
+    year = {2025},
+    doi = {10.1145/3676641.3716248},
+    url = {https://doi.org/10.1145/3676641.3716248}
+  }
+citation_source: https://dblp.org/rec/conf/asplos/ZhaoLLHW0W25
 summary: >-
   CMSwitch is best classified as a **dual-mode-aware CIM mapping and scheduling compiler** whose central contribution is making the compute-vs-memory mode of each CIM array part of the compilation optimization space. The paper introduces DEHA, a hardware abstraction that records dual-mode array parameters and switch overheads; DACO, a two-stage optimization pass that segments the DNN graph with dynamic programming and solves per-segment compute/memory allocation with mixed-integer programming; and DMO, a small meta-operator extension that expresses array-mode switching through `CM.switch(TOM/TOC, arrayaddr)`. The demonstrated stack takes ONNX-format DNN inference workloads and user-defined CIM hardware parameters, targets a Dynaplasia-like dual-mode CIM accelerator, evaluates CNN and Transformer models with 8-bit weights/activations through simulator-backed experiments, and reports a 1.31× average speedup over CIM-MLC. For CIM compiler/IR research, its most useful abstraction is the array-level resource/mode allocation state rather than a full public compiler IR or reusable backend contract. ([arXiv](https://arxiv.org/pdf/2502.17006v1))
 links:
-  paper: https://arxiv.org/abs/2502.17006
+  paper: https://doi.org/10.1145/3676641.3716248
   artifact:
   docs:
   code:

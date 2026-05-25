@@ -3,9 +3,33 @@ slug: polyhedral-based-compilation-framework-for-in-memory-neural-network-accele
 title: "Polyhedral-Based Compilation Framework for In-Memory Neural Network Accelerators"
 short_title: "Polyhedral CIM"
 subtitle: "Scoped CIM stack note"
-year: 2021
-venue: "ACM Journal on Emerging Technologies in Computing Systems"
-authors_or_group: "Jianhui Han, Xiang Fei, Zhaolin Li, Youhui Zhang"
+year: 2022
+publication:
+  venue: "ACM Journal on Emerging Technologies in Computing Systems"
+  type: "article"
+  doi: "10.1145/3469847"
+  url: "https://doi.org/10.1145/3469847"
+authors:
+  - "Jianhui Han"
+  - "Xiang Fei"
+  - "Zhaolin Li"
+  - "Youhui Zhang"
+citation_source: https://dblp.org/rec/journals/jetc/HanFLZ22
+bibtex: |
+  @article{DBLP:journals/jetc/HanFLZ22,
+    author       = {Jianhui Han and
+                    Xiang Fei and
+                    Zhaolin Li and
+                    Youhui Zhang},
+    title        = {Polyhedral-Based Compilation Framework for In-Memory Neural Network Accelerators},
+    journal      = {{ACM} Journal on Emerging Technologies in Computing Systems},
+    volume       = {18},
+    number       = {1},
+    pages        = {15:1--15:23},
+    year         = {2022},
+    doi          = {10.1145/3469847},
+    url          = {https://doi.org/10.1145/3469847}
+  }
 summary: >-
   **Polyhedral-Based Compilation Framework for In-Memory Neural Network Accelerators** presents PolyXB, a source-to-source compiler that uses the polyhedral model to recognize affine C loop nests implementing NN operators and rewrite them into calls or generated schedule regions for memristor-based neural-network accelerators. Its most relevant contribution for CIM compiler/IR research is the shift from single-kernel MV/MM offload toward a narrow vertical flow that also recognizes convolution, pooling, and fused initialization/activation patterns, then optionally forms a pipeline and allocates PE resources across matched operators. The demonstrated stack slice is static C/PET/ISL compilation for dense, affine NN inference kernels, with paper-level evaluation over synthetic kernels and NN benchmarks and case studies for ISAAC- and FPSA-like architectures; the public artifact exposes the compiler, options, tests, and benchmark kernels, while the reusable IR boundary is clearest in the schedule-tree marks, `ast_info` metadata, tiling options, and emitted accelerator API calls. ([CRAFT Lab](https://craft.cs.tsinghua.edu.cn/publication/polyhedral-based-compilation-framework-for-in-memory-neural-network-accelerators/))
 links:

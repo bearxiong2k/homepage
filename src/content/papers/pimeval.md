@@ -4,8 +4,38 @@ title: "Architectural Modeling and Benchmarking for Digital DRAM PIM"
 short_title: "PIMeval/PIMbench"
 subtitle: "Scoped CIM stack note"
 year: 2024
-venue: "IISWC 2024"
-authors_or_group: "University of Virginia LavaLab / Siddique et al."
+publication:
+  venue: "IISWC 2024"
+  type: "conference"
+  doi: "10.1109/IISWC63097.2024.00030"
+  url: "https://doi.org/10.1109/IISWC63097.2024.00030"
+authors:
+  - "Farzana Ahmed Siddique"
+  - "Deyuan Guo"
+  - "Zhenxing Fan"
+  - "MohammadHosein Gholamrezaei"
+  - "Morteza Baradaran"
+  - "Alif Ahmed"
+  - "Hugo Abbot"
+  - "Kyle Durrer"
+  - "Kumaresh Nandagopal"
+  - "Ethan Ermovick"
+  - "Khyati Kiyawat"
+  - "Beenish Gul"
+  - "Abdullah T. Mughrabi"
+  - "Ashish Venkat"
+  - "Kevin Skadron"
+bibtex: |
+  @inproceedings{DBLP:conf/iiswc/SiddiqueGFGBAAD24,
+    author = {Siddique, Farzana Ahmed and Guo, Deyuan and Fan, Zhenxing and Gholamrezaei, MohammadHosein and Baradaran, Morteza and Ahmed, Alif and Abbot, Hugo and Durrer, Kyle and Nandagopal, Kumaresh and Ermovick, Ethan and Kiyawat, Khyati and Gul, Beenish and Mughrabi, Abdullah T. and Venkat, Ashish and Skadron, Kevin},
+    title = {Architectural Modeling and Benchmarking for Digital DRAM PIM},
+    booktitle = {IEEE International Symposium on Workload Characterization, IISWC 2024, Vancouver, BC, Canada, September 15-17, 2024},
+    pages = {247--261},
+    publisher = {IEEE},
+    year = {2024},
+    doi = {10.1109/IISWC63097.2024.00030}
+  }
+citation_source: https://dblp.org/rec/conf/iiswc/SiddiqueGFGBAAD24
 summary: >-
   **PIMeval / PIMbench** contributes a public modeling and benchmarking stack for **digital DRAM-PIM**, centered on a C++ PIM API, a configurable performance/energy model, and a benchmark suite spanning vector, linear algebra, graph, image, security, machine-learning, and DNN inference kernels. The demonstrated hardware scope covers three DRAM-PIM styles: DRAM-AP-style subarray bit-serial PIM, Fulcrum-style subarray bit-parallel PIM, and bank-level bit-parallel PIM. Its strongest contribution to a CIM compiler/IR corpus is not an explicit compiler IR, but a reusable evaluation boundary: PIM data objects, layout choices, target device configs, PIM API commands, and command-level timing/energy accounting. For compiler/IR research, PIMeval is useful as a backend-facing reference model and benchmark harness that exposes the kinds of objects a future CIM IR would need to preserve when lowering higher-level tensor or graph programs into digital DRAM-PIM execution. ([University of Virginia Computer Science](https://www.cs.virginia.edu/~skadron/Papers/PIMbench_PIMeval_iiswc2024.pdf))
 links:

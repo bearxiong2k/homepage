@@ -4,12 +4,33 @@ title: "GENIEx: A Generalized Approach to Emulating Non-Ideality in Memristive X
 short_title: "GENIEx"
 subtitle: "Scoped CIM stack note"
 year: 2020
-venue: "DAC 2020 / arXiv 2020"
-authors_or_group: "Indranil Chakraborty, Mustafa Fayez Ali, Dong Eun Kim, Aayush Ankit, Kaushik Roy"
+publication:
+  venue: "DAC 2020"
+  type: "conference"
+  doi: "10.1109/DAC18072.2020.9218688"
+  url: "https://doi.org/10.1109/DAC18072.2020.9218688"
+authors:
+  - "Indranil Chakraborty"
+  - "Mustafa Fayez Ali"
+  - "Dong Eun Kim"
+  - "Aayush Ankit"
+  - "Kaushik Roy"
+bibtex: |
+  @inproceedings{DBLP:conf/dac/ChakrabortyAKA020,
+    author = {Chakraborty, Indranil and Ali, Mustafa Fayez and Kim, Dong Eun and Ankit, Aayush and Roy, Kaushik},
+    title = {GENIEx: A Generalized Approach to Emulating Non-Ideality in Memristive Xbars using Neural Networks},
+    booktitle = {57th ACM/IEEE Design Automation Conference, DAC 2020, San Francisco, CA, USA, July 20-24, 2020},
+    pages = {1--6},
+    publisher = {IEEE},
+    year = {2020},
+    doi = {10.1109/DAC18072.2020.9218688},
+    url = {https://doi.org/10.1109/DAC18072.2020.9218688}
+  }
+citation_source: https://dblp.org/rec/conf/dac/ChakrabortyAKA020
 summary: >-
   GENIEx is best read as a calibrated nonideality-modeling layer for analog memristive-crossbar CIM, coupled to a PyTorch functional simulator for DNN accuracy studies. Its central technical contribution is a learned surrogate for data-dependent MVM nonidealities: the model consumes an input-voltage vector and conductance matrix, predicts a per-column current correction ratio, and is trained from HSPICE-generated crossbar data. The demonstrated stack path replaces selected PyTorch convolution and linear layers with tiled, bit-sliced MVM execution, injects GENIEx nonideal current behavior, reconstructs digital outputs through ADC and shift-add operations, and evaluates classification accuracy on ResNet-style image-classification workloads. For CIM compiler/IR research, the reusable boundary is clearest as a backend accuracy plugin and as a concrete example of how bit-slice, tile, ADC, and parasitic parameters can be carried through functional simulation, while compiler-facing IR, pass interfaces, instruction streams, runtime scheduling, memory/communication timing, and energy/area modeling are outside the demonstrated abstraction. ([arXiv](https://arxiv.org/pdf/2003.06902))
 links:
-  paper: https://arxiv.org/pdf/2003.06902
+  paper: https://doi.org/10.1109/DAC18072.2020.9218688
   artifact: https://github.com/Aayush-Ankit/puma-functional-model
   docs:
   code:
