@@ -1,6 +1,7 @@
 ---
 slug: pim-hls
 title: "PIM-HLS: An Automatic Hardware Generation Tool for Heterogeneous Processing-In-Memory-based Neural Network Accelerators"
+short_title: "PIM-HLS"
 subtitle: "Scoped CIM stack note"
 year: 2023
 venue: "DAC 2023"

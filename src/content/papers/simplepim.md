@@ -1,6 +1,7 @@
 ---
 slug: simplepim
 title: "SimplePIM: A Software Framework for Productive and Efficient Processing-in-Memory"
+short_title: "SimplePIM"
 subtitle: "Scoped CIM stack note"
 year: 2023
 venue: "PACT 2023"

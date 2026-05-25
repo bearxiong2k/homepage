@@ -1,6 +1,7 @@
 ---
 slug: pim-eda
 title: "PIM EDA Suite / PIM Toolchain"
+short_title: "PIM EDA Suite"
 subtitle: "Scoped CIM stack note"
 year: 2023
 venue: "Repository-centered suite; associated papers include DAC 2023, IEEE TCAD, DATE 2024"

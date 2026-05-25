@@ -1,6 +1,7 @@
 ---
 slug: cinm
 title: "CINM (Cinnamon): A Compilation Infrastructure for Heterogeneous Compute In-Memory and Compute Near-Memory Paradigms"
+short_title: "CINM"
 subtitle: "Scoped CIM stack note"
 year: 2025
 venue: "ASPLOS '25 / Proceedings of the 29th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 4"

@@ -1,6 +1,7 @@
 ---
 slug: syndcim
 title: "SynDCIM: A Performance-Aware Digital Computing-in-Memory Compiler with Multi-Spec-Oriented Subcircuit Synthesis"
+short_title: "SynDCIM"
 subtitle: "Scoped CIM stack note"
 year: 2025
 venue: "DATE 2025"

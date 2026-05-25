@@ -1,6 +1,7 @@
 ---
 slug: prim
-title: "PrIM / Benchmarking a New Paradigm: Experimental Analysis and Characterization of a Real Processing-in-Memory System"
+title: "Benchmarking a New Paradigm: Experimental Analysis and Characterization of a Real Processing-in-Memory System"
+short_title: "PrIM"
 subtitle: "Scoped CIM stack note"
 year: 2022
 venue: "IEEE Access"

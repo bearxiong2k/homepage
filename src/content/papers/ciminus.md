@@ -1,6 +1,7 @@
 ---
 slug: ciminus
 title: "CIMinus: Empowering Sparse DNN Workloads Modeling and Exploration on SRAM-Based CIM Architectures"
+short_title: "CIMinus"
 subtitle: "Scoped CIM stack note"
 year: 2025
 venue: "IEEE Transactions on Computers"

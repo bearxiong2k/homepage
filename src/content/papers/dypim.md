@@ -1,6 +1,7 @@
 ---
 slug: dypim
 title: "DyPIM: Dynamic-Inference-Enabled Processing-In-Memory Accelerator"
+short_title: "DyPIM"
 subtitle: "Scoped CIM stack note"
 year: 2024
 venue: "DATE 2024"

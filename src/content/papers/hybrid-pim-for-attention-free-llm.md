@@ -1,6 +1,7 @@
 ---
 slug: hybrid-pim-for-attention-free-llm
 title: "Towards Floating Point-Based Attention-Free LLM: Hybrid PIM with Non-Uniform Data Format and Reduced Multiplications"
+short_title: "Hybrid PIM"
 subtitle: "Scoped CIM stack note"
 year: 2024
 venue: "ICCAD 2024"

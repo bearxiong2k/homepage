@@ -1,6 +1,7 @@
 ---
 slug: cmswitch
 title: "CMSwitch: Be CIM or Be Memory: A Dual-mode-aware DNN Compiler for CIM Accelerators"
+short_title: "CMSwitch"
 subtitle: "Scoped CIM stack note"
 year: 2025
 venue: "ASPLOS 2025, Proceedings of the 30th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 2"

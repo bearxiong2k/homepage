@@ -1,6 +1,7 @@
 ---
 slug: dappa
 title: "DaPPA: A Data-Parallel Programming Framework for Processing-in-Memory Architectures"
+short_title: "DaPPA"
 subtitle: "Scoped CIM stack note"
 year: 2023
 venue: "arXiv preprint; PACT 2023 ACM Student Research Competition presentation/poster context"

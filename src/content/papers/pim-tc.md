@@ -1,6 +1,7 @@
 ---
 slug: pim-tc
 title: "Accelerating Triangle Counting with Real Processing-in-Memory Systems"
+short_title: "PIM-TC"
 subtitle: "Scoped CIM stack note"
 year: 2025
 venue: "IPDPS Workshop on Graphs, Architectures, Programming, and Learning (GrAPL); also indexed as arXiv/CoRR abs/2505.04269"

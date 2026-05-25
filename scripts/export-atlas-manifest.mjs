@@ -308,6 +308,7 @@ for (const file of files) {
   papers.push({
     slug,
     title,
+    short_title: scalar(frontmatter, 'short_title') || title,
     subtitle: scalar(frontmatter, 'subtitle') || null,
     year,
     venue: scalar(frontmatter, 'venue') || null,
@@ -453,14 +454,11 @@ const paperListMarkdown = [
   '',
   `Generated from src/content/papers. Paper count: ${manifest.papers.length}.`,
   '',
-  '| Title | Year | Library note | Paper link |',
-  '|---|---:|---|---|',
-  ...manifest.papers.map((paper) => [
-    markdownCell(paper.title),
-    paper.year ?? '',
-    markdownLink('note', paper.route),
-    markdownLink('paper', paper.links?.paper)
-  ].join(' | ').replace(/^/, '| ').replace(/$/, ' |')),
+  ...manifest.papers.map((paper) => (
+    paper.links?.paper
+      ? `- ${markdownLink(paper.title, paper.links.paper)}`
+      : `- ${markdownCell(paper.title)}`
+  )),
   ''
 ].join('\n');
 fs.writeFileSync(paperListOutputAbs, paperListMarkdown);

@@ -1,14 +1,15 @@
 ---
 slug: cimflow
-title: CIMFlow
+title: "CIMFlow: An Integrated Framework for Systematic Design and Evaluation of Digital CIM Architectures"
+short_title: "CIMFlow"
 subtitle: Scoped CIM stack note seed
 year: 2025
-venue: arXiv
+venue: "DAC 2025"
 authors_or_group: CIMFlow authors
 summary: >-
   CIMFlow is a public SRAM-based digital CIM infrastructure stack for DNN inference, connecting ONNX input, hardware configuration, graph partitioning, OP-level MLIR/DSL lowering, per-core ISA JSON, and SystemC-backed simulation.
 links:
-  paper: https://arxiv.org/pdf/2505.01107
+  paper: https://doi.org/10.1109/DAC63849.2025.11133270
   artifact: https://www.cimflow.org/
   docs: https://www.cimflow.org/docs/Compiler/Pipeline-Overview
 technology: ["SRAM-CIM", "digital-CIM"]

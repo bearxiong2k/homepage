@@ -1,6 +1,7 @@
 ---
 slug: cima-com
-title: "CIMA_COM / CIMA_COMP"
+title: "CIMA_COMP: CIMA compiler and backend artifact for a CIMA-specific CIM deployment pipeline"
+short_title: "CIMA_COMP"
 subtitle: "Scoped CIM stack note"
 year:
 venue: "unknown for exact CIMA_COM; related paper: Nature Communications"

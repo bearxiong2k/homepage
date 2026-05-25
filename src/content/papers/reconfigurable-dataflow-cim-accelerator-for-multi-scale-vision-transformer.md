@@ -1,6 +1,7 @@
 ---
 slug: reconfigurable-dataflow-cim-accelerator-for-multi-scale-vision-transformer
 title: "An In-Memory Computing Accelerator with Reconfigurable Dataflow for Multi-Scale Vision Transformer with Hybrid Topology"
+short_title: "Reconfigurable MSViT CIM"
 subtitle: "Scoped CIM stack note"
 year: 2024
 venue: "DAC 2024"

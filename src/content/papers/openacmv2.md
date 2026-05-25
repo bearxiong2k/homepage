@@ -1,6 +1,7 @@
 ---
 slug: openacmv2
 title: "OpenACMv2: An Accuracy-Constrained Co-Optimization Framework for Approximate DCiM"
+short_title: "OpenACMv2"
 subtitle: "Scoped CIM stack note"
 year: 2026
 venue: "DAC 2026 / arXiv preprint"

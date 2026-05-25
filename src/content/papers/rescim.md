@@ -1,6 +1,7 @@
 ---
 slug: rescim
 title: "ReSCIM: Variation-Resilient High Weight-Loading Bandwidth In-Memory Computation Based on Fine-Grained Hybrid Integration of Multi-Level ReRAM and SRAM Cells"
+short_title: "ReSCIM"
 subtitle: "Scoped CIM stack note"
 year: 2024
 venue: "ICCAD 2024"

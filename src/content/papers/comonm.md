@@ -1,6 +1,7 @@
 ---
 slug: comonm
 title: "CoMoNM: A Cost Modeling Framework for Compute-Near-Memory Systems"
+short_title: "CoMoNM"
 subtitle: "Scoped CIM stack note"
 year: 2025
 venue: "arXiv:2508.11451, cs.ET / cs.PL"

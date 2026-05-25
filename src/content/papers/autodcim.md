@@ -1,6 +1,7 @@
 ---
 slug: autodcim
 title: "AutoDCIM: An Automated Digital CIM Compiler"
+short_title: "AutoDCIM"
 subtitle: "Scoped CIM stack note"
 year: 2023
 venue: "DAC 2023"

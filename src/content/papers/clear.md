@@ -1,6 +1,7 @@
 ---
 slug: clear
 title: "CLEAR: a full-stack chip-in-loop emulator for analog RRAM based computing-in-memory system"
+short_title: "CLEAR"
 subtitle: "Scoped CIM stack note"
 year: 2023
 venue: "Science China Information Sciences 66(12):229402"

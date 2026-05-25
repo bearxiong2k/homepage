@@ -1,6 +1,7 @@
 ---
 slug: ares
 title: "ARES: A Mapping Framework of DNNs towards Diverse PIMs with General Abstractions"
+short_title: "ARES"
 subtitle: "Scoped CIM stack note"
 year: 2023
 venue: "ICCAD 2023"

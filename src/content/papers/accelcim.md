@@ -1,6 +1,7 @@
 ---
 slug: accelcim
 title: "AccelCIM: Systematic Dataflow Exploration for SRAM Compute-in-Memory Accelerator"
+short_title: "AccelCIM"
 subtitle: "Scoped CIM stack note"
 year: 2026
 venue: "DAC 2026"

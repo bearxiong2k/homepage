@@ -1,6 +1,7 @@
 ---
 slug: hermes
-title: "Hermes / Make LLM Inference Affordable to Everyone: Augmenting GPU Memory with NDP-DIMM"
+title: "Make LLM Inference Affordable to Everyone: Augmenting GPU Memory with NDP-DIMM"
+short_title: "Hermes"
 subtitle: "Scoped CIM stack note"
 year: 2025
 venue: "HPCA 2025"

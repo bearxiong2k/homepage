@@ -1,6 +1,7 @@
 ---
 slug: ns-cache
 title: "NS-Cache — Optimization and Benchmarking of Monolithically Stackable Gain Cell Memory for Last-Level Cache"
+short_title: "NS-Cache"
 subtitle: "Scoped CIM stack note"
 year: 2025
 venue: "IEEE Transactions on Computers; arXiv preprint also available"

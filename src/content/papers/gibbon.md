@@ -1,6 +1,7 @@
 ---
 slug: gibbon
-title: "Gibbon"
+title: "Gibbon: An Efficient Co-Exploration Framework of NN Model and Processing-In-Memory Architecture"
+short_title: "Gibbon"
 subtitle: "Scoped CIM stack note"
 year: 2022
 venue: "DATE 2022; IEEE TCAD 2023"

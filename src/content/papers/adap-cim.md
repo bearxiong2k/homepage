@@ -1,6 +1,7 @@
 ---
 slug: adap-cim
 title: "AdaP-CIM: Compute-in-Memory Based Neural Network Accelerator using Adaptive Posit"
+short_title: "AdaP-CIM"
 subtitle: "Scoped CIM stack note"
 year: 2024
 venue: "DATE 2024"

@@ -1,6 +1,7 @@
 ---
 slug: openc2
 title: "OpenC2: An Open-Source End-to-End Hardware Compiler Development Framework for Digital Compute-in-Memory Macro"
+short_title: "OpenC2"
 subtitle: "Scoped CIM stack note"
 year: 2025
 venue: "DATE 2025"

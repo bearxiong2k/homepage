@@ -1,6 +1,7 @@
 ---
 slug: pimsynth
 title: "PIMsynth: A Unified Compiler Framework for Bit-Serial Processing-in-Memory Architectures"
+short_title: "PIMsynth"
 subtitle: "Scoped CIM stack note"
 year: 2025
 venue: "IEEE Computer Architecture Letters"

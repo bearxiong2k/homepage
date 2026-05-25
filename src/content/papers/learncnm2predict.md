@@ -1,6 +1,7 @@
 ---
 slug: learncnm2predict
 title: "LearnCNM2Predict: Transfer Learning-based Performance Model for CNM Systems"
+short_title: "LearnCNM2Predict"
 subtitle: "Scoped CIM stack note"
 year: 2025
 venue: "25th IEEE International Conference on Embedded Computer Systems: Architectures, Modeling and Simulation (SAMOS 2025)"

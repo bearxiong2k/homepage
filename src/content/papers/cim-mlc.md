@@ -1,6 +1,7 @@
 ---
 slug: cim-mlc
 title: "CIM-MLC: A Multi-level Compilation Stack for Computing-In-Memory Accelerators"
+short_title: "CIM-MLC"
 subtitle: "Scoped CIM stack note"
 year: 2024
 venue: "ASPLOS 2024, Volume 2"

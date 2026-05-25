@@ -4,7 +4,7 @@
   "title": "CIM Compiler/IR Paper Library",
   "kind": "research-atlas",
   "route": "/library/",
-  "generated_at": "2026-05-25T07:53:07.225Z",
+  "generated_at": "2026-05-25T08:56:34.215Z",
   "source": {
     "content_root": "src/content/papers",
     "taxonomy_path": "src/data/taxonomy.json",
@@ -162,7 +162,7 @@
   },
   "stats": {
     "paper_count": 62,
-    "year_min": 2018,
+    "year_min": 2019,
     "year_max": 2026,
     "axis_A_counts": {
       "A3": 55,
@@ -587,8 +587,99 @@
   },
   "papers": [
     {
+      "slug": "opencimtc",
+      "title": "A full-stack memristor-based computation-in-memory system with software-hardware co-development",
+      "short_title": "OpenCIMTC",
+      "subtitle": "Scoped CIM stack note",
+      "year": 2025,
+      "venue": "Nature Communications",
+      "authors_or_group": "Tsinghua LEMON Lab and collaborators",
+      "summary": "OpenCIMTC is best read as a concrete end-to-end memristor/RRAM CIM co-design stack whose reusable compiler contribution is a serialized YAML **CIM-IR** separating layer attributes, physical mapping information, and calculation/deployment parameters. The work strengthens the vertical path from ONNX model import to memristor-array placement, simulator or hardware execution, post-deployment training, and simulator-/chip-in-the-loop tuning of hardware-sensitive parameters. The demonstrated system targets static neural-network inference and training-adjustment flows for a specific memristor CIM prototype with FPGA/CPU support, with public artifact support clearest around ResNet-32 simulation and generated training/optimization/inference scripts. For CIM compiler/IR research, its main value is not a broad formal IR, but an auditable example of how mapping state, physical addresses, ADC/integration-time parameters, quantization fields, and backend generation contracts can be made explicit enough to survive a compiler-to-hardware flow. ([Nature](https://www.nature.com/articles/s41467-025-57183-0))",
+      "route": "/papers/opencimtc/",
+      "links": {
+        "paper": "https://www.nature.com/articles/s41467-025-57183-0",
+        "artifact": "https://github.com/Tsinghua-LEMON-Lab/OpenCIMTC",
+        "docs": "",
+        "code": ""
+      },
+      "technology": [
+        "RRAM-CIM",
+        "memristor-CIM",
+        "analog-CIM",
+        "hybrid analog-digital"
+      ],
+      "workloads": [
+        "image classification",
+        "text classification",
+        "image segmentation",
+        "object detection",
+        "ResNet-32",
+        "ResNet-50 simulator evaluation"
+      ],
+      "tags": [],
+      "baselines": [],
+      "axis_A": {
+        "primary": "A5",
+        "secondary": [
+          "A4",
+          "A3",
+          "A2",
+          "A6"
+        ]
+      },
+      "axis_B": [
+        "B1",
+        "B2",
+        "B4",
+        "B6",
+        "B7"
+      ],
+      "axis_C_first_class_objects": [
+        "operator_attributes",
+        "CIM_friendly_op_type",
+        "virtual_non_CIM_runtime",
+        "weight_split_copy_repeat",
+        "physical_array_address",
+        "runtime_target_real_or_simulator",
+        "ADC_integration_time",
+        "weight_scale",
+        "input_quantization_scale",
+        "activation_bits",
+        "output_quantization_mode",
+        "simulator_nonideality_parameters"
+      ],
+      "axis_C_object_vocab": [
+        "operator graph",
+        "runtime state",
+        "crossbar / array",
+        "chip / emulator address",
+        "ADC / DAC / peripherals",
+        "nonideality / faults"
+      ],
+      "axis_D_rewrite_objects": [
+        "operator_graph",
+        "hardware_mapping",
+        "array_binding",
+        "memory_layout",
+        "input_bit_expansion",
+        "numeric_format",
+        "hardware_calculation_parameters",
+        "generated_backend_flow"
+      ],
+      "axis_D_rewrite_types": [
+        "operator graph transformation",
+        "mapping, placement, tiling, or allocation",
+        "numeric format, precision, quantization, or approximation",
+        "hardware template / macro choice"
+      ],
+      "artifact_status": "public_artifact_found",
+      "artifact_url": "https://github.com/Tsinghua-LEMON-Lab/OpenCIMTC",
+      "reproducibility_level": "medium"
+    },
+    {
       "slug": "accelcim",
       "title": "AccelCIM: Systematic Dataflow Exploration for SRAM Compute-in-Memory Accelerator",
+      "short_title": "AccelCIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2026,
       "venue": "DAC 2026",
@@ -669,6 +760,7 @@
     {
       "slug": "pim-tc",
       "title": "Accelerating Triangle Counting with Real Processing-in-Memory Systems",
+      "short_title": "PIM-TC",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
       "venue": "IPDPS Workshop on Graphs, Architectures, Programming, and Learning (GrAPL); also indexed as arXiv/CoRR abs/2505.04269",
@@ -746,6 +838,7 @@
     {
       "slug": "adap-cim",
       "title": "AdaP-CIM: Compute-in-Memory Based Neural Network Accelerator using Adaptive Posit",
+      "short_title": "AdaP-CIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
       "venue": "DATE 2024",
@@ -816,6 +909,7 @@
     {
       "slug": "reconfigurable-dataflow-cim-accelerator-for-multi-scale-vision-transformer",
       "title": "An In-Memory Computing Accelerator with Reconfigurable Dataflow for Multi-Scale Vision Transformer with Hybrid Topology",
+      "short_title": "Reconfigurable MSViT CIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
       "venue": "DAC 2024",
@@ -889,8 +983,96 @@
       "reproducibility_level": "low"
     },
     {
+      "slug": "pimeval",
+      "title": "Architectural Modeling and Benchmarking for Digital DRAM PIM",
+      "short_title": "PIMeval/PIMbench",
+      "subtitle": "Scoped CIM stack note",
+      "year": 2024,
+      "venue": "IISWC 2024",
+      "authors_or_group": "University of Virginia LavaLab / Siddique et al.",
+      "summary": "**PIMeval / PIMbench** contributes a public modeling and benchmarking stack for **digital DRAM-PIM**, centered on a C++ PIM API, a configurable performance/energy model, and a benchmark suite spanning vector, linear algebra, graph, image, security, machine-learning, and DNN inference kernels. The demonstrated hardware scope covers three DRAM-PIM styles: DRAM-AP-style subarray bit-serial PIM, Fulcrum-style subarray bit-parallel PIM, and bank-level bit-parallel PIM. Its strongest contribution to a CIM compiler/IR corpus is not an explicit compiler IR, but a reusable evaluation boundary: PIM data objects, layout choices, target device configs, PIM API commands, and command-level timing/energy accounting. For compiler/IR research, PIMeval is useful as a backend-facing reference model and benchmark harness that exposes the kinds of objects a future CIM IR would need to preserve when lowering higher-level tensor or graph programs into digital DRAM-PIM execution. ([University of Virginia Computer Science](https://www.cs.virginia.edu/~skadron/Papers/PIMbench_PIMeval_iiswc2024.pdf))",
+      "route": "/papers/pimeval/",
+      "links": {
+        "paper": "https://doi.org/10.1109/IISWC63097.2024.00030",
+        "artifact": "https://github.com/UVA-LavaLab/PIMeval-PIMbench",
+        "docs": "",
+        "code": ""
+      },
+      "technology": [
+        "DRAM-PIM",
+        "digital-CIM",
+        "digital-PIM",
+        "subarray-PIM",
+        "bank-level-PIM"
+      ],
+      "workloads": [
+        "vector-addition",
+        "AXPY",
+        "GEMV",
+        "GEMM",
+        "radix-sort",
+        "AES",
+        "triangle-count",
+        "filter-by-key",
+        "histogram",
+        "image-processing",
+        "KNN",
+        "linear-regression",
+        "k-means",
+        "VGG-inference"
+      ],
+      "tags": [],
+      "baselines": [],
+      "axis_A": {
+        "primary": "A2",
+        "secondary": [
+          "A6",
+          "A3"
+        ]
+      },
+      "axis_B": [
+        "B1",
+        "B4",
+        "B5",
+        "B7"
+      ],
+      "axis_C_first_class_objects": [
+        "PIM_device",
+        "PIM_core",
+        "PIM_data_object_id",
+        "DRAM_rank_bank_subarray_row_column_hierarchy",
+        "allocation_layout_vertical_horizontal",
+        "PIM_API_command",
+        "PIM_command_statistics",
+        "data_type",
+        "bit_slice_index",
+        "row_register_micro_ops"
+      ],
+      "axis_C_object_vocab": [
+        "hardware hierarchy",
+        "instruction stream",
+        "benchmark API",
+        "numeric format"
+      ],
+      "axis_D_rewrite_objects": [
+        "API_command_stream",
+        "allocation_layout_state",
+        "target_specific_command_cost_lowering",
+        "bit_serial_microprogram_expansion"
+      ],
+      "axis_D_rewrite_types": [
+        "instruction, microprogram, or trace generation",
+        "benchmark, API, or workload-porting pattern",
+        "mapping, placement, tiling, or allocation"
+      ],
+      "artifact_status": "public_artifact_found",
+      "artifact_url": "https://github.com/UVA-LavaLab/PIMeval-PIMbench",
+      "reproducibility_level": "medium"
+    },
+    {
       "slug": "arctic",
       "title": "ARCTIC: Agile and Robust Compute-In-Memory Compiler with Parameterized INT/FP Precision and Built-In Self Test",
+      "short_title": "ARCTIC",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
       "venue": "DATE 2024",
@@ -898,7 +1080,7 @@
       "summary": "**ARCTIC: Agile and Robust Compute-In-Memory Compiler with Parameterized INT/FP Precision and Built-In Self Test** is best read as a physical digital-CIM macro compiler for SRAM-based DCIM. Its main contribution is a parameterized macro-generation flow that accepts hardware-level specifications—timing and area constraints, memory depth and width, mantissa width, exponent width, exponent offset, and INT/FP format—and produces low-level RTL, MarchCIM BIST logic, and placed-and-routed 28 nm macro layouts through commercial EDA flows. The paper strengthens the lower hardware-generation layer of the CIM stack, especially precision-specialized INT/FP macro construction and DCIM-aware BIST, rather than the model-frontend or tensor-mapping layer. For CIM compiler/IR research, ARCTIC is useful as evidence that numeric-format fields, mantissa/exponent placement, BIST test modes, and physical macro hierarchy are important first-class backend objects, even though the paper foregrounds a template/EDA flow rather than a standalone auditable IR. ([DATE Conference](https://past.date-conference.com/proceedings-archive/2024/DATA/399_pdf_upload.pdf))",
       "route": "/papers/arctic/",
       "links": {
-        "paper": "https://arxiv.org/abs/2411.16806",
+        "paper": "https://doi.org/10.23919/DATE58400.2024.10546676",
         "artifact": "",
         "docs": "",
         "code": ""
@@ -966,6 +1148,7 @@
     {
       "slug": "ares",
       "title": "ARES: A Mapping Framework of DNNs towards Diverse PIMs with General Abstractions",
+      "short_title": "ARES",
       "subtitle": "Scoped CIM stack note",
       "year": 2023,
       "venue": "ICCAD 2023",
@@ -1052,6 +1235,7 @@
     {
       "slug": "autodcim",
       "title": "AutoDCIM: An Automated Digital CIM Compiler",
+      "short_title": "AutoDCIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2023,
       "venue": "DAC 2023",
@@ -1117,8 +1301,99 @@
       "reproducibility_level": "low"
     },
     {
+      "slug": "prim",
+      "title": "Benchmarking a New Paradigm: Experimental Analysis and Characterization of a Real Processing-in-Memory System",
+      "short_title": "PrIM",
+      "subtitle": "Scoped CIM stack note",
+      "year": 2022,
+      "venue": "IEEE Access",
+      "authors_or_group": "Juan Gómez-Luna, Izzat El Hajj, Ivan Fernandez, Christina Giannoula, Geraldo F. Oliveira, Onur Mutlu",
+      "summary": "PrIM is best classified as a real-hardware benchmark and characterization framework for the UPMEM digital DRAM-PIM architecture rather than as an explicit compiler/IR stack. Its main contribution is a public suite of 16 manually ported memory-bound workloads, accompanying microbenchmarks, CPU/GPU baselines, and a measurement methodology for understanding DPU compute throughput, MRAM/WRAM bandwidth, host-DPU transfer behavior, scaling, and energy on 640-DPU and 2,556-DPU UPMEM systems. The reusable stack layer is clearest at the benchmark/reproducibility boundary: host code, DPU kernels, Makefile parameters, run scripts, datasets, and profiling outputs. For CIM compiler/IR research, PrIM is useful as a concrete backend contract for digital DRAM-PIM: it shows which objects a future IR would need to name to target UPMEM-like systems, especially DPU allocation, tasklet count, MRAM/WRAM staging, transfer direction, inter-DPU communication through the host, and workload partitioning. ([cgiannoula.github.io](https://cgiannoula.github.io/assets/publications/Prim_Access22_arxiv.pdf))",
+      "route": "/papers/prim/",
+      "links": {
+        "paper": "https://cgiannoula.github.io/assets/publications/Prim_Access22_arxiv.pdf",
+        "artifact": "https://github.com/CMU-SAFARI/prim-benchmarks",
+        "docs": "",
+        "code": ""
+      },
+      "technology": [
+        "DRAM-PIM",
+        "UPMEM",
+        "digital-CIM",
+        "digital-PIM"
+      ],
+      "workloads": [
+        "Vector Addition",
+        "GEMV",
+        "SpMV",
+        "Select",
+        "Unique",
+        "Binary Search",
+        "Time Series Analysis",
+        "BFS",
+        "MLP",
+        "Needleman-Wunsch",
+        "Image Histogram",
+        "Reduction",
+        "Prefix Sum",
+        "Matrix Transposition"
+      ],
+      "tags": [],
+      "baselines": [],
+      "axis_A": {
+        "primary": "A6",
+        "secondary": [
+          "A2",
+          "A3"
+        ]
+      },
+      "axis_B": [
+        "B1",
+        "B4",
+        "B7",
+        "B5"
+      ],
+      "axis_C_first_class_objects": [
+        "DPU",
+        "tasklet",
+        "MRAM_bank",
+        "WRAM",
+        "IRAM",
+        "DMA_transfer",
+        "CPU_DPU_transfer",
+        "DPU_CPU_transfer",
+        "host_merge",
+        "synchronization_primitive",
+        "datatype",
+        "block_size"
+      ],
+      "axis_C_object_vocab": [
+        "hardware hierarchy",
+        "runtime state",
+        "memory service properties"
+      ],
+      "axis_D_rewrite_objects": [
+        "manual_loop_partitioning",
+        "data_chunk_mapping",
+        "tasklet_block_assignment",
+        "memory_staging",
+        "synchronization_structure",
+        "implementation_variant_selection",
+        "runtime_phase_measurement"
+      ],
+      "axis_D_rewrite_types": [
+        "loop or tensor-schedule transformation",
+        "mapping, placement, tiling, or allocation",
+        "runtime scheduling, placement, batching, or data movement"
+      ],
+      "artifact_status": "public_artifact_found",
+      "artifact_url": "https://github.com/CMU-SAFARI/prim-benchmarks",
+      "reproducibility_level": "medium"
+    },
+    {
       "slug": "c4cam",
-      "title": "C4CAM",
+      "title": "C4CAM: A Compiler for CAM-based In-memory Accelerators",
+      "short_title": "C4CAM",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
       "venue": "ASPLOS 2024",
@@ -1126,7 +1401,7 @@
       "summary": "C4CAM is a 2024 ASPLOS paper that proposes an MLIR-based compiler and mapping flow for content-addressable-memory accelerators, focused on similarity and search-style workloads rather than general tensor-program compilation. Its main technical contribution is a layered lowering path from TorchScript/Torch MLIR into a generic `cim` abstraction and then into a CAM-specific `cam` abstraction that names CAM hierarchy, allocation, search mode, similarity metric, and partial-result handling. The demonstrated workloads are KNN, hyperdimensional-computing similarity, and DNA read mapping, evaluated through a CAMASim/Eva-CAM-style simulator setup with FeFET TCAM/MCAM assumptions rather than through a public end-to-end compiler artifact. The work is most useful to CIM compiler/IR research as an example of making CAM search and hierarchy mapping explicit in IR, with the clearest reusable boundary around pattern lowering, CAM resource binding, and simulator-facing cost-model integration. ([Cfaed](https://cfaed.tu-dresden.de/publications?pubId=3738))",
       "route": "/papers/c4cam/",
       "links": {
-        "paper": "https://arxiv.org/abs/2309.06418",
+        "paper": "https://doi.org/10.1145/3620666.3651386",
         "artifact": "https://github.com/camasim-project/CAMASim",
         "docs": "",
         "code": ""
@@ -1198,6 +1473,7 @@
     {
       "slug": "cim-mlc",
       "title": "CIM-MLC: A Multi-level Compilation Stack for Computing-In-Memory Accelerators",
+      "short_title": "CIM-MLC",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
       "venue": "ASPLOS 2024, Volume 2",
@@ -1275,94 +1551,9 @@
       "reproducibility_level": "medium"
     },
     {
-      "slug": "cim-mxu",
-      "title": "CIM-MXU / Leveraging Compute-in-Memory for Efficient Generative Model Inference in TPUs",
-      "subtitle": "Scoped CIM stack note",
-      "year": 2025,
-      "venue": "DATE 2025 (accepted; arXiv:2503.00461)",
-      "authors_or_group": "Zhantong Zhu, Hongou Li, Wenjie Ren, Meng Wu, Le Ye, Ru Huang, Tianyu Jia",
-      "summary": "**CIM-MXU** studies how a digital SRAM compute-in-memory matrix unit could replace the conventional systolic MXU inside a TPUv4i-like inference accelerator. Its main contribution is a hardware/software co-design and modeling study: a CIM-MXU microarchitecture built from a systolic grid of CIM cores, a TPU-level architecture model with VMEM/CMEM/HBM-style hierarchy, a mapping engine for Transformer-layer operators, and architecture exploration over CIM-MXU array size and count. The demonstrated workloads are representative generative-model inference kernels, especially GPT-3-30B Transformer-layer evaluation and DiT-XL/2 block evaluation, with INT8 experiments and BF16 support described at the microarchitecture level. For CIM compiler/IR research, the paper is most useful as a hardware-resource and cost-model case study: it shows what a backend would need to know about CIM-core grids, weight-update paths, tiling, memory hierarchy, and precision modes, while the reusable compiler boundary is clearest at the mapping/configuration state rather than at an explicit IR or instruction stream. ([arXiv](https://arxiv.org/pdf/2503.00461))",
-      "route": "/papers/cim-mxu/",
-      "links": {
-        "paper": "https://arxiv.org/abs/2503.00461",
-        "artifact": "",
-        "docs": "",
-        "code": ""
-      },
-      "technology": [
-        "SRAM-CIM",
-        "digital-CIM",
-        "TPU-style accelerator"
-      ],
-      "workloads": [
-        "GPT-3-30B Transformer layer",
-        "LLM prefilling",
-        "LLM decoding",
-        "DiT-XL/2 block",
-        "GEMM",
-        "GEMV",
-        "Softmax",
-        "LayerNorm",
-        "GeLU"
-      ],
-      "tags": [],
-      "baselines": [],
-      "axis_A": {
-        "primary": "A5",
-        "secondary": [
-          "A2",
-          "A3"
-        ]
-      },
-      "axis_B": [
-        "B1",
-        "B4",
-        "B3",
-        "B2"
-      ],
-      "axis_C_first_class_objects": [
-        "CIM-MXU",
-        "CIM-core-grid",
-        "SRAM-CIM-core",
-        "bank_subarray_hierarchy",
-        "weight_IO",
-        "bit_serial_input_broadcast",
-        "output_stationary_dataflow",
-        "PSUM_buffer",
-        "shift_accumulator",
-        "BF16_prepost_processing",
-        "VMEM_CMEM_HBM_hierarchy"
-      ],
-      "axis_C_object_vocab": [
-        "hardware hierarchy",
-        "crossbar / array",
-        "numeric format",
-        "loop / tensor schedule",
-        "ADC / DAC / peripherals"
-      ],
-      "axis_D_rewrite_objects": [
-        "hardware_mapping",
-        "tensor_tiling",
-        "schedule_options",
-        "architecture_configuration",
-        "array_binding",
-        "memory_layout_or_residency",
-        "numeric_mode"
-      ],
-      "axis_D_rewrite_types": [
-        "mapping, placement, tiling, or allocation",
-        "loop or tensor-schedule transformation",
-        "hardware template / macro choice",
-        "mode selection across compute, memory, or device classes",
-        "numeric format, precision, quantization, or approximation"
-      ],
-      "artifact_status": "no public artifact found",
-      "artifact_url": null,
-      "reproducibility_level": "low"
-    },
-    {
       "slug": "cim-pruner",
       "title": "CIM-Pruner: A Dual-Mode Compute-In-Memory Macro for Efficient VLMs with Intra-Chunk Token Pruning and Merging",
+      "short_title": "CIM-Pruner",
       "subtitle": "Scoped CIM stack note",
       "year": 2026,
       "venue": "ISCAS 2026",
@@ -1427,6 +1618,7 @@
     {
       "slug": "cim-tuner",
       "title": "CIM-Tuner: Balancing the Compute and Storage Capacity of SRAM-CIM Accelerator via Hardware-mapping Co-exploration",
+      "short_title": "CIM-Tuner",
       "subtitle": "Scoped CIM stack note",
       "year": 2026,
       "venue": "DATE 2026 / arXiv:2601.18070",
@@ -1507,7 +1699,8 @@
     },
     {
       "slug": "cima-com",
-      "title": "CIMA_COM / CIMA_COMP",
+      "title": "CIMA_COMP: CIMA compiler and backend artifact for a CIMA-specific CIM deployment pipeline",
+      "short_title": "CIMA_COMP",
       "subtitle": "Scoped CIM stack note",
       "year": null,
       "venue": "unknown for exact CIMA_COM; related paper: Nature Communications",
@@ -1587,15 +1780,16 @@
     },
     {
       "slug": "cimflow",
-      "title": "CIMFlow",
+      "title": "CIMFlow: An Integrated Framework for Systematic Design and Evaluation of Digital CIM Architectures",
+      "short_title": "CIMFlow",
       "subtitle": "Scoped CIM stack note seed",
       "year": 2025,
-      "venue": "arXiv",
+      "venue": "DAC 2025",
       "authors_or_group": "CIMFlow authors",
       "summary": "CIMFlow is a public SRAM-based digital CIM infrastructure stack for DNN inference, connecting ONNX input, hardware configuration, graph partitioning, OP-level MLIR/DSL lowering, per-core ISA JSON, and SystemC-backed simulation.",
       "route": "/papers/cimflow/",
       "links": {
-        "paper": "https://arxiv.org/pdf/2505.01107",
+        "paper": "https://doi.org/10.1109/DAC63849.2025.11133270",
         "artifact": "https://www.cimflow.org/",
         "docs": "https://www.cimflow.org/docs/Compiler/Pipeline-Overview",
         "code": ""
@@ -1687,6 +1881,7 @@
     {
       "slug": "ciminus",
       "title": "CIMinus: Empowering Sparse DNN Workloads Modeling and Exploration on SRAM-Based CIM Architectures",
+      "short_title": "CIMinus",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
       "venue": "IEEE Transactions on Computers",
@@ -1780,6 +1975,7 @@
     {
       "slug": "cimloop",
       "title": "CiMLoop: A Flexible, Accurate, and Fast Compute-In-Memory Modeling Tool",
+      "short_title": "CiMLoop",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
       "venue": "IEEE International Symposium on Performance Analysis of Systems and Software (ISPASS)",
@@ -1861,6 +2057,7 @@
     {
       "slug": "cinm",
       "title": "CINM (Cinnamon): A Compilation Infrastructure for Heterogeneous Compute In-Memory and Compute Near-Memory Paradigms",
+      "short_title": "CINM",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
       "venue": "ASPLOS '25 / Proceedings of the 29th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 4",
@@ -1957,6 +2154,7 @@
     {
       "slug": "clear",
       "title": "CLEAR: a full-stack chip-in-loop emulator for analog RRAM based computing-in-memory system",
+      "short_title": "CLEAR",
       "subtitle": "Scoped CIM stack note",
       "year": 2023,
       "venue": "Science China Information Sciences 66(12):229402",
@@ -2038,6 +2236,7 @@
     {
       "slug": "cmswitch",
       "title": "CMSwitch: Be CIM or Be Memory: A Dual-mode-aware DNN Compiler for CIM Accelerators",
+      "short_title": "CMSwitch",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
       "venue": "ASPLOS 2025, Proceedings of the 30th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 2",
@@ -2118,6 +2317,7 @@
     {
       "slug": "comonm",
       "title": "CoMoNM: A Cost Modeling Framework for Compute-Near-Memory Systems",
+      "short_title": "CoMoNM",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
       "venue": "arXiv:2508.11451, cs.ET / cs.PL",
@@ -2210,6 +2410,7 @@
     {
       "slug": "count2multiply",
       "title": "Count2Multiply: Reliable In-Memory High-Radix Counting",
+      "short_title": "Count2Multiply",
       "subtitle": "Scoped CIM stack note",
       "year": 2026,
       "venue": "HPCA 2026",
@@ -2288,6 +2489,7 @@
     {
       "slug": "dappa",
       "title": "DaPPA: A Data-Parallel Programming Framework for Processing-in-Memory Architectures",
+      "short_title": "DaPPA",
       "subtitle": "Scoped CIM stack note",
       "year": 2023,
       "venue": "arXiv preprint; PACT 2023 ACM Student Research Competition presentation/poster context",
@@ -2371,6 +2573,7 @@
     {
       "slug": "declarative-memory-services",
       "title": "Declarative Memory Services",
+      "short_title": "DMS",
       "subtitle": "Scoped CIM stack note",
       "year": 2026,
       "venue": "CIDR 2026",
@@ -2445,8 +2648,96 @@
       "reproducibility_level": "low"
     },
     {
+      "slug": "neurosim",
+      "title": "DNN+NeuroSim V2.0: An End-to-End Benchmarking Framework for Compute-in-Memory Accelerators for On-Chip Training",
+      "short_title": "DNN+NeuroSim",
+      "subtitle": "Scoped CIM stack note",
+      "year": 2021,
+      "venue": "IEEE TCAD",
+      "authors_or_group": "Shimeng Yu group / NeuroSim authors",
+      "summary": "**NeuroSIM / DNN+NeuroSim** is best classified as a CIM **device–circuit–architecture simulator with a narrow DNN-to-CIM evaluation flow**. The original NeuroSim contribution is a C++ macro model that estimates area, latency, energy, leakage, and accuracy for SRAM and emerging-memory CIM designs using a bottom-up hierarchy of device, array, peripheral, and architecture models; DNN+NeuroSim then wraps this backend with PyTorch/TensorFlow or PyTorch workflows that extract network topology, weights, activations, and training traces, map them onto a fixed chip/tile/PE/synaptic-array organization, and report accuracy and hardware metrics. ([NSF Public Access Repository](https://par.nsf.gov/servlets/purl/10109970)) For CIM compiler/IR research, the work is most useful as a **backend contract and cost-model reference**: it exposes concrete CIM resources, precision fields, ADC/sensing assumptions, device nonidealities, and layer-wise hardware reports, while the reusable compiler boundary is mainly expressed through configuration files, traces, and C++ simulator interfaces rather than a standalone IR, ISA, or modular lowering pipeline. ([arXiv](https://arxiv.org/pdf/2003.06471))",
+      "route": "/papers/neurosim/",
+      "links": {
+        "paper": "https://doi.org/10.1109/TCAD.2020.3043731",
+        "artifact": "https://github.com/neurosim/NeuroSim",
+        "docs": "",
+        "code": ""
+      },
+      "technology": [
+        "SRAM-CIM",
+        "RRAM-CIM",
+        "PCM",
+        "FeFET",
+        "ECRAM",
+        "analog-CIM",
+        "digital-CIM",
+        "hybrid"
+      ],
+      "workloads": [
+        "MLP/MNIST",
+        "VGG-8/CIFAR-10",
+        "ResNet/ImageNet-style inference"
+      ],
+      "tags": [],
+      "baselines": [],
+      "axis_A": {
+        "primary": "A2",
+        "secondary": [
+          "A5",
+          "A3",
+          "A1"
+        ]
+      },
+      "axis_B": [
+        "B1",
+        "B4",
+        "B6",
+        "B2",
+        "B7"
+      ],
+      "axis_C_first_class_objects": [
+        "chip/tile/PE/synaptic-array hierarchy",
+        "subarray dimensions",
+        "SRAM/eNVM/FeFET memory-cell parameters",
+        "conductance state",
+        "ADC/sensing precision",
+        "ADC sharing / muxing",
+        "buffers and H-tree interconnect",
+        "accumulation units and adder/shift-add structures",
+        "precision fields",
+        "activation/weight/error/gradient traces"
+      ],
+      "axis_C_object_vocab": [
+        "hardware hierarchy",
+        "crossbar / array",
+        "numeric format",
+        "ADC / DAC / peripherals",
+        "nonideality / faults"
+      ],
+      "axis_D_rewrite_objects": [
+        "hardware mapping",
+        "array binding",
+        "convolution-kernel-to-submatrix lowering",
+        "trace partitioning",
+        "weight duplication",
+        "numeric-format configuration",
+        "nonideality configuration",
+        "training operation flow"
+      ],
+      "axis_D_rewrite_types": [
+        "mapping, placement, tiling, or allocation",
+        "instruction, microprogram, or trace generation",
+        "numeric format, precision, quantization, or approximation",
+        "fault, variation, calibration, or accuracy handling"
+      ],
+      "artifact_status": "public artifact found",
+      "artifact_url": "https://github.com/neurosim/NeuroSim",
+      "reproducibility_level": "medium"
+    },
+    {
       "slug": "dypim",
       "title": "DyPIM: Dynamic-Inference-Enabled Processing-In-Memory Accelerator",
+      "short_title": "DyPIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
       "venue": "DATE 2024",
@@ -2524,6 +2815,7 @@
     {
       "slug": "efficient-in-memory-acceleration-of-sparse-block-diagonal-llms",
       "title": "Efficient In-Memory Acceleration of Sparse Block Diagonal LLMs",
+      "short_title": "SparseBD-LLM CIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
       "venue": "IEEE Cross-disciplinary Conference on Memory-Centric Computing (CCMCC), to appear / arXiv v1",
@@ -2603,6 +2895,7 @@
     {
       "slug": "exploiting-the-memory-compute-coupling-feature-for-cim-accelerator-design-optimization",
       "title": "Exploiting the Memory-Compute-Coupling Feature for CIM Accelerator Design Optimization",
+      "short_title": "MCC CIM DSE",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
       "venue": "IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems, 44(11):4181-4194",
@@ -2671,7 +2964,8 @@
     },
     {
       "slug": "geniex",
-      "title": "GENIEx",
+      "title": "GENIEx: A Generalized Approach to Emulating Non-Ideality in Memristive Xbars using Neural Networks",
+      "short_title": "GENIEx",
       "subtitle": "Scoped CIM stack note",
       "year": 2020,
       "venue": "DAC 2020 / arXiv 2020",
@@ -2744,7 +3038,8 @@
     },
     {
       "slug": "gibbon",
-      "title": "Gibbon",
+      "title": "Gibbon: An Efficient Co-Exploration Framework of NN Model and Processing-In-Memory Architecture",
+      "short_title": "Gibbon",
       "subtitle": "Scoped CIM stack note",
       "year": 2022,
       "venue": "DATE 2022; IEEE TCAD 2023",
@@ -2819,7 +3114,8 @@
     },
     {
       "slug": "harmoni",
-      "title": "HARMONI",
+      "title": "HARMONI: A Hardware-Software Co-Design Framework for Efficient LLM Inference on Hybrid Memory Cube Based Near-Memory Processing Systems",
+      "short_title": "HARMONI",
       "subtitle": "Scoped CIM stack note",
       "year": 2026,
       "venue": "ISPASS 2026 inferred from repository PDF/release naming; exact paper metadata not confirmed from extracted PDF text",
@@ -2904,6 +3200,7 @@
     {
       "slug": "hastily",
       "title": "HASTILY: Hardware-Software Co-Design for Accelerating Transformer Inference Leveraging Compute-in-Memory",
+      "short_title": "HASTILY",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
       "venue": "IEEE Transactions on Circuits and Systems for Artificial Intelligence; arXiv:2502.12344",
@@ -2995,83 +3292,9 @@
       "reproducibility_level": "low"
     },
     {
-      "slug": "hermes",
-      "title": "Hermes / Make LLM Inference Affordable to Everyone: Augmenting GPU Memory with NDP-DIMM",
-      "subtitle": "Scoped CIM stack note",
-      "year": 2025,
-      "venue": "HPCA 2025",
-      "authors_or_group": "Lian Liu, Shixin Zhao, Bing Li, Haimeng Ren, Zhaohui Xu, Mengdi Wang, Xiaowei Li, Yinhe Han, Ying Wang",
-      "summary": "Hermes, formally “Make LLM Inference Affordable to Everyone: Augmenting GPU Memory with NDP-DIMM,” is an HPCA 2025 hardware–software co-design for activation-sparse LLM inference on a consumer-grade GPU augmented by digital near-data-processing DIMMs. Its core contribution is not a general CIM compiler IR, but a specialized runtime mapping and scheduling layer: frequently active “hot” neurons are kept on the GPU, while less frequently active “cold” neurons remain in NDP-DIMMs, with an offline ILP initializer, a lightweight online predictor, and a window-based DIMM load-balancing scheduler. The paper demonstrates this design for OPT, LLaMA2, and Falcon-style models under ReLU-based activation sparsity, using an RTX 4090, eight modeled DDR4 NDP-DIMMs, measured GPU kernels, a modified Ramulator 2.0 simulator, and RTL-synthesized NDP cores. For CIM compiler/IR research, Hermes is most useful as a runtime-state and mapping case study: it names neuron activity, placement, and remapping as first-class scheduling objects, while the compiler-visible value trajectory remains implicit in the scheduler, commands, barriers, and simulator assumptions. ([arXiv](https://arxiv.org/abs/2502.16963?utm_source=chatgpt.com))",
-      "route": "/papers/hermes/",
-      "links": {
-        "paper": "https://arxiv.org/abs/2502.16963",
-        "artifact": "https://huggingface.co/SparseLLM",
-        "docs": "",
-        "code": ""
-      },
-      "technology": [
-        "DRAM-PIM",
-        "digital-CIM",
-        "digital-NDP",
-        "NDP-DIMM",
-        "GPU-PIM-hybrid"
-      ],
-      "workloads": [
-        "OPT-13B",
-        "OPT-30B",
-        "OPT-66B",
-        "LLaMA2-13B",
-        "LLaMA2-70B",
-        "Falcon-40B"
-      ],
-      "tags": [],
-      "baselines": [],
-      "axis_A": {
-        "primary": "A5",
-        "secondary": [
-          "A3",
-          "A2"
-        ]
-      },
-      "axis_B": [
-        "B7",
-        "B1",
-        "B5"
-      ],
-      "axis_C_first_class_objects": [
-        "neuron_identity",
-        "hot_cold_neuron_status",
-        "neuron_state_table",
-        "neuron_correlation_table",
-        "neuron_activity_window",
-        "GPU_vs_NDP_DIMM_placement",
-        "DIMM_load",
-        "DIMM_link_remapping",
-        "MAC_softmax_command"
-      ],
-      "axis_C_object_vocab": [
-        "instruction stream"
-      ],
-      "axis_D_rewrite_objects": [
-        "hardware_mapping",
-        "runtime_state",
-        "neuron_placement",
-        "cold_neuron_remapping",
-        "command_schedule"
-      ],
-      "axis_D_rewrite_types": [
-        "mapping, placement, tiling, or allocation",
-        "runtime scheduling, placement, batching, or data movement",
-        "loop or tensor-schedule transformation",
-        "instruction, microprogram, or trace generation"
-      ],
-      "artifact_status": "partial",
-      "artifact_url": "https://huggingface.co/SparseLLM",
-      "reproducibility_level": "low"
-    },
-    {
       "slug": "learncnm2predict",
       "title": "LearnCNM2Predict: Transfer Learning-based Performance Model for CNM Systems",
+      "short_title": "LearnCNM2Predict",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
       "venue": "25th IEEE International Conference on Embedded Computer Systems: Architectures, Modeling and Simulation (SAMOS 2025)",
@@ -3152,8 +3375,172 @@
       "reproducibility_level": "medium"
     },
     {
+      "slug": "cim-mxu",
+      "title": "Leveraging Compute-in-Memory for Efficient Generative Model Inference in TPUs",
+      "short_title": "CIM-MXU",
+      "subtitle": "Scoped CIM stack note",
+      "year": 2025,
+      "venue": "DATE 2025 (accepted; arXiv:2503.00461)",
+      "authors_or_group": "Zhantong Zhu, Hongou Li, Wenjie Ren, Meng Wu, Le Ye, Ru Huang, Tianyu Jia",
+      "summary": "**CIM-MXU** studies how a digital SRAM compute-in-memory matrix unit could replace the conventional systolic MXU inside a TPUv4i-like inference accelerator. Its main contribution is a hardware/software co-design and modeling study: a CIM-MXU microarchitecture built from a systolic grid of CIM cores, a TPU-level architecture model with VMEM/CMEM/HBM-style hierarchy, a mapping engine for Transformer-layer operators, and architecture exploration over CIM-MXU array size and count. The demonstrated workloads are representative generative-model inference kernels, especially GPT-3-30B Transformer-layer evaluation and DiT-XL/2 block evaluation, with INT8 experiments and BF16 support described at the microarchitecture level. For CIM compiler/IR research, the paper is most useful as a hardware-resource and cost-model case study: it shows what a backend would need to know about CIM-core grids, weight-update paths, tiling, memory hierarchy, and precision modes, while the reusable compiler boundary is clearest at the mapping/configuration state rather than at an explicit IR or instruction stream. ([arXiv](https://arxiv.org/pdf/2503.00461))",
+      "route": "/papers/cim-mxu/",
+      "links": {
+        "paper": "https://arxiv.org/abs/2503.00461",
+        "artifact": "",
+        "docs": "",
+        "code": ""
+      },
+      "technology": [
+        "SRAM-CIM",
+        "digital-CIM",
+        "TPU-style accelerator"
+      ],
+      "workloads": [
+        "GPT-3-30B Transformer layer",
+        "LLM prefilling",
+        "LLM decoding",
+        "DiT-XL/2 block",
+        "GEMM",
+        "GEMV",
+        "Softmax",
+        "LayerNorm",
+        "GeLU"
+      ],
+      "tags": [],
+      "baselines": [],
+      "axis_A": {
+        "primary": "A5",
+        "secondary": [
+          "A2",
+          "A3"
+        ]
+      },
+      "axis_B": [
+        "B1",
+        "B4",
+        "B3",
+        "B2"
+      ],
+      "axis_C_first_class_objects": [
+        "CIM-MXU",
+        "CIM-core-grid",
+        "SRAM-CIM-core",
+        "bank_subarray_hierarchy",
+        "weight_IO",
+        "bit_serial_input_broadcast",
+        "output_stationary_dataflow",
+        "PSUM_buffer",
+        "shift_accumulator",
+        "BF16_prepost_processing",
+        "VMEM_CMEM_HBM_hierarchy"
+      ],
+      "axis_C_object_vocab": [
+        "hardware hierarchy",
+        "crossbar / array",
+        "numeric format",
+        "loop / tensor schedule",
+        "ADC / DAC / peripherals"
+      ],
+      "axis_D_rewrite_objects": [
+        "hardware_mapping",
+        "tensor_tiling",
+        "schedule_options",
+        "architecture_configuration",
+        "array_binding",
+        "memory_layout_or_residency",
+        "numeric_mode"
+      ],
+      "axis_D_rewrite_types": [
+        "mapping, placement, tiling, or allocation",
+        "loop or tensor-schedule transformation",
+        "hardware template / macro choice",
+        "mode selection across compute, memory, or device classes",
+        "numeric format, precision, quantization, or approximation"
+      ],
+      "artifact_status": "no public artifact found",
+      "artifact_url": null,
+      "reproducibility_level": "low"
+    },
+    {
+      "slug": "hermes",
+      "title": "Make LLM Inference Affordable to Everyone: Augmenting GPU Memory with NDP-DIMM",
+      "short_title": "Hermes",
+      "subtitle": "Scoped CIM stack note",
+      "year": 2025,
+      "venue": "HPCA 2025",
+      "authors_or_group": "Lian Liu, Shixin Zhao, Bing Li, Haimeng Ren, Zhaohui Xu, Mengdi Wang, Xiaowei Li, Yinhe Han, Ying Wang",
+      "summary": "Hermes, formally “Make LLM Inference Affordable to Everyone: Augmenting GPU Memory with NDP-DIMM,” is an HPCA 2025 hardware–software co-design for activation-sparse LLM inference on a consumer-grade GPU augmented by digital near-data-processing DIMMs. Its core contribution is not a general CIM compiler IR, but a specialized runtime mapping and scheduling layer: frequently active “hot” neurons are kept on the GPU, while less frequently active “cold” neurons remain in NDP-DIMMs, with an offline ILP initializer, a lightweight online predictor, and a window-based DIMM load-balancing scheduler. The paper demonstrates this design for OPT, LLaMA2, and Falcon-style models under ReLU-based activation sparsity, using an RTX 4090, eight modeled DDR4 NDP-DIMMs, measured GPU kernels, a modified Ramulator 2.0 simulator, and RTL-synthesized NDP cores. For CIM compiler/IR research, Hermes is most useful as a runtime-state and mapping case study: it names neuron activity, placement, and remapping as first-class scheduling objects, while the compiler-visible value trajectory remains implicit in the scheduler, commands, barriers, and simulator assumptions. ([arXiv](https://arxiv.org/abs/2502.16963?utm_source=chatgpt.com))",
+      "route": "/papers/hermes/",
+      "links": {
+        "paper": "https://arxiv.org/abs/2502.16963",
+        "artifact": "https://huggingface.co/SparseLLM",
+        "docs": "",
+        "code": ""
+      },
+      "technology": [
+        "DRAM-PIM",
+        "digital-CIM",
+        "digital-NDP",
+        "NDP-DIMM",
+        "GPU-PIM-hybrid"
+      ],
+      "workloads": [
+        "OPT-13B",
+        "OPT-30B",
+        "OPT-66B",
+        "LLaMA2-13B",
+        "LLaMA2-70B",
+        "Falcon-40B"
+      ],
+      "tags": [],
+      "baselines": [],
+      "axis_A": {
+        "primary": "A5",
+        "secondary": [
+          "A3",
+          "A2"
+        ]
+      },
+      "axis_B": [
+        "B7",
+        "B1",
+        "B5"
+      ],
+      "axis_C_first_class_objects": [
+        "neuron_identity",
+        "hot_cold_neuron_status",
+        "neuron_state_table",
+        "neuron_correlation_table",
+        "neuron_activity_window",
+        "GPU_vs_NDP_DIMM_placement",
+        "DIMM_load",
+        "DIMM_link_remapping",
+        "MAC_softmax_command"
+      ],
+      "axis_C_object_vocab": [
+        "instruction stream"
+      ],
+      "axis_D_rewrite_objects": [
+        "hardware_mapping",
+        "runtime_state",
+        "neuron_placement",
+        "cold_neuron_remapping",
+        "command_schedule"
+      ],
+      "axis_D_rewrite_types": [
+        "mapping, placement, tiling, or allocation",
+        "runtime scheduling, placement, batching, or data movement",
+        "loop or tensor-schedule transformation",
+        "instruction, microprogram, or trace generation"
+      ],
+      "artifact_status": "partial",
+      "artifact_url": "https://huggingface.co/SparseLLM",
+      "reproducibility_level": "low"
+    },
+    {
       "slug": "miredo",
       "title": "MIREDO: MIP-Driven Resource-Efficient Dataflow Optimization for Computing-in-Memory Accelerator",
+      "short_title": "MIREDO",
       "subtitle": "Scoped CIM stack note",
       "year": 2026,
       "venue": "ASP-DAC 2026",
@@ -3235,6 +3622,7 @@
     {
       "slug": "nax",
       "title": "NAX: Neural Architecture and Memristive Xbar based Accelerator Co-design",
+      "short_title": "NAX",
       "subtitle": "Scoped CIM stack note",
       "year": 2022,
       "venue": "DAC 2022 / Proceedings of the 59th ACM/IEEE Design Automation Conference",
@@ -3306,94 +3694,9 @@
       "reproducibility_level": "low"
     },
     {
-      "slug": "neurosim",
-      "title": "NeuroSIM / DNN+NeuroSim",
-      "subtitle": "Scoped CIM stack note",
-      "year": 2018,
-      "venue": "IEEE TCAD,IEDM",
-      "authors_or_group": "Shimeng Yu group / NeuroSim authors",
-      "summary": "**NeuroSIM / DNN+NeuroSim** is best classified as a CIM **device–circuit–architecture simulator with a narrow DNN-to-CIM evaluation flow**. The original NeuroSim contribution is a C++ macro model that estimates area, latency, energy, leakage, and accuracy for SRAM and emerging-memory CIM designs using a bottom-up hierarchy of device, array, peripheral, and architecture models; DNN+NeuroSim then wraps this backend with PyTorch/TensorFlow or PyTorch workflows that extract network topology, weights, activations, and training traces, map them onto a fixed chip/tile/PE/synaptic-array organization, and report accuracy and hardware metrics. ([NSF Public Access Repository](https://par.nsf.gov/servlets/purl/10109970)) For CIM compiler/IR research, the work is most useful as a **backend contract and cost-model reference**: it exposes concrete CIM resources, precision fields, ADC/sensing assumptions, device nonidealities, and layer-wise hardware reports, while the reusable compiler boundary is mainly expressed through configuration files, traces, and C++ simulator interfaces rather than a standalone IR, ISA, or modular lowering pipeline. ([arXiv](https://arxiv.org/pdf/2003.06471))",
-      "route": "/papers/neurosim/",
-      "links": {
-        "paper": "https://arxiv.org/pdf/2003.06471",
-        "artifact": "https://github.com/neurosim/NeuroSim",
-        "docs": "",
-        "code": ""
-      },
-      "technology": [
-        "SRAM-CIM",
-        "RRAM-CIM",
-        "PCM",
-        "FeFET",
-        "ECRAM",
-        "analog-CIM",
-        "digital-CIM",
-        "hybrid"
-      ],
-      "workloads": [
-        "MLP/MNIST",
-        "VGG-8/CIFAR-10",
-        "ResNet/ImageNet-style inference"
-      ],
-      "tags": [],
-      "baselines": [],
-      "axis_A": {
-        "primary": "A2",
-        "secondary": [
-          "A5",
-          "A3",
-          "A1"
-        ]
-      },
-      "axis_B": [
-        "B1",
-        "B4",
-        "B6",
-        "B2",
-        "B7"
-      ],
-      "axis_C_first_class_objects": [
-        "chip/tile/PE/synaptic-array hierarchy",
-        "subarray dimensions",
-        "SRAM/eNVM/FeFET memory-cell parameters",
-        "conductance state",
-        "ADC/sensing precision",
-        "ADC sharing / muxing",
-        "buffers and H-tree interconnect",
-        "accumulation units and adder/shift-add structures",
-        "precision fields",
-        "activation/weight/error/gradient traces"
-      ],
-      "axis_C_object_vocab": [
-        "hardware hierarchy",
-        "crossbar / array",
-        "numeric format",
-        "ADC / DAC / peripherals",
-        "nonideality / faults"
-      ],
-      "axis_D_rewrite_objects": [
-        "hardware mapping",
-        "array binding",
-        "convolution-kernel-to-submatrix lowering",
-        "trace partitioning",
-        "weight duplication",
-        "numeric-format configuration",
-        "nonideality configuration",
-        "training operation flow"
-      ],
-      "axis_D_rewrite_types": [
-        "mapping, placement, tiling, or allocation",
-        "instruction, microprogram, or trace generation",
-        "numeric format, precision, quantization, or approximation",
-        "fault, variation, calibration, or accuracy handling"
-      ],
-      "artifact_status": "public artifact found",
-      "artifact_url": "https://github.com/neurosim/NeuroSim",
-      "reproducibility_level": "medium"
-    },
-    {
       "slug": "ns-cache",
       "title": "NS-Cache — Optimization and Benchmarking of Monolithically Stackable Gain Cell Memory for Last-Level Cache",
+      "short_title": "NS-Cache",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
       "venue": "IEEE Transactions on Computers; arXiv preprint also available",
@@ -3473,6 +3776,7 @@
     {
       "slug": "openacmv2",
       "title": "OpenACMv2: An Accuracy-Constrained Co-Optimization Framework for Approximate DCiM",
+      "short_title": "OpenACMv2",
       "subtitle": "Scoped CIM stack note",
       "year": 2026,
       "venue": "DAC 2026 / arXiv preprint",
@@ -3547,6 +3851,7 @@
     {
       "slug": "openc2",
       "title": "OpenC2: An Open-Source End-to-End Hardware Compiler Development Framework for Digital Compute-in-Memory Macro",
+      "short_title": "OpenC2",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
       "venue": "DATE 2025",
@@ -3619,97 +3924,9 @@
       "reproducibility_level": "low"
     },
     {
-      "slug": "opencimtc",
-      "title": "OpenCIMTC / A full-stack memristor-based computation-in-memory system with software-hardware co-development",
-      "subtitle": "Scoped CIM stack note",
-      "year": 2025,
-      "venue": "Nature Communications",
-      "authors_or_group": "Tsinghua LEMON Lab and collaborators",
-      "summary": "OpenCIMTC is best read as a concrete end-to-end memristor/RRAM CIM co-design stack whose reusable compiler contribution is a serialized YAML **CIM-IR** separating layer attributes, physical mapping information, and calculation/deployment parameters. The work strengthens the vertical path from ONNX model import to memristor-array placement, simulator or hardware execution, post-deployment training, and simulator-/chip-in-the-loop tuning of hardware-sensitive parameters. The demonstrated system targets static neural-network inference and training-adjustment flows for a specific memristor CIM prototype with FPGA/CPU support, with public artifact support clearest around ResNet-32 simulation and generated training/optimization/inference scripts. For CIM compiler/IR research, its main value is not a broad formal IR, but an auditable example of how mapping state, physical addresses, ADC/integration-time parameters, quantization fields, and backend generation contracts can be made explicit enough to survive a compiler-to-hardware flow. ([Nature](https://www.nature.com/articles/s41467-025-57183-0))",
-      "route": "/papers/opencimtc/",
-      "links": {
-        "paper": "https://www.nature.com/articles/s41467-025-57183-0",
-        "artifact": "https://github.com/Tsinghua-LEMON-Lab/OpenCIMTC",
-        "docs": "",
-        "code": ""
-      },
-      "technology": [
-        "RRAM-CIM",
-        "memristor-CIM",
-        "analog-CIM",
-        "hybrid analog-digital"
-      ],
-      "workloads": [
-        "image classification",
-        "text classification",
-        "image segmentation",
-        "object detection",
-        "ResNet-32",
-        "ResNet-50 simulator evaluation"
-      ],
-      "tags": [],
-      "baselines": [],
-      "axis_A": {
-        "primary": "A5",
-        "secondary": [
-          "A4",
-          "A3",
-          "A2",
-          "A6"
-        ]
-      },
-      "axis_B": [
-        "B1",
-        "B2",
-        "B4",
-        "B6",
-        "B7"
-      ],
-      "axis_C_first_class_objects": [
-        "operator_attributes",
-        "CIM_friendly_op_type",
-        "virtual_non_CIM_runtime",
-        "weight_split_copy_repeat",
-        "physical_array_address",
-        "runtime_target_real_or_simulator",
-        "ADC_integration_time",
-        "weight_scale",
-        "input_quantization_scale",
-        "activation_bits",
-        "output_quantization_mode",
-        "simulator_nonideality_parameters"
-      ],
-      "axis_C_object_vocab": [
-        "operator graph",
-        "runtime state",
-        "crossbar / array",
-        "chip / emulator address",
-        "ADC / DAC / peripherals",
-        "nonideality / faults"
-      ],
-      "axis_D_rewrite_objects": [
-        "operator_graph",
-        "hardware_mapping",
-        "array_binding",
-        "memory_layout",
-        "input_bit_expansion",
-        "numeric_format",
-        "hardware_calculation_parameters",
-        "generated_backend_flow"
-      ],
-      "axis_D_rewrite_types": [
-        "operator graph transformation",
-        "mapping, placement, tiling, or allocation",
-        "numeric format, precision, quantization, or approximation",
-        "hardware template / macro choice"
-      ],
-      "artifact_status": "public_artifact_found",
-      "artifact_url": "https://github.com/Tsinghua-LEMON-Lab/OpenCIMTC",
-      "reproducibility_level": "medium"
-    },
-    {
       "slug": "ouroboros",
       "title": "Ouroboros: Wafer-Scale SRAM CIM with Token-Grained Pipelining for Large Language Model Inference",
+      "short_title": "Ouroboros",
       "subtitle": "Scoped CIM stack note",
       "year": 2026,
       "venue": "ASPLOS 2026",
@@ -3792,6 +4009,7 @@
     {
       "slug": "papi",
       "title": "PAPI: Exploiting Dynamic Parallelism in Large Language Model Decoding with a Processing-In-Memory-Enabled Computing System",
+      "short_title": "PAPI",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
       "venue": "ASPLOS 2025",
@@ -3870,6 +4088,7 @@
     {
       "slug": "pim-eda",
       "title": "PIM EDA Suite / PIM Toolchain",
+      "short_title": "PIM EDA Suite",
       "subtitle": "Scoped CIM stack note",
       "year": 2023,
       "venue": "Repository-centered suite; associated papers include DAC 2023, IEEE TCAD, DATE 2024",
@@ -3971,6 +4190,7 @@
     {
       "slug": "pim-hls",
       "title": "PIM-HLS: An Automatic Hardware Generation Tool for Heterogeneous Processing-In-Memory-based Neural Network Accelerators",
+      "short_title": "PIM-HLS",
       "subtitle": "Scoped CIM stack note",
       "year": 2023,
       "venue": "DAC 2023",
@@ -4053,6 +4273,7 @@
     {
       "slug": "pim-opt",
       "title": "PIM-Opt: Demystifying Distributed Optimization Algorithms on a Real-World Processing-In-Memory System",
+      "short_title": "PIM-Opt",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
       "venue": "PACT 2024",
@@ -4133,7 +4354,8 @@
     },
     {
       "slug": "pimacc",
-      "title": "PIMACC",
+      "title": "PIMACC: Processing-in-Memory Accuracy Simulator for Neural Network Inference",
+      "short_title": "PIMACC",
       "subtitle": "Scoped CIM stack note",
       "year": null,
       "venue": "Unknown / artifact and toolchain documentation found",
@@ -4141,7 +4363,7 @@
       "summary": "PIMACC is best understood as a CIM/PIM neural-network **accuracy simulation backend** coupled to the PIMCOMP-NN compiler flow. The public artifact demonstrates a workflow in which PIMCOMP-NN compiles an ONNX neural network, emits verification/mapping/instruction information, and PIMACC replays the compiled computation while injecting CIM nonidealities such as quantization effects, conductance variation, IR-drop approximations, and stuck-at faults. Its strongest contribution to a CIM compiler/IR corpus is not a new IR syntax, but a concrete backend contract: a generated verification state plus a hardware/nonideality configuration that connects high-level network nodes to crossbar-level numeric behavior. For compiler/IR research, PIMACC is valuable as evidence that accuracy verification needs its own lower-level representation of bit significance, signed decomposition, cell precision, DAC/ADC-related parameters, fault masks, and mapping provenance. ([GitHub](https://github.com/HertzHan/PIMACC-simulator/blob/main/README.md))",
       "route": "/papers/pimacc/",
       "links": {
-        "paper": "https://arxiv.org/pdf/2411.09159",
+        "paper": "",
         "artifact": "https://github.com/HertzHan/PIMACC-simulator",
         "docs": "",
         "code": ""
@@ -4222,6 +4444,7 @@
     {
       "slug": "pimcomp",
       "title": "PIMCOMP: An End-to-End DNN Compiler for Processing-In-Memory Accelerators",
+      "short_title": "PIMCOMP",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
       "venue": "IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems / arXiv v1",
@@ -4310,94 +4533,9 @@
       "reproducibility_level": "medium"
     },
     {
-      "slug": "pimeval",
-      "title": "PIMeval / PIMbench: Architectural Modeling and Benchmarking for Digital DRAM PIM",
-      "subtitle": "Scoped CIM stack note",
-      "year": 2024,
-      "venue": "IISWC 2024",
-      "authors_or_group": "University of Virginia LavaLab / Siddique et al.",
-      "summary": "**PIMeval / PIMbench** contributes a public modeling and benchmarking stack for **digital DRAM-PIM**, centered on a C++ PIM API, a configurable performance/energy model, and a benchmark suite spanning vector, linear algebra, graph, image, security, machine-learning, and DNN inference kernels. The demonstrated hardware scope covers three DRAM-PIM styles: DRAM-AP-style subarray bit-serial PIM, Fulcrum-style subarray bit-parallel PIM, and bank-level bit-parallel PIM. Its strongest contribution to a CIM compiler/IR corpus is not an explicit compiler IR, but a reusable evaluation boundary: PIM data objects, layout choices, target device configs, PIM API commands, and command-level timing/energy accounting. For compiler/IR research, PIMeval is useful as a backend-facing reference model and benchmark harness that exposes the kinds of objects a future CIM IR would need to preserve when lowering higher-level tensor or graph programs into digital DRAM-PIM execution. ([University of Virginia Computer Science](https://www.cs.virginia.edu/~skadron/Papers/PIMbench_PIMeval_iiswc2024.pdf))",
-      "route": "/papers/pimeval/",
-      "links": {
-        "paper": "https://www.cs.virginia.edu/venkat/papers/iiswc2024.pdf",
-        "artifact": "https://github.com/UVA-LavaLab/PIMeval-PIMbench",
-        "docs": "",
-        "code": ""
-      },
-      "technology": [
-        "DRAM-PIM",
-        "digital-CIM",
-        "digital-PIM",
-        "subarray-PIM",
-        "bank-level-PIM"
-      ],
-      "workloads": [
-        "vector-addition",
-        "AXPY",
-        "GEMV",
-        "GEMM",
-        "radix-sort",
-        "AES",
-        "triangle-count",
-        "filter-by-key",
-        "histogram",
-        "image-processing",
-        "KNN",
-        "linear-regression",
-        "k-means",
-        "VGG-inference"
-      ],
-      "tags": [],
-      "baselines": [],
-      "axis_A": {
-        "primary": "A2",
-        "secondary": [
-          "A6",
-          "A3"
-        ]
-      },
-      "axis_B": [
-        "B1",
-        "B4",
-        "B5",
-        "B7"
-      ],
-      "axis_C_first_class_objects": [
-        "PIM_device",
-        "PIM_core",
-        "PIM_data_object_id",
-        "DRAM_rank_bank_subarray_row_column_hierarchy",
-        "allocation_layout_vertical_horizontal",
-        "PIM_API_command",
-        "PIM_command_statistics",
-        "data_type",
-        "bit_slice_index",
-        "row_register_micro_ops"
-      ],
-      "axis_C_object_vocab": [
-        "hardware hierarchy",
-        "instruction stream",
-        "benchmark API",
-        "numeric format"
-      ],
-      "axis_D_rewrite_objects": [
-        "API_command_stream",
-        "allocation_layout_state",
-        "target_specific_command_cost_lowering",
-        "bit_serial_microprogram_expansion"
-      ],
-      "axis_D_rewrite_types": [
-        "instruction, microprogram, or trace generation",
-        "benchmark, API, or workload-porting pattern",
-        "mapping, placement, tiling, or allocation"
-      ],
-      "artifact_status": "public_artifact_found",
-      "artifact_url": "https://github.com/UVA-LavaLab/PIMeval-PIMbench",
-      "reproducibility_level": "medium"
-    },
-    {
       "slug": "pimsim-nn",
       "title": "PIMSIM-NN: An ISA-based Simulation Framework for Processing-in-Memory Accelerators",
+      "short_title": "PIMSIM-NN",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
       "venue": "DATE 2024 Late Breaking Results",
@@ -4487,7 +4625,8 @@
     },
     {
       "slug": "pimsyn-nn",
-      "title": "PIMSYN / PIMSYN-NN: Synthesizing Processing-in-memory CNN Accelerators",
+      "title": "PIMSYN: Synthesizing Processing-in-memory CNN Accelerators",
+      "short_title": "PIMSYN-NN",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
       "venue": "DATE 2024",
@@ -4571,6 +4710,7 @@
     {
       "slug": "pimsynth",
       "title": "PIMsynth: A Unified Compiler Framework for Bit-Serial Processing-in-Memory Architectures",
+      "short_title": "PIMsynth",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
       "venue": "IEEE Computer Architecture Letters",
@@ -4653,6 +4793,7 @@
     {
       "slug": "polyhedral-based-compilation-framework-for-in-memory-neural-network-accelerators",
       "title": "Polyhedral-Based Compilation Framework for In-Memory Neural Network Accelerators",
+      "short_title": "Polyhedral CIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2021,
       "venue": "ACM Journal on Emerging Technologies in Computing Systems",
@@ -4728,97 +4869,9 @@
       "reproducibility_level": "medium"
     },
     {
-      "slug": "prim",
-      "title": "PrIM / Benchmarking a New Paradigm: Experimental Analysis and Characterization of a Real Processing-in-Memory System",
-      "subtitle": "Scoped CIM stack note",
-      "year": 2022,
-      "venue": "IEEE Access",
-      "authors_or_group": "Juan Gómez-Luna, Izzat El Hajj, Ivan Fernandez, Christina Giannoula, Geraldo F. Oliveira, Onur Mutlu",
-      "summary": "PrIM is best classified as a real-hardware benchmark and characterization framework for the UPMEM digital DRAM-PIM architecture rather than as an explicit compiler/IR stack. Its main contribution is a public suite of 16 manually ported memory-bound workloads, accompanying microbenchmarks, CPU/GPU baselines, and a measurement methodology for understanding DPU compute throughput, MRAM/WRAM bandwidth, host-DPU transfer behavior, scaling, and energy on 640-DPU and 2,556-DPU UPMEM systems. The reusable stack layer is clearest at the benchmark/reproducibility boundary: host code, DPU kernels, Makefile parameters, run scripts, datasets, and profiling outputs. For CIM compiler/IR research, PrIM is useful as a concrete backend contract for digital DRAM-PIM: it shows which objects a future IR would need to name to target UPMEM-like systems, especially DPU allocation, tasklet count, MRAM/WRAM staging, transfer direction, inter-DPU communication through the host, and workload partitioning. ([cgiannoula.github.io](https://cgiannoula.github.io/assets/publications/Prim_Access22_arxiv.pdf))",
-      "route": "/papers/prim/",
-      "links": {
-        "paper": "https://cgiannoula.github.io/assets/publications/Prim_Access22_arxiv.pdf",
-        "artifact": "https://github.com/CMU-SAFARI/prim-benchmarks",
-        "docs": "",
-        "code": ""
-      },
-      "technology": [
-        "DRAM-PIM",
-        "UPMEM",
-        "digital-CIM",
-        "digital-PIM"
-      ],
-      "workloads": [
-        "Vector Addition",
-        "GEMV",
-        "SpMV",
-        "Select",
-        "Unique",
-        "Binary Search",
-        "Time Series Analysis",
-        "BFS",
-        "MLP",
-        "Needleman-Wunsch",
-        "Image Histogram",
-        "Reduction",
-        "Prefix Sum",
-        "Matrix Transposition"
-      ],
-      "tags": [],
-      "baselines": [],
-      "axis_A": {
-        "primary": "A6",
-        "secondary": [
-          "A2",
-          "A3"
-        ]
-      },
-      "axis_B": [
-        "B1",
-        "B4",
-        "B7",
-        "B5"
-      ],
-      "axis_C_first_class_objects": [
-        "DPU",
-        "tasklet",
-        "MRAM_bank",
-        "WRAM",
-        "IRAM",
-        "DMA_transfer",
-        "CPU_DPU_transfer",
-        "DPU_CPU_transfer",
-        "host_merge",
-        "synchronization_primitive",
-        "datatype",
-        "block_size"
-      ],
-      "axis_C_object_vocab": [
-        "hardware hierarchy",
-        "runtime state",
-        "memory service properties"
-      ],
-      "axis_D_rewrite_objects": [
-        "manual_loop_partitioning",
-        "data_chunk_mapping",
-        "tasklet_block_assignment",
-        "memory_staging",
-        "synchronization_structure",
-        "implementation_variant_selection",
-        "runtime_phase_measurement"
-      ],
-      "axis_D_rewrite_types": [
-        "loop or tensor-schedule transformation",
-        "mapping, placement, tiling, or allocation",
-        "runtime scheduling, placement, batching, or data movement"
-      ],
-      "artifact_status": "public_artifact_found",
-      "artifact_url": "https://github.com/CMU-SAFARI/prim-benchmarks",
-      "reproducibility_level": "medium"
-    },
-    {
       "slug": "puma",
       "title": "PUMA: A Programmable Ultra-efficient Memristor-based Accelerator for Machine Learning Inference",
+      "short_title": "PUMA",
       "subtitle": "Scoped CIM stack note",
       "year": 2019,
       "venue": "ASPLOS 2019",
@@ -4826,7 +4879,7 @@
       "summary": "PUMA is an ASPLOS 2019 hardware–software co-design for ML inference on a hybrid CMOS–memristor spatial accelerator. Its core contribution is a concrete, ISA-programmable CIM backend: a core/tile/node microarchitecture with memristor MVM units and digital functional units, a PUMA ISA with MVM, vector, memory, communication, and control instructions, a compiler that builds and partitions a model graph into per-core/per-tile assembly, and PUMAsim for functionality/timing/power evaluation. The demonstrated setting is static, MVM-heavy DNN inference—MLPs, LSTMs, and CNNs—with 16-bit fixed-point operations realized over conservative 2-bit memristor cells via bit-slicing. For CIM compiler/IR research, PUMA is most useful as a concrete example of a narrow end-to-end stack where graph partitioning, resource binding, inter-tile communication, and instruction scheduling are made compiler-visible for one architecture, while a more portable CIM IR would likely factor those internal states into explicit, verifiable, backend-independent objects. ([Izzat El Hajj](https://ielhajj.github.io/publications/paper/paper-puma-asplos19.pdf))",
       "route": "/papers/puma/",
       "links": {
-        "paper": "https://arxiv.org/abs/1901.10351",
+        "paper": "https://doi.org/10.1145/3297858.3304049",
         "artifact": "https://github.com/illinois-impact/puma-compiler",
         "docs": "",
         "code": ""
@@ -4910,6 +4963,7 @@
     {
       "slug": "rescim",
       "title": "ReSCIM: Variation-Resilient High Weight-Loading Bandwidth In-Memory Computation Based on Fine-Grained Hybrid Integration of Multi-Level ReRAM and SRAM Cells",
+      "short_title": "ReSCIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
       "venue": "ICCAD 2024",
@@ -4979,6 +5033,7 @@
     {
       "slug": "sega-dcim",
       "title": "SEGA-DCIM: Design Space Exploration-Guided Automatic Digital CIM Compiler with Multiple Precision Support",
+      "short_title": "SEGA-DCIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
       "venue": "DATE 2025; arXiv v1 submitted 2025-05-14",
@@ -5054,6 +5109,7 @@
     {
       "slug": "sherlock",
       "title": "SHERLOCK: Scheduling Efficient and Reliable Bulk Bitwise Operations in NVMs",
+      "short_title": "SHERLOCK",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
       "venue": "DAC 2024",
@@ -5132,6 +5188,7 @@
     {
       "slug": "simplepim",
       "title": "SimplePIM: A Software Framework for Productive and Efficient Processing-in-Memory",
+      "short_title": "SimplePIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2023,
       "venue": "PACT 2023",
@@ -5212,6 +5269,7 @@
     {
       "slug": "sparsep",
       "title": "SparseP: Towards Efficient Sparse Matrix Vector Multiplication on Real Processing-In-Memory Systems",
+      "short_title": "SparseP",
       "subtitle": "Scoped CIM stack note",
       "year": 2022,
       "venue": "Proceedings of the ACM on Measurement and Analysis of Computing Systems (POMACS), Vol. 6, No. 1, Article 21; SIGMETRICS/PERFORMANCE 2022 companion presentation",
@@ -5219,7 +5277,7 @@
       "summary": "SparseP is a real-system sparse linear algebra study and software library for SpMV on UPMEM near-bank digital PIM. Its concrete contribution is a family of 25 hand-written host/DPU kernels covering CSR, COO, BCSR, and BCOO sparse formats, multiple scalar data types, 1D and 2D matrix partitioning, PIM-core load balancing, tasklet-level load balancing, and synchronization choices, evaluated on a 20-DIMM UPMEM system against CPU and GPU baselines. ([arXiv](https://arxiv.org/pdf/2201.05072)) For CIM compiler/IR research, SparseP is most useful as a sparse-mapping and backend-contract case study: it exposes what a compiler would need to represent for real near-bank PIM execution, including sparse format metadata, host–PIM transfer phases, DPU memory placement, tasklet schedules, partial-output merging, and reproducibility constraints around hardware, SDK, and benchmark preparation. The demonstrated abstraction is a library-plus-configuration stack rather than a standalone compiler IR, but its artifact makes the hidden mapping state unusually concrete. ([GitHub](https://github.com/CMU-SAFARI/SparseP))",
       "route": "/papers/sparsep/",
       "links": {
-        "paper": "https://arxiv.org/pdf/2201.05072",
+        "paper": "https://doi.org/10.1145/3508041",
         "artifact": "https://github.com/CMU-SAFARI/SparseP",
         "docs": "",
         "code": ""
@@ -5290,6 +5348,7 @@
     {
       "slug": "syndcim",
       "title": "SynDCIM: A Performance-Aware Digital Computing-in-Memory Compiler with Multi-Spec-Oriented Subcircuit Synthesis",
+      "short_title": "SynDCIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
       "venue": "DATE 2025",
@@ -5364,6 +5423,7 @@
     {
       "slug": "turbo-charged-mapper",
       "title": "The Turbo-Charged Mapper",
+      "short_title": "Turbo-Charged Mapper",
       "subtitle": "Scoped CIM stack note seed",
       "year": 2026,
       "venue": "arXiv",
@@ -5447,6 +5507,7 @@
     {
       "slug": "hybrid-pim-for-attention-free-llm",
       "title": "Towards Floating Point-Based Attention-Free LLM: Hybrid PIM with Non-Uniform Data Format and Reduced Multiplications",
+      "short_title": "Hybrid PIM",
       "subtitle": "Scoped CIM stack note",
       "year": 2024,
       "venue": "ICCAD 2024",
@@ -5535,6 +5596,7 @@
     {
       "slug": "unindp",
       "title": "UniNDP: A Unified Compilation and Simulation Tool for Near DRAM Processing Architectures",
+      "short_title": "UniNDP",
       "subtitle": "Scoped CIM stack note",
       "year": 2025,
       "venue": "IEEE HPCA 2025",

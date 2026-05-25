@@ -1,6 +1,7 @@
 ---
 slug: sega-dcim
 title: "SEGA-DCIM: Design Space Exploration-Guided Automatic Digital CIM Compiler with Multiple Precision Support"
+short_title: "SEGA-DCIM"
 subtitle: "Scoped CIM stack note"
 year: 2025
 venue: "DATE 2025; arXiv v1 submitted 2025-05-14"

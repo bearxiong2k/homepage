@@ -1,6 +1,7 @@
 ---
 slug: arctic
 title: "ARCTIC: Agile and Robust Compute-In-Memory Compiler with Parameterized INT/FP Precision and Built-In Self Test"
+short_title: "ARCTIC"
 subtitle: "Scoped CIM stack note"
 year: 2024
 venue: "DATE 2024"
@@ -8,7 +9,7 @@ authors_or_group: "Hongyi Zhang, Haozhe Zhu, Siqi He, Mengjie Li, Chengchen Wang
 summary: >-
   **ARCTIC: Agile and Robust Compute-In-Memory Compiler with Parameterized INT/FP Precision and Built-In Self Test** is best read as a physical digital-CIM macro compiler for SRAM-based DCIM. Its main contribution is a parameterized macro-generation flow that accepts hardware-level specifications—timing and area constraints, memory depth and width, mantissa width, exponent width, exponent offset, and INT/FP format—and produces low-level RTL, MarchCIM BIST logic, and placed-and-routed 28 nm macro layouts through commercial EDA flows. The paper strengthens the lower hardware-generation layer of the CIM stack, especially precision-specialized INT/FP macro construction and DCIM-aware BIST, rather than the model-frontend or tensor-mapping layer. For CIM compiler/IR research, ARCTIC is useful as evidence that numeric-format fields, mantissa/exponent placement, BIST test modes, and physical macro hierarchy are important first-class backend objects, even though the paper foregrounds a template/EDA flow rather than a standalone auditable IR. ([DATE Conference](https://past.date-conference.com/proceedings-archive/2024/DATA/399_pdf_upload.pdf))
 links:
-  paper: https://arxiv.org/abs/2411.16806
+  paper: https://doi.org/10.23919/DATE58400.2024.10546676
   artifact:
   docs:
   code:

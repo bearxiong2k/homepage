@@ -1,6 +1,7 @@
 ---
 slug: cim-tuner
 title: "CIM-Tuner: Balancing the Compute and Storage Capacity of SRAM-CIM Accelerator via Hardware-mapping Co-exploration"
+short_title: "CIM-Tuner"
 subtitle: "Scoped CIM stack note"
 year: 2026
 venue: "DATE 2026 / arXiv:2601.18070"

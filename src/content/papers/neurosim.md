@@ -1,14 +1,15 @@
 ---
 slug: neurosim
-title: "NeuroSIM / DNN+NeuroSim"
+title: "DNN+NeuroSim V2.0: An End-to-End Benchmarking Framework for Compute-in-Memory Accelerators for On-Chip Training"
+short_title: "DNN+NeuroSim"
 subtitle: "Scoped CIM stack note"
-year: 2018
-venue: "IEEE TCAD,IEDM"
+year: 2021
+venue: "IEEE TCAD"
 authors_or_group: "Shimeng Yu group / NeuroSim authors"
 summary: >-
   **NeuroSIM / DNN+NeuroSim** is best classified as a CIM **device–circuit–architecture simulator with a narrow DNN-to-CIM evaluation flow**. The original NeuroSim contribution is a C++ macro model that estimates area, latency, energy, leakage, and accuracy for SRAM and emerging-memory CIM designs using a bottom-up hierarchy of device, array, peripheral, and architecture models; DNN+NeuroSim then wraps this backend with PyTorch/TensorFlow or PyTorch workflows that extract network topology, weights, activations, and training traces, map them onto a fixed chip/tile/PE/synaptic-array organization, and report accuracy and hardware metrics. ([NSF Public Access Repository](https://par.nsf.gov/servlets/purl/10109970)) For CIM compiler/IR research, the work is most useful as a **backend contract and cost-model reference**: it exposes concrete CIM resources, precision fields, ADC/sensing assumptions, device nonidealities, and layer-wise hardware reports, while the reusable compiler boundary is mainly expressed through configuration files, traces, and C++ simulator interfaces rather than a standalone IR, ISA, or modular lowering pipeline. ([arXiv](https://arxiv.org/pdf/2003.06471))
 links:
-  paper: https://arxiv.org/pdf/2003.06471
+  paper: https://doi.org/10.1109/TCAD.2020.3043731
   artifact: https://github.com/neurosim/NeuroSim
   docs:
   code:

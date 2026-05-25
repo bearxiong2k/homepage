@@ -1,6 +1,7 @@
 ---
 slug: cimloop
 title: "CiMLoop: A Flexible, Accurate, and Fast Compute-In-Memory Modeling Tool"
+short_title: "CiMLoop"
 subtitle: "Scoped CIM stack note"
 year: 2024
 venue: "IEEE International Symposium on Performance Analysis of Systems and Software (ISPASS)"

@@ -1,6 +1,7 @@
 ---
 slug: pimsim-nn
 title: "PIMSIM-NN: An ISA-based Simulation Framework for Processing-in-Memory Accelerators"
+short_title: "PIMSIM-NN"
 subtitle: "Scoped CIM stack note"
 year: 2024
 venue: "DATE 2024 Late Breaking Results"

@@ -1,6 +1,7 @@
 ---
 slug: ouroboros
 title: "Ouroboros: Wafer-Scale SRAM CIM with Token-Grained Pipelining for Large Language Model Inference"
+short_title: "Ouroboros"
 subtitle: "Scoped CIM stack note"
 year: 2026
 venue: "ASPLOS 2026"

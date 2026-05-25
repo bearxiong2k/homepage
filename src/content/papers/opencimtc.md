@@ -1,6 +1,7 @@
 ---
 slug: opencimtc
-title: "OpenCIMTC / A full-stack memristor-based computation-in-memory system with software-hardware co-development"
+title: "A full-stack memristor-based computation-in-memory system with software-hardware co-development"
+short_title: "OpenCIMTC"
 subtitle: "Scoped CIM stack note"
 year: 2025
 venue: "Nature Communications"

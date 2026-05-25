@@ -21,6 +21,7 @@ type Middle = {
 type Paper = {
   slug: string;
   title: string;
+  short_title: string;
   subtitle?: string | null;
   year?: number | null;
   venue?: string | null;
@@ -234,17 +235,19 @@ const axisCategories = axisCategorySets(taxonomy);
   const currentAtlasUrl = () => `${window.location.pathname}${window.location.search}`;
   const sitePath = (path) => `${siteBasePath}${path.startsWith('/') ? path : `/${path}`}` || '/';
   const detailHref = (paper) => `${sitePath(`/papers/${paper.slug}/`)}?from=${encodeURIComponent(currentAtlasUrl())}`;
-  const paperLabel = (paper) => paper.subtitle?.replace(/^Scoped CIM stack note( seed)?$/i, '')?.trim() || paper.title;
-  const shortTitle = (paper) => paper.title
-    .replace(/^([^:—-]{2,42})[:—-].*$/, '$1')
-    .replace(/\b(a|an|the|for|with|and|of|to|in)\b/gi, '')
-    .trim()
+  const paperLabel = (paper) => paper.title;
+  const shortTitle = (paper) => paper.short_title || paper.title;
+  const initials = (paper) => shortTitle(paper)
+    .replace(/[^A-Za-z0-9+]+/g, ' ')
     .split(/\s+/)
+    .filter(Boolean)
     .slice(0, 3)
-    .join(' ') || paper.title.slice(0, 18);
-  const initials = (paper) => shortTitle(paper).split(/[\s/-]+/).filter(Boolean).slice(0, 3).map((x) => x[0]).join('').toUpperCase();
+    .map((x) => x[0])
+    .join('')
+    .toUpperCase();
   const textBlob = (paper) => [
     paper.title,
+    paper.short_title,
     paper.subtitle,
     paper.summary,
     ...(paper.tags ?? []),

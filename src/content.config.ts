@@ -12,6 +12,7 @@ const papers = defineCollection({
   schema: z.object({
     slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
     title: z.string(),
+    short_title: z.string(),
     subtitle: optionalText,
     year: z.number().int().nullable().optional(),
     venue: optionalText,

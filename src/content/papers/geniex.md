@@ -1,6 +1,7 @@
 ---
 slug: geniex
-title: "GENIEx"
+title: "GENIEx: A Generalized Approach to Emulating Non-Ideality in Memristive Xbars using Neural Networks"
+short_title: "GENIEx"
 subtitle: "Scoped CIM stack note"
 year: 2020
 venue: "DAC 2020 / arXiv 2020"

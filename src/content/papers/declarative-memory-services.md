@@ -1,6 +1,7 @@
 ---
 slug: declarative-memory-services
 title: "Declarative Memory Services"
+short_title: "DMS"
 subtitle: "Scoped CIM stack note"
 year: 2026
 venue: "CIDR 2026"

@@ -1,6 +1,7 @@
 ---
 slug: hastily
 title: "HASTILY: Hardware-Software Co-Design for Accelerating Transformer Inference Leveraging Compute-in-Memory"
+short_title: "HASTILY"
 subtitle: "Scoped CIM stack note"
 year: 2025
 venue: "IEEE Transactions on Circuits and Systems for Artificial Intelligence; arXiv:2502.12344"

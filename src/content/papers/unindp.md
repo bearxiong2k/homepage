@@ -1,6 +1,7 @@
 ---
 slug: unindp
 title: "UniNDP: A Unified Compilation and Simulation Tool for Near DRAM Processing Architectures"
+short_title: "UniNDP"
 subtitle: "Scoped CIM stack note"
 year: 2025
 venue: "IEEE HPCA 2025"

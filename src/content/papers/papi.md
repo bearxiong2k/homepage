@@ -1,6 +1,7 @@
 ---
 slug: papi
 title: "PAPI: Exploiting Dynamic Parallelism in Large Language Model Decoding with a Processing-In-Memory-Enabled Computing System"
+short_title: "PAPI"
 subtitle: "Scoped CIM stack note"
 year: 2025
 venue: "ASPLOS 2025"

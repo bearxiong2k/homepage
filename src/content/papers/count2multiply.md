@@ -1,6 +1,7 @@
 ---
 slug: count2multiply
 title: "Count2Multiply: Reliable In-Memory High-Radix Counting"
+short_title: "Count2Multiply"
 subtitle: "Scoped CIM stack note"
 year: 2026
 venue: "HPCA 2026"

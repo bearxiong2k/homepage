@@ -1,6 +1,7 @@
 ---
 slug: harmoni
-title: "HARMONI"
+title: "HARMONI: A Hardware-Software Co-Design Framework for Efficient LLM Inference on Hybrid Memory Cube Based Near-Memory Processing Systems"
+short_title: "HARMONI"
 subtitle: "Scoped CIM stack note"
 year: 2026
 venue: "ISPASS 2026 inferred from repository PDF/release naming; exact paper metadata not confirmed from extracted PDF text"

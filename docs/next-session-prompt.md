@@ -15,11 +15,17 @@ Project status:
 - /clusters/ is a completed cluster and working-group route with a visible AI-assisted synthesis notice.
 
 Active focus:
+- Detail page content refinement.
+- Focus doc: docs/focus/detail-page-content-refinement.md.
+- Current goal: improve individual paper detail page content quality, source traceability, uncertainty handling, and per-paper reading usefulness.
+- Current implementation: /papers/ lists notes and supports selected-note Markdown export; /papers/[slug]/ renders metadata, source links, axis placement, normalized Axis C/D labels, note outline, and the Markdown note body.
+- Current metadata subtask: name normalization added `short_title` to all papers; continue publisher-link normalization from docs/focus/paper-metadata-maintenance.md if asked.
+- Next priority: audit representative detail pages and decide which issues belong in paper Markdown notes versus the detail-page shell, unless the metadata normalization batch is resumed.
+
+Paused focus:
 - General style controller.
 - Focus doc: docs/focus/style-controller.md.
-- Current goal: construct a general style controller for colors, formatting, fonts, spacing, and shared presentation policy across the static Astro website.
-- Current implementation: src/styles/global.css contains the first controller slice, using CSS custom properties and compatibility aliases for existing variables. Ordinary content links are underlined by default, with navigation/control exceptions.
-- Next priority: inventory and replace remaining repeated hard-coded style values where their semantic role is clear.
+- Resume by inventorying and replacing remaining repeated hard-coded presentation values only where their semantic role is clear.
 
 Completed focus:
 - Cluster analysis and working-group content.
@@ -28,16 +34,17 @@ Completed focus:
 
 Method:
 - Keep the implementation static and inspectable.
-- Prefer a small token/controller layer over broad redesign.
 - Keep academic/library routes quiet, readable, and dense enough for repeated research use.
 - Do not add backend services, client-side styling dependencies, databases, PDF hosting, or route-breaking changes.
 - Keep /library/ and /papers/[slug]/ stable.
+- Do not add ranking, quality, coverage, or IR-relevance scores.
+- Keep paper claims tied to primary paper/artifact evidence where possible.
 
-For style-controller work:
-1. Read docs/focus/style-controller.md.
-2. Inventory existing style tokens, duplicated colors, font sizes, spacing scales, and route-specific CSS patterns.
-3. Propose and implement one coherent controller slice.
-4. Verify representative public routes.
+For detail-page content refinement:
+1. Read docs/focus/detail-page-content-refinement.md.
+2. Audit representative /papers/[slug]/ pages.
+3. Decide whether each issue belongs in paper Markdown content or the route shell.
+4. Implement one coherent content/shell refinement batch.
 5. Run verification.
 
 After substantial edits, run:

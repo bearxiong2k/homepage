@@ -1,6 +1,7 @@
 ---
 slug: pim-opt
 title: "PIM-Opt: Demystifying Distributed Optimization Algorithms on a Real-World Processing-In-Memory System"
+short_title: "PIM-Opt"
 subtitle: "Scoped CIM stack note"
 year: 2024
 venue: "PACT 2024"

@@ -1,6 +1,7 @@
 ---
 slug: cim-mxu
-title: "CIM-MXU / Leveraging Compute-in-Memory for Efficient Generative Model Inference in TPUs"
+title: "Leveraging Compute-in-Memory for Efficient Generative Model Inference in TPUs"
+short_title: "CIM-MXU"
 subtitle: "Scoped CIM stack note"
 year: 2025
 venue: "DATE 2025 (accepted; arXiv:2503.00461)"

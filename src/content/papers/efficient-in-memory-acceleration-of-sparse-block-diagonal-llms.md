@@ -1,6 +1,7 @@
 ---
 slug: efficient-in-memory-acceleration-of-sparse-block-diagonal-llms
 title: "Efficient In-Memory Acceleration of Sparse Block Diagonal LLMs"
+short_title: "SparseBD-LLM CIM"
 subtitle: "Scoped CIM stack note"
 year: 2025
 venue: "IEEE Cross-disciplinary Conference on Memory-Centric Computing (CCMCC), to appear / arXiv v1"

@@ -1,6 +1,7 @@
 ---
 slug: pimsyn-nn
-title: "PIMSYN / PIMSYN-NN: Synthesizing Processing-in-memory CNN Accelerators"
+title: "PIMSYN: Synthesizing Processing-in-memory CNN Accelerators"
+short_title: "PIMSYN-NN"
 subtitle: "Scoped CIM stack note"
 year: 2024
 venue: "DATE 2024"

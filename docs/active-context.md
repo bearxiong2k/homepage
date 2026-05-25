@@ -13,13 +13,21 @@ Default read for every session. Keep this file compact; put focus details in the
 
 ## Active Focus
 
-General style controller is the active focus.
+Detail page content refinement is the active focus.
+
+- Focus doc: `docs/focus/detail-page-content-refinement.md`.
+- Main files: `src/content/papers/*.md`, `src/pages/papers/[slug].astro`, `src/pages/papers/index.astro`, `src/content.config.ts`, and paper-note support docs.
+- Current goal: improve individual paper detail page content quality, source traceability, uncertainty handling, and per-paper reading usefulness.
+- Current implementation: `/papers/` lists notes and supports selected-note Markdown export; `/papers/[slug]/` renders metadata, source links, axis placement, normalized Axis C/D labels, note outline, and the Markdown note body.
+- Next work should audit representative detail pages and decide which issues belong in paper Markdown notes versus the detail-page shell.
+
+## Paused Focus
+
+General style controller is paused and retrievable.
 
 - Focus doc: `docs/focus/style-controller.md`.
-- Main files: `src/styles/global.css`, `src/layouts/BaseLayout.astro`, `src/components/CimLibraryNav.astro`, `src/components/TaxonomyAtlas.astro`, and representative route files under `src/pages/`.
-- Current goal: construct a general style controller for colors, typography/fonts, spacing, radius/borders/surfaces, and shared formatting decisions across the static Astro website.
 - Current implementation: `src/styles/global.css` has the first controller slice, using canonical CSS custom properties with legacy variable aliases for compatibility. Ordinary content links are underlined by default, with navigation/control exceptions.
-- Next work should inventory and replace remaining repeated hard-coded presentation values only where the semantic role is clear.
+- Resume by inventorying and replacing remaining repeated hard-coded presentation values only where the semantic role is clear.
 
 ## Completed Focus
 
@@ -32,17 +40,19 @@ Cluster analysis and working-group content is marked done.
 
 ## Method Guardrails
 
-- Inventory existing style surfaces before broad implementation.
-- Prefer a small token/controller layer over a redesign.
+- Prefer paper Markdown/content fixes for note-quality problems unless the issue is clearly route-shell behavior.
 - Keep academic/library routes quiet, readable, dense enough for research use, static, and inspectable.
 - Do not add backend services, client-side styling dependencies, databases, PDF hosting, or route-breaking changes unless explicitly requested.
 - Keep `/library/` and `/papers/[slug]/` stable.
+- Do not add ranking, quality, coverage, or IR-relevance scores.
+- Keep paper claims tied to primary paper/artifact evidence where possible.
 
 ## Session Scope
 
-- When asked to proceed with the active focus, read `docs/focus/style-controller.md` first.
+- When asked to proceed with the active focus, read `docs/focus/detail-page-content-refinement.md` first.
+- For paper-note edits, use `docs/corpus-note-harness.md`, `docs/metadata-template.md`, and `docs/legacy-source-map.md` only as needed.
 - For cluster maintenance, read `docs/focus/cluster-analysis-working-groups.md` and preserve its evidence/boundary guardrails.
-- Stop before making broad visual changes until duplicated style decisions are inventoried.
+- For style-controller work, read `docs/focus/style-controller.md` and avoid broad visual changes until duplicated style decisions are inventoried.
 
 ## Latest Good Verification
 

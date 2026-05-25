@@ -8,7 +8,7 @@ const papersDir = path.join(root, 'src/content/papers');
 const taxonomy = JSON.parse(fs.readFileSync(taxonomyPath, 'utf8'));
 const familyCodes = new Set(Object.keys(taxonomy.families));
 const middleCodes = new Set(Object.keys(taxonomy.middles));
-const requiredTopLevel = ['slug', 'title', 'summary', 'axis_A', 'axis_B'];
+const requiredTopLevel = ['slug', 'title', 'short_title', 'summary', 'axis_A', 'axis_B'];
 
 function frontmatter(markdown, file) {
   const match = markdown.match(/^---\n([\s\S]*?)\n---/);

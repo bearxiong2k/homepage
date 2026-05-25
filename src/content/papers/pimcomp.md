@@ -1,6 +1,7 @@
 ---
 slug: pimcomp
 title: "PIMCOMP: An End-to-End DNN Compiler for Processing-In-Memory Accelerators"
+short_title: "PIMCOMP"
 subtitle: "Scoped CIM stack note"
 year: 2024
 venue: "IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems / arXiv v1"

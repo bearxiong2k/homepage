@@ -1,6 +1,7 @@
 ---
 slug: miredo
 title: "MIREDO: MIP-Driven Resource-Efficient Dataflow Optimization for Computing-in-Memory Accelerator"
+short_title: "MIREDO"
 subtitle: "Scoped CIM stack note"
 year: 2026
 venue: "ASP-DAC 2026"

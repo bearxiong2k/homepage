@@ -1,6 +1,7 @@
 ---
 slug: turbo-charged-mapper
 title: The Turbo-Charged Mapper
+short_title: "Turbo-Charged Mapper"
 subtitle: Scoped CIM stack note seed
 year: 2026
 venue: arXiv

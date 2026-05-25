@@ -1,6 +1,7 @@
 ---
 slug: polyhedral-based-compilation-framework-for-in-memory-neural-network-accelerators
 title: "Polyhedral-Based Compilation Framework for In-Memory Neural Network Accelerators"
+short_title: "Polyhedral CIM"
 subtitle: "Scoped CIM stack note"
 year: 2021
 venue: "ACM Journal on Emerging Technologies in Computing Systems"

@@ -1,6 +1,7 @@
 ---
 slug: nax
 title: "NAX: Neural Architecture and Memristive Xbar based Accelerator Co-design"
+short_title: "NAX"
 subtitle: "Scoped CIM stack note"
 year: 2022
 venue: "DAC 2022 / Proceedings of the 59th ACM/IEEE Design Automation Conference"

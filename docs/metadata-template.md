@@ -6,6 +6,7 @@ Copy this frontmatter to a new paper note and then paste the full note below it.
 ---
 slug: example-paper
 title: Example Paper
+short_title: Example
 subtitle: Scoped CIM stack note
 year: 2026
 venue: arXiv

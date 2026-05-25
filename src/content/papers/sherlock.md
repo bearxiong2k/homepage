@@ -1,6 +1,7 @@
 ---
 slug: sherlock
 title: "SHERLOCK: Scheduling Efficient and Reliable Bulk Bitwise Operations in NVMs"
+short_title: "SHERLOCK"
 subtitle: "Scoped CIM stack note"
 year: 2024
 venue: "DAC 2024"
