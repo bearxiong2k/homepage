@@ -1,27 +1,41 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import profile from '../data/profile.json';
+import { profilePublications } from '../data/profile-publications';
+import { citationDisplayMetadata, parseBibtexEntry } from '../lib/bibtex';
 import { sitePath } from '../lib/sitePath';
 
-function publicationMeta(publication: {
-  venue: string;
-  year: number;
-  details?: string;
-  pages?: string;
-  role?: string;
-}) {
-  return [
-    publication.venue,
-    publication.year,
-    publication.details,
-    publication.pages ? `pp. ${publication.pages}` : null,
-    publication.role
-  ].filter(Boolean).join(' / ');
+const highlightedAuthor = 'Zijian Xiong';
+
+function normalizeName(value: string) {
+  return value.toLowerCase().replace(/[^a-z]/g, '');
 }
 
-function publicationAuthors(publication: { authors?: string[] }) {
-  return publication.authors?.length ? publication.authors.join(', ') : '';
+function isHighlightedAuthor(author: string) {
+  return normalizeName(author) === normalizeName(highlightedAuthor);
 }
+
+function publicationDetails(fields: Partial<Record<string, string>>, type: string) {
+  const pages = fields.pages?.replace(/--/g, '-');
+  if (type === 'article') {
+    const issue = fields.volume && fields.number
+      ? `${fields.volume}(${fields.number})`
+      : fields.volume;
+    const article = pages && !pages.includes('-') ? `Article ${pages}` : pages;
+    return [issue, article].filter(Boolean).join(', ');
+  }
+
+  return pages ? `pp. ${pages}` : '';
+}
+
+const publications = profilePublications.map(({ bibtex }) => {
+  const entry = parseBibtexEntry(bibtex);
+  const metadata = citationDisplayMetadata(bibtex);
+  return {
+    ...metadata,
+    details: entry ? publicationDetails(entry.fields, entry.type) : ''
+  };
+});
 ---
 
 <BaseLayout
@@ -82,17 +96,30 @@ function publicationAuthors(publication: { authors?: string[] }) {
         </div>
       </div>
       <div class="publication-list publication-list--about">
-        {profile.publications.map((publication) => (
+        {publications.map((publication) => (
           <article>
             <h3>
-              {publication.url ? (
-                <a href={publication.url}>{publication.title}</a>
+              {publication.publication.url ? (
+                <a href={publication.publication.url}>{publication.title}</a>
               ) : (
                 publication.title
               )}
             </h3>
-            {publicationAuthors(publication) && <p class="publication-authors">{publicationAuthors(publication)}</p>}
-            <p>{publicationMeta(publication)}</p>
+            {publication.authors.length > 0 && (
+              <p class="publication-authors">
+                {publication.authors.map((author, index) => (
+                  <>
+                    {index > 0 && ', '}
+                    {isHighlightedAuthor(author) ? <strong>{author}</strong> : author}
+                  </>
+                ))}
+              </p>
+            )}
+            <p class="publication-meta">
+              {publication.year && <span>{publication.year}</span>}
+              {publication.publication.venue && <span>{publication.publication.venue}</span>}
+              {publication.details && <span>{publication.details}</span>}
+            </p>
           </article>
         ))}
       </div>
