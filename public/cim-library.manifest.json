@@ -4,7 +4,7 @@
   "title": "CIM Compiler/IR Paper Library",
   "kind": "research-atlas",
   "route": "/library/",
-  "generated_at": "2026-05-24T19:12:47.873Z",
+  "generated_at": "2026-05-25T07:53:07.225Z",
   "source": {
     "content_root": "src/content/papers",
     "taxonomy_path": "src/data/taxonomy.json",
@@ -15,8 +15,10 @@
     "home": "/",
     "project_index": "/projects/",
     "project": "/projects/cim-library/",
+    "methodology": "/projects/cim-library/methodology/",
     "atlas": "/library/",
     "clusters": "/clusters/",
+    "paper_list_markdown": "/cim-library-paper-list.md",
     "paper_index": "/papers/",
     "paper_detail_pattern": "/papers/[slug]/"
   },
@@ -44,6 +46,12 @@
       "route": "/papers/",
       "label": "Paper notes",
       "description": "Plain listing of all recorded paper notes in the CIM Library."
+    },
+    {
+      "id": "methodology",
+      "route": "/projects/cim-library/methodology/",
+      "label": "Methodology",
+      "description": "Under-construction notes on AI-assisted scoped corpus methodology."
     }
   ],
   "taxonomy": {

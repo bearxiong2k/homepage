@@ -17,6 +17,8 @@ personal website shell
 ├── /                         personal homepage
 ├── /projects/                index of research/dev projects
 ├── /projects/cim-library/    narrative landing page for this atlas
+├── /projects/cim-library/methodology/
+│                               under-construction AI-assisted corpus method note
 ├── /library/                 interactive CIM atlas
 ├── /clusters/                cluster and working-group notes
 ├── /papers/                  plain index of recorded paper notes

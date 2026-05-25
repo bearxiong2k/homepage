@@ -1,0 +1,134 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import CimLibraryNav from '../../../components/CimLibraryNav.astro';
+import projects from '../../../data/project-registry.json';
+import profile from '../../../data/profile.json';
+import { sitePath } from '../../../lib/sitePath';
+import cimManifest from '../../../../public/cim-library.manifest.json';
+
+const project = projects.find((entry) => entry.id === 'cim-library');
+if (!project) throw new Error('Missing cim-library project registry entry');
+
+const routes = cimManifest.routes;
+const paperCount = cimManifest.stats.paper_count;
+const clusterStats = cimManifest.cluster_layer?.stats;
+---
+
+<BaseLayout
+  title={`Methodology | ${project.title} | ${profile.name}`}
+  description="Under-construction methodology notes for how AI cooperation is used to generate a controllable scoped CIM compiler/IR corpus."
+>
+  <CimLibraryNav />
+  <main class="wrap page-shell project-landing methodology-page">
+    <header class="page-header project-hero">
+      <p class="eyebrow eyebrow--dark">Methodology / under construction</p>
+      <h1>AI-assisted scoped corpus methodology</h1>
+      <p>This page is about how I cooperate with AI agents to generate a controllable scoped corpus, not about how the Astro website is implemented. The draft follows the general idea of <a href="https://github.com/bearxiong2k/project-bootstrap">Project Bootstrap</a>: define the scope first, investigate resources independently, extract compact summaries, then reflect after the corpus exists.</p>
+    </header>
+
+    <section class="cluster-ai-notice methodology-status" aria-label="Methodology status">
+      <p class="eyebrow eyebrow--dark">Draft status</p>
+      <p>This methodology is under construction and will be improved in the future. Treat the current page as a public sketch of the control strategy, not as a complete reproducibility protocol.</p>
+    </section>
+
+    <section class="landing-grid" aria-label="Current corpus methodology summary">
+      <article class="landing-panel landing-panel--wide">
+        <p class="eyebrow eyebrow--dark">Current method</p>
+        <h2>Use AI to expand investigation, but keep the corpus boundary explicit</h2>
+        <p>The library grew out of my own ongoing CIM IR project. AI agents help read, classify, and summarize papers, but the method is designed to keep the work bounded: the scope, investigation lens, transfer artifacts, and final public notes remain explicit enough for me to inspect and revise.</p>
+        <dl class="principle-list">
+          <div>
+            <dt>Human seed, scoped before synthesis</dt>
+            <dd>I start from a provisional research need, then define what the corpus should look for before asking agents to produce broad conclusions.</dd>
+          </div>
+          <div>
+            <dt>Independent resource investigations</dt>
+            <dd>Each paper should be investigated as its own resource against the same lens, so a strong claim in one note does not silently steer the whole corpus.</dd>
+          </div>
+          <div>
+            <dt>Structured transfer, flexible reading</dt>
+            <dd>The hard structure lives at boundaries: stable resource IDs, paper links, frontmatter fields, and summary/export contracts. Inside each note, the analysis can adapt to the paper.</dd>
+          </div>
+          <div>
+            <dt>Delayed reflection</dt>
+            <dd>The atlas and clusters should emerge after the scoped investigations are available, not from a first-pass agent synthesis that tries to settle the project direction too early.</dd>
+          </div>
+        </dl>
+      </article>
+      <aside class="stat-board stat-board--landing">
+        <div>
+          <strong>{paperCount}</strong>
+          <span>paper notes</span>
+        </div>
+        <div>
+          <strong>{clusterStats?.cluster_count ?? 0}</strong>
+          <span>cluster hypotheses</span>
+        </div>
+        <div>
+          <strong>{clusterStats?.working_group_count ?? 0}</strong>
+          <span>working groups</span>
+        </div>
+        <div>
+          <strong>{cimManifest.stats.year_min}-{cimManifest.stats.year_max}</strong>
+          <span>year range</span>
+        </div>
+      </aside>
+    </section>
+
+    <section class="landing-grid" aria-label="Methodology boundaries">
+      <article class="landing-panel">
+        <p class="eyebrow eyebrow--dark">Boundaries</p>
+        <h2>What this AI-assisted corpus does not claim</h2>
+        <ul class="methodology-list">
+          <li>It is not a comprehensive survey of all CIM, PIM, compiler, architecture, or device papers.</li>
+          <li>It does not score paper quality, citation importance, coverage, or IR relevance.</li>
+          <li>It does not treat generated legacy notes as ground truth.</li>
+          <li>It does not ask AI agents to decide the final thesis or research direction before the corpus is scoped.</li>
+          <li>It does not replace reading the paper, checking the artifact, or verifying ambiguous claims against primary sources.</li>
+        </ul>
+      </article>
+      <article class="landing-panel">
+        <p class="eyebrow eyebrow--dark">Error channel</p>
+        <h2>Why email instead of an active issue queue</h2>
+        <p>This corpus is intentionally interpretive and scoped to my current research investigation. Keeping corrections by email reduces pressure to turn every taxonomy disagreement into an open maintenance thread, while still leaving a clear path for factual corrections and paper suggestions.</p>
+        <p>Email <a href={`mailto:${profile.email}`}>{profile.email}</a> for errors, missing papers, or source updates that would materially change a note.</p>
+        <blockquote class="methodology-quote">
+          <p>"The owl of Minerva spreads its wings only with the falling of the dusk."</p>
+          <cite>G. W. F. Hegel, commonly translated from the preface to <em>Elements of the Philosophy of Right</em></cite>
+        </blockquote>
+      </article>
+    </section>
+
+    <section class="landing-panel project-surface-panel" aria-label="Methodology roadmap">
+      <div class="section-title">
+        <div>
+          <p class="eyebrow eyebrow--dark">To be documented</p>
+          <h2>Planned refinement of this method note</h2>
+        </div>
+        <span class="subtle">Under construction</span>
+      </div>
+      <div class="surface-list surface-list--methodology">
+        <article>
+          <h3>Framing artifact</h3>
+          <p>How the initial CIM IR research need is preserved as a seed, then expanded into a scoped paper/resource list without pretending the first framing is final.</p>
+        </article>
+        <article>
+          <h3>Investigation lens</h3>
+          <p>How each independent paper investigation is instructed to look for first-class compiler objects, evidence types, uncertainty, and what to ignore.</p>
+        </article>
+        <article>
+          <h3>Digest and reflection</h3>
+          <p>How compact summaries can be extracted before higher-level taxonomy, cluster, and project-direction reflection happens.</p>
+        </article>
+        <article>
+          <h3>Public corpus contract</h3>
+          <p>How the static notes, metadata, exports, and correction channel can expose the corpus while keeping AI-generated content visibly bounded.</p>
+        </article>
+      </div>
+    </section>
+
+    <p class="footer">
+      Return to the <a href={sitePath(routes.project)}>CIM Library overview</a>, open the <a href={sitePath(routes.atlas)}>atlas</a>, or browse the <a href={sitePath(routes.paper_index)}>paper notes</a>.
+    </p>
+  </main>
+</BaseLayout>

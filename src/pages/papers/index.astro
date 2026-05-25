@@ -2,13 +2,39 @@
 import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import CimLibraryNav from '../../components/CimLibraryNav.astro';
+import projects from '../../data/project-registry.json';
 import profile from '../../data/profile.json';
 import { sitePath } from '../../lib/sitePath';
 
 const entries = await getCollection('papers');
+const project = projects.find((entry) => entry.id === 'cim-library');
+if (!project) throw new Error('Missing cim-library project registry entry');
+
 const papers = entries
-  .map((entry) => entry.data)
+  .map((entry) => {
+    const sourceFile = `${entry.data.slug}.md`;
+    return {
+      ...entry.data,
+      sourceFile,
+      sourcePath: `src/content/papers/${sourceFile}`,
+      sourceMarkdown: entry.body
+    };
+  })
   .sort((a, b) => a.title.localeCompare(b.title));
+
+const paperExportData = papers.map((paper) => ({
+  slug: paper.slug,
+  title: paper.title,
+  year: paper.year ?? null,
+  venue: paper.venue ?? '',
+  authors_or_group: paper.authors_or_group ?? '',
+  route: `/papers/${paper.slug}/`,
+  sourcePath: paper.sourcePath,
+  sourceUrl: `${project.repo}/blob/main/${paper.sourcePath}`,
+  paperUrl: paper.links?.paper ?? '',
+  sourceMarkdown: paper.sourceMarkdown
+}));
+const paperExportJson = JSON.stringify(paperExportData).replace(/</g, '\\u003c');
 ---
 
 <BaseLayout
@@ -28,14 +54,132 @@ const papers = entries
         <h2>All Notes</h2>
         <span class="subtle">{papers.length} papers</span>
       </div>
+      <div class="note-export-toolbar" aria-label="Paper note export controls">
+        <div class="note-export-primary">
+          <button type="button" class="secondary" id="selectAllNotes">Select all</button>
+          <button type="button" class="secondary" id="clearNoteSelection">Clear</button>
+          <span class="subtle" id="noteSelectionCount">0 selected</span>
+        </div>
+        <div class="note-export-actions">
+          <label for="paperNoteExportFormat">Export</label>
+          <select id="paperNoteExportFormat">
+            <option value="combined">Selected notes as Markdown</option>
+            <option value="sources">Selected source-file links</option>
+          </select>
+          <button type="button" id="downloadSelectedNotes" disabled>Download selected</button>
+          <a class="inline-link" href={sitePath('/cim-library-paper-list.md')}>Paper list MD</a>
+        </div>
+      </div>
       <ol class="paper-index-list">
         {papers.map((paper) => (
-          <li>
-            <a href={sitePath(`/papers/${paper.slug}/`)}>{paper.title}</a>
+          <li class="paper-index-row">
+            <label class="paper-select-label">
+              <input type="checkbox" class="paper-select" data-paper-slug={paper.slug} />
+              <span class="visually-hidden">Select {paper.title}</span>
+            </label>
+            <div>
+              <a href={sitePath(`/papers/${paper.slug}/`)}>{paper.title}</a>
+              <small>{paper.sourcePath}</small>
+            </div>
             <span>{[paper.year, paper.venue, paper.authors_or_group].filter(Boolean).join(' / ') || 'Year, venue, or group not specified'}</span>
           </li>
         ))}
       </ol>
     </section>
   </main>
+  <script is:inline id="paper-note-export-data" type="application/json" set:html={paperExportJson}></script>
+  <script is:inline>
+    const exportDataNode = document.getElementById('paper-note-export-data');
+    const paperNotes = JSON.parse(exportDataNode?.textContent || '[]');
+    const paperBySlug = new Map(paperNotes.map((paper) => [paper.slug, paper]));
+    const checkboxes = Array.from(document.querySelectorAll('[data-paper-slug]'));
+    const selectAllButton = document.getElementById('selectAllNotes');
+    const clearButton = document.getElementById('clearNoteSelection');
+    const downloadButton = document.getElementById('downloadSelectedNotes');
+    const formatSelect = document.getElementById('paperNoteExportFormat');
+    const selectionCount = document.getElementById('noteSelectionCount');
+
+    function selectedPapers() {
+      return checkboxes
+        .filter((checkbox) => checkbox.checked)
+        .map((checkbox) => paperBySlug.get(checkbox.dataset.paperSlug))
+        .filter(Boolean);
+    }
+
+    function updateSelectionState() {
+      const count = selectedPapers().length;
+      if (selectionCount) selectionCount.textContent = `${count} selected`;
+      if (downloadButton) downloadButton.disabled = count === 0;
+    }
+
+    function metadataLine(label, value) {
+      return value ? `- ${label}: ${value}` : '';
+    }
+
+    function combinedMarkdown(papers) {
+      const sections = papers.map((paper) => [
+        `## ${paper.title}`,
+        '',
+        `<!-- Source: ${paper.sourcePath} -->`,
+        metadataLine('Library note', paper.route),
+        metadataLine('Source file', paper.sourcePath),
+        metadataLine('Paper link', paper.paperUrl),
+        '',
+        paper.sourceMarkdown.trim(),
+        ''
+      ].filter((line) => line !== '').join('\n'));
+      return [
+        '# CIM Library Selected Paper Notes',
+        '',
+        'Exported from source notes in `src/content/papers`.',
+        '',
+        sections.join('\n---\n\n')
+      ].join('\n');
+    }
+
+    function sourceLinksMarkdown(papers) {
+      return [
+        '# CIM Library Selected Paper Note Sources',
+        '',
+        ...papers.map((paper) => `- [${paper.title}](${paper.sourceUrl}) - ${paper.sourcePath}`)
+      ].join('\n');
+    }
+
+    function downloadMarkdown(filename, content) {
+      const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    selectAllButton?.addEventListener('click', () => {
+      checkboxes.forEach((checkbox) => { checkbox.checked = true; });
+      updateSelectionState();
+    });
+
+    clearButton?.addEventListener('click', () => {
+      checkboxes.forEach((checkbox) => { checkbox.checked = false; });
+      updateSelectionState();
+    });
+
+    checkboxes.forEach((checkbox) => checkbox.addEventListener('change', updateSelectionState));
+
+    downloadButton?.addEventListener('click', () => {
+      const selected = selectedPapers();
+      if (!selected.length) return;
+      const format = formatSelect?.value || 'combined';
+      if (format === 'sources') {
+        downloadMarkdown('cim-library-selected-note-sources.md', sourceLinksMarkdown(selected));
+        return;
+      }
+      downloadMarkdown('cim-library-selected-paper-notes.md', combinedMarkdown(selected));
+    });
+
+    updateSelectionState();
+  </script>
 </BaseLayout>

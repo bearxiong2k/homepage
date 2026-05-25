@@ -8,11 +8,13 @@ const links = [
   { href: routes.project, label: 'Overview', section: 'overview' },
   { href: routes.atlas, label: 'Atlas', section: 'atlas' },
   { href: routes.clusters, label: 'Clusters', section: 'clusters' },
-  { href: routes.paper_index, label: 'Notes', section: 'notes' }
+  { href: routes.paper_index, label: 'Notes', section: 'notes' },
+  { href: routes.methodology ?? '/projects/cim-library/methodology/', label: 'Methodology', section: 'methodology' }
 ];
 
 function currentSection() {
   if (currentPath.startsWith('/papers/')) return 'notes';
+  if (currentPath.startsWith(routes.methodology ?? '/projects/cim-library/methodology/')) return 'methodology';
   if (currentPath.startsWith(routes.clusters)) return 'clusters';
   if (currentPath.startsWith(routes.atlas)) return 'atlas';
   if (currentPath.startsWith(routes.project)) return 'overview';
