@@ -426,10 +426,21 @@ button.secondary { background: var(--color-surface); color: #22304a; border-colo
 .work-title { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
 .work-title h3 { font-size: 22px; line-height: 1.12; letter-spacing: 0; }
 .selected-panel #workDetails > p.subtle {
-  display: -webkit-box;
-  -webkit-line-clamp: 5;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  overflow: visible;
+}
+.selected-panel .atlas-summary strong,
+.reading-bridge strong {
+  color: #22304a;
+}
+.selected-panel .atlas-summary code,
+.reading-bridge code,
+.atlas-tooltip code {
+  border: 1px solid #dbe3ee;
+  border-radius: 5px;
+  background: #f6f8fb;
+  padding: 1px 4px;
+  color: #26364f;
+  font-size: .92em;
 }
 .atlas-fact-list {
   display: grid;
@@ -524,7 +535,9 @@ button.secondary { background: var(--color-surface); color: #22304a; border-colo
 .atlas-tooltip {
   position: fixed;
   z-index: 100;
-  width: min(360px, calc(100vw - 32px));
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
   border: 1px solid #cad4e2;
   border-radius: 14px;
   background: rgba(255, 255, 255, .97);
@@ -538,7 +551,14 @@ button.secondary { background: var(--color-surface); color: #22304a; border-colo
 .atlas-tooltip.visible { opacity: 1; transform: translateY(0); }
 .atlas-tooltip b { display: block; color: #14213a; font-size: 14px; line-height: 1.25; }
 .atlas-tooltip span { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
-.atlas-tooltip p { margin: 8px 0 0; color: #34425c; font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.atlas-tooltip p { margin: 8px 0 0; color: #34425c; font-size: 12px; line-height: 1.45; }
+.atlas-tooltip strong { color: #22304a; }
+.atlas-tooltip a,
+.selected-panel .atlas-summary a,
+.reading-bridge a {
+  color: #274f9e;
+  font-weight: 700;
+}
 .summary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 12px; }
 .mini-stat { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: #fbfcff; }
 .mini-stat strong { font-size: 22px; display: block; }

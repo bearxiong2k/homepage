@@ -234,6 +234,11 @@ const axisCategories = axisCategorySets(taxonomy);
 
   const $ = (id) => document.getElementById(id);
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+  const inlineMarkdown = (value) => esc(value)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>');
   const firstMiddle = (paper) => paper.axis_B?.[0] ?? 'B1';
   const roles = (paper) => [paper.axis_A.primary, ...(paper.axis_A.secondary ?? [])];
   const metadataLine = (paper) => [paper.year, paper.publication?.venue].filter(Boolean).join(' · ');
@@ -728,7 +733,7 @@ const axisCategories = axisCategorySets(taxonomy);
       <span>${atlasLayout === 'cd'
         ? `${esc(paper.axis_C_object_vocab?.[0] ?? '')} · ${esc(paper.axis_D_rewrite_types?.[0] ?? '')}`
         : `${esc(paper.axis_A.primary)} ${esc(families[paper.axis_A.primary]?.short ?? '')} · ${esc(firstMiddle(paper))} ${esc(middles[firstMiddle(paper)]?.short ?? '')}`}</span>
-      <p>${esc(paper.summary)}</p>
+      <p>${inlineMarkdown(paper.summary)}</p>
     `;
   }
 
@@ -917,7 +922,7 @@ const axisCategories = axisCategorySets(taxonomy);
           <div class="subtle">${esc(metadataLine(paper) || paper.subtitle || 'No venue/year in metadata')}</div>
         </div>
       </div>
-      <p class="subtle" style="margin:0">${esc(paper.summary)}</p>
+      <p class="subtle atlas-summary" style="margin:0">${inlineMarkdown(paper.summary)}</p>
       <div class="atlas-fact-list">
         <div><span>Stack view</span><strong>${esc(axisLabel(paper))}</strong></div>
         <div><span>Object view</span><strong>${esc(objectRewriteLabel(paper))}</strong></div>
@@ -937,7 +942,7 @@ const axisCategories = axisCategorySets(taxonomy);
         <section class="bridge-section">
           <h4>Read for</h4>
           <ul>
-            ${bridgeBullets(paper).map((item) => `<li>${esc(item)}</li>`).join('')}
+            ${bridgeBullets(paper).map((item) => `<li>${inlineMarkdown(item)}</li>`).join('')}
           </ul>
         </section>
         <section class="bridge-section">
