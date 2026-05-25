@@ -30,15 +30,23 @@ const paperListRoute = routes.paper_list_markdown ?? '/cim-library-paper-list.md
     <header class="page-header project-hero">
       <p class="eyebrow eyebrow--dark">{project.kind} / {project.status}</p>
       <h1>{project.title}</h1>
-      <p>This library is a static, personal research atlas grown from paper investigation for my ongoing CIM IR work. It is meant to make a corpus easier to inspect, not to certify coverage, correctness, or importance.</p>
+      <p>This library is a static, personal research atlas for reading Compute-in-Memory compiler and system papers by the representations they expose. It is meant to make a corpus easier to inspect, not to certify coverage, correctness, or importance.</p>
     </header>
 
     <section class="landing-grid landing-grid--intro" aria-label="CIM Library introduction">
       <article class="landing-panel landing-panel--wide">
         <p class="eyebrow eyebrow--dark">Reading frame</p>
-        <h2>A subjective map of first-class CIM compiler objects</h2>
-        <p class="overview-lede">The taxonomy asks what a stack makes explicit: what it names, types, rewrites, verifies, serializes, and hands to a backend. A paper may describe a macro generator, simulator, mapper, runtime, or ISA; the atlas records the representation boundary that seems most visible from the checked paper and artifact evidence.</p>
+        <h2>A subjective map of what each CIM stack makes explicit</h2>
+        <p class="overview-lede">The atlas is not organized first by SRAM, RRAM, PCM, DRAM-PIM, or UPMEM. Those technology terms matter, but they are metadata. The central question is representational: what object does a stack name, rewrite, verify, serialize, or hand to a backend?</p>
         <dl class="principle-list">
+          <div>
+            <dt>Four-axis lens</dt>
+            <dd>Axis A records the stack role, Axis B records the middle-layer style, Axis C records the first-class CIM object, and Axis D records the rewrite object.</dd>
+          </div>
+          <div>
+            <dt>Middle layers matter</dt>
+            <dd>Many papers share familiar frontends and simulator backends; the interesting variation is often in mapping state, graph annotations, loop schedules, hardware-resource descriptions, or instruction-like handoff formats.</dd>
+          </div>
           <div>
             <dt>Personal best effort</dt>
             <dd>Coverage and note depth reflect my own investigation needs, source access, and time. Missing papers and uneven detail are expected.</dd>
@@ -135,7 +143,7 @@ const paperListRoute = routes.paper_list_markdown ?? '/cim-library-paper-list.md
       <article class="landing-panel">
         <p class="eyebrow eyebrow--dark">Corpus shape</p>
         <h2>Technology terms show where the papers spend their evidence</h2>
-        <p class="facet-essay">The technology vocabulary is metadata, not the atlas axis. It helps expose whether a note is grounded in SRAM-CIM, RRAM/analog arrays, DRAM-PIM, UPMEM, or broader PIM compiler and runtime work.</p>
+        <p class="facet-essay">Technology vocabulary is kept separate from the taxonomy axes. It helps expose whether a note is grounded in SRAM-CIM, RRAM/analog arrays, DRAM-PIM, UPMEM, or broader PIM compiler and runtime work without making device family the primary classification.</p>
         <ul class="rank-list">
           {topTechnologies.map((item) => <li><span>{item.label}</span><b>{item.count}</b></li>)}
         </ul>
