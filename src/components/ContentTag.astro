@@ -1,0 +1,40 @@
+---
+import cimManifest from '../../public/cim-library.manifest.json';
+import { routePath } from '../lib/sitePath';
+
+const currentPath = routePath(Astro.url.pathname);
+const routes = cimManifest.routes;
+const methodologyRoute = routes.methodology ?? '/projects/cim-library/methodology/';
+
+const tags = {
+  humanPolished: {
+    tone: 'human-polished',
+    label: 'Written by me, polished by AI'
+  },
+  firstOrderAi: {
+    tone: 'first-order-ai',
+    label: 'First-order AI content: manually modified prompt, direct AI output'
+  },
+  higherOrderAi: {
+    tone: 'higher-order-ai',
+    label: 'Higher-order AI content: human-in-the-loop with loose supervision'
+  }
+};
+
+function activeTag() {
+  if (currentPath.startsWith(routes.clusters)) return tags.higherOrderAi;
+  if (currentPath.startsWith(routes.atlas)) return tags.firstOrderAi;
+  if (currentPath.startsWith('/papers/')) return tags.firstOrderAi;
+  if (currentPath.startsWith(methodologyRoute)) return tags.humanPolished;
+  if (currentPath.startsWith(routes.project)) return tags.humanPolished;
+  return null;
+}
+
+const tag = activeTag();
+---
+
+{tag && (
+  <div class={`content-tag content-tag--${tag.tone}`} aria-label="AI content involvement">
+    <span>{tag.label}</span>
+  </div>
+)}

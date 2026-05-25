@@ -2,6 +2,7 @@
 import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import CimLibraryNav from '../../components/CimLibraryNav.astro';
+import ContentTag from '../../components/ContentTag.astro';
 import clustersData from '../../data/clusters.json';
 import profile from '../../data/profile.json';
 import taxonomy from '../../data/taxonomy.json';
@@ -98,6 +99,7 @@ function proseList(items: string[]) {
   description="A cautious static cluster and working-group layer over the CIM compiler/IR paper corpus."
 >
   <CimLibraryNav />
+  <ContentTag />
   <main class="wrap page-shell cluster-route">
     <header class="page-header">
       <p class="eyebrow eyebrow--dark">CIM compiler/IR corpus</p>

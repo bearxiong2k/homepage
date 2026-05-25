@@ -2,6 +2,7 @@
 import { getCollection, render } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import CimLibraryNav from '../../components/CimLibraryNav.astro';
+import ContentTag from '../../components/ContentTag.astro';
 import taxonomy from '../../data/taxonomy.json';
 import { normalizePaperAxes } from '../../lib/axisNormalization';
 import { sitePath } from '../../lib/sitePath';
@@ -96,6 +97,7 @@ const provenanceSummary = [
 ---
 <BaseLayout title={`${data.title} — Paper Library`} description={data.summary}>
   <CimLibraryNav />
+  <ContentTag />
   <main class="wrap paper-detail">
     <header class="paper-note-header">
       <p class="eyebrow eyebrow--dark">Corpus note</p>

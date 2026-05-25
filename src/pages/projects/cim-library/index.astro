@@ -1,8 +1,10 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import CimLibraryNav from '../../../components/CimLibraryNav.astro';
+import ContentTag from '../../../components/ContentTag.astro';
 import projects from '../../../data/project-registry.json';
 import profile from '../../../data/profile.json';
+import { sitePath } from '../../../lib/sitePath';
 import cimManifest from '../../../../public/cim-library.manifest.json';
 
 const project = projects.find((entry) => entry.id === 'cim-library');
@@ -12,6 +14,10 @@ const topTechnologies = cimManifest.stats.top_technologies.slice(0, 6);
 const topWorkloads = cimManifest.stats.top_workloads.slice(0, 6);
 const clusterStats = cimManifest.cluster_layer?.stats;
 const publicViews = cimManifest.views;
+const routes = cimManifest.routes;
+const methodologyRoute = routes.methodology ?? '/projects/cim-library/methodology/';
+const repoUrl = project.repo;
+const paperListRoute = routes.paper_list_markdown ?? '/cim-library-paper-list.md';
 ---
 
 <BaseLayout
@@ -19,26 +25,31 @@ const publicViews = cimManifest.views;
   description={project.summary}
 >
   <CimLibraryNav />
+  <ContentTag />
   <main class="wrap page-shell project-landing">
     <header class="page-header project-hero">
       <p class="eyebrow eyebrow--dark">{project.kind} / {project.status}</p>
       <h1>{project.title}</h1>
-      <p>A static research atlas for reading CIM compiler and IR papers by the objects they make explicit: the things a stack names, types, rewrites, verifies, serializes, and hands to a backend.</p>
+      <p>This library is a static, personal research atlas grown from paper investigation for my ongoing CIM IR work. It is meant to make a corpus easier to inspect, not to certify coverage, correctness, or importance.</p>
     </header>
 
-    <section class="landing-grid" aria-label="CIM Library overview">
+    <section class="landing-grid landing-grid--intro" aria-label="CIM Library introduction">
       <article class="landing-panel landing-panel--wide">
-        <p class="eyebrow eyebrow--dark">Central question</p>
-        <h2>What is the compiler object, not just what accelerator is targeted?</h2>
-        <p class="overview-lede">The corpus is organized around the representation boundary in each CIM stack. A paper may describe a macro generator, simulator, mapper, runtime, or ISA; the atlas asks which object becomes first-class enough to be named, transformed, checked, serialized, or handed to a backend.</p>
+        <p class="eyebrow eyebrow--dark">Reading frame</p>
+        <h2>A subjective map of first-class CIM compiler objects</h2>
+        <p class="overview-lede">The taxonomy asks what a stack makes explicit: what it names, types, rewrites, verifies, serializes, and hands to a backend. A paper may describe a macro generator, simulator, mapper, runtime, or ISA; the atlas records the representation boundary that seems most visible from the checked paper and artifact evidence.</p>
         <dl class="principle-list">
           <div>
-            <dt>Descriptive, not scored</dt>
-            <dd>Metadata captures stack role, abstraction style, first-class objects, rewrite objects, artifacts, and source status without coverage, quality, or ranking scores.</dd>
+            <dt>Personal best effort</dt>
+            <dd>Coverage and note depth reflect my own investigation needs, source access, and time. Missing papers and uneven detail are expected.</dd>
+          </div>
+          <div>
+            <dt>Descriptive, not authoritative</dt>
+            <dd>The taxonomy is a subjective scope, and the content of any included paper note should be treated as a reading aid to verify, not as ground truth.</dd>
           </div>
           <div>
             <dt>Static and inspectable</dt>
-            <dd>Paper notes live in Markdown frontmatter and corpus notes; generated summaries come from a static manifest rather than a database.</dd>
+            <dd>Paper metadata and notes live in Markdown; generated summaries come from a static manifest rather than a database or backend service.</dd>
           </div>
         </dl>
       </article>
@@ -62,11 +73,50 @@ const publicViews = cimManifest.views;
       </aside>
     </section>
 
+    <section class="landing-panel use-panel" aria-label="How to use this library">
+      <div class="section-title">
+        <div>
+          <p class="eyebrow eyebrow--dark">How to use</p>
+          <h2>Several recommended ways to read or reuse the library</h2>
+        </div>
+        <span class="subtle">Best used as a seed, not a citation substitute</span>
+      </div>
+      <ol class="use-list">
+        <li>
+          <span>Read and explore for fun.</span>
+          <a class="inline-link" href={sitePath(routes.atlas)}>Open the atlas</a>
+        </li>
+        <li>
+          <span>Export the paper list as a seed for your own investigation.</span>
+          <a class="inline-link" href={sitePath(paperListRoute)}>Download paper list</a>
+        </li>
+        <li>
+          <span>Export selected paper notes from <code>src/content/papers</code> as complementary material, then check the papers and artifacts yourself.</span>
+          <a class="inline-link" href={sitePath(routes.paper_index)}>Open notes export</a>
+        </li>
+        <li>
+          <span>Reference the methodology behind this taxonomy and corpus.</span>
+          <a class="inline-link" href={sitePath(methodologyRoute)}>Open methodology</a>
+        </li>
+        <li>
+          <span>Star the repository if this static homepage-library is useful to you.</span>
+          <a class="inline-link" href={repoUrl}>Open GitHub</a>
+        </li>
+      </ol>
+      <div class="library-contact-note">
+        <p>For errors or new papers that should be covered, please email <a href={`mailto:${profile.email}`}>{profile.email}</a>. I deliberately do not maintain an active issue or pull-request queue for this library; the methodology page explains the reason.</p>
+        <blockquote>
+          <p>"The owl of Minerva spreads its wings only with the falling of the dusk."</p>
+          <cite>G. W. F. Hegel, commonly translated from the preface to <em>Elements of the Philosophy of Right</em></cite>
+        </blockquote>
+      </div>
+    </section>
+
     <section class="landing-panel project-surface-panel" aria-label="Public CIM Library surfaces">
       <div class="section-title">
         <div>
           <p class="eyebrow eyebrow--dark">Public surfaces</p>
-          <h2>Four static ways into the same corpus</h2>
+          <h2>Static ways into the same corpus</h2>
         </div>
         <span class="subtle">Generated from the project manifest</span>
       </div>

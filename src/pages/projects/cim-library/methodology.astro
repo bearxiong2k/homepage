@@ -1,0 +1,68 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import CimLibraryNav from '../../../components/CimLibraryNav.astro';
+import ContentTag from '../../../components/ContentTag.astro';
+import projects from '../../../data/project-registry.json';
+import profile from '../../../data/profile.json';
+import { sitePath } from '../../../lib/sitePath';
+import cimManifest from '../../../../public/cim-library.manifest.json';
+
+const project = projects.find((entry) => entry.id === 'cim-library');
+if (!project) throw new Error('Missing cim-library project registry entry');
+
+const routes = cimManifest.routes;
+---
+
+<BaseLayout
+  title={`Methodology | ${project.title} | ${profile.name}`}
+  description="Under-construction methodology notes for how AI cooperation is used to generate a controllable scoped CIM compiler/IR corpus."
+>
+  <CimLibraryNav />
+  <ContentTag />
+  <main class="wrap page-shell project-landing methodology-page">
+    <header class="page-header project-hero">
+      <p class="eyebrow eyebrow--dark">Methodology / under construction</p>
+      <h1>AI-assisted scoped corpus methodology</h1>
+      <p>This page is a short draft of how I cooperate with AI agents to generate a controllable scoped corpus. It follows the method in <a href="https://github.com/bearxiong2k/project-bootstrap">Project Bootstrap</a> and will be refined later.</p>
+    </header>
+
+    <section class="cluster-ai-notice methodology-status" aria-label="Methodology status">
+      <p class="eyebrow eyebrow--dark">Draft status</p>
+      <p>This method note is intentionally minimal for now. It records the operating idea behind the current corpus, not a complete reproducibility protocol.</p>
+    </section>
+
+    <section class="landing-panel methodology-simple" aria-label="Project Bootstrap method">
+      <p class="eyebrow eyebrow--dark">Method</p>
+      <h2>Scope first, investigate independently, synthesize late</h2>
+      <p>The basic rule is to use AI for expansion without letting it dissolve the boundary of the project. A human seed defines the research need. The framing step turns that seed into a scoped corpus, an investigation lens, and stable resource identifiers. Each paper is then investigated independently against that lens, so one strong note does not become the hidden premise of the whole library.</p>
+      <p>The hard structure lives at transfer points: resource IDs, links, summary fields, and source references. Inside each paper note, the reading can remain flexible. Only after enough scoped notes exist should a digest, taxonomy, or cluster view be synthesized. In that sense the taxonomy is a delayed reflection over a bounded corpus, not an instruction given to every paper in advance.</p>
+    </section>
+
+    <section class="landing-panel methodology-simple" aria-label="Maintenance stance">
+      <p class="eyebrow eyebrow--dark">Maintenance stance</p>
+      <h2>Why this is not an actively maintained taxonomy repo</h2>
+      <p>A taxonomy or paradigm always arrives too late for the reality it describes. The moment it becomes clear enough to publish, the field has already started to move beyond it. Following Hegel's image, the owl of Minerva flies only at dusk: reflection becomes possible when a shape of practice is already visible, but that same visibility means the shape is no longer the living present.</p>
+      <p>For that reason, I do not want this library to behave like an actively maintained standard, benchmark, or consensus taxonomy. It is a situated reflection over a scoped investigation for my own CIM IR work. Corrections and missing papers are welcome by email, but the corpus should remain a readable snapshot rather than a permanent issue-driven classification project.</p>
+      <p>Email <a href={`mailto:${profile.email}`}>{profile.email}</a> for factual errors, missing papers, or source updates that would materially change a note.</p>
+      <blockquote class="methodology-quote">
+        <p>"The owl of Minerva spreads its wings only with the falling of the dusk."</p>
+        <cite>G. W. F. Hegel, commonly translated from the preface to <em>Elements of the Philosophy of Right</em></cite>
+      </blockquote>
+    </section>
+
+    <section class="landing-panel methodology-simple" aria-label="Current limits">
+      <p class="eyebrow eyebrow--dark">Current limits</p>
+      <h2>What to remember when using it</h2>
+      <ul class="methodology-list">
+        <li>The corpus is not comprehensive.</li>
+        <li>The taxonomy is subjective and scoped to a particular research question.</li>
+        <li>AI-assisted notes are reading aids, not ground truth.</li>
+        <li>The paper and official artifacts remain the sources to verify.</li>
+      </ul>
+    </section>
+
+    <p class="footer">
+      Return to the <a href={sitePath(routes.project)}>CIM Library overview</a>, open the <a href={sitePath(routes.atlas)}>atlas</a>, or browse the <a href={sitePath(routes.paper_index)}>paper notes</a>.
+    </p>
+  </main>
+</BaseLayout>

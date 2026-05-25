@@ -10,7 +10,7 @@ Read AGENTS.md and docs/active-context.md first. Then use docs/README.md to choo
 Project status:
 - Static Astro CIM compiler/IR paper library.
 - 62 schema-valid paper entries.
-- Stable routes: /, /projects/, /projects/cim-library/, /library/, /clusters/, /papers/, /papers/[slug]/.
+- Stable routes: /, /projects/, /projects/cim-library/, /projects/cim-library/methodology/, /library/, /clusters/, /papers/, /papers/[slug]/.
 - src/data/clusters.json is the hand-authored cluster/working-group source and stays separate from paper frontmatter.
 - /clusters/ is a completed cluster and working-group route with a visible AI-assisted synthesis notice.
 

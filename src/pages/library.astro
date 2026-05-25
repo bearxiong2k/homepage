@@ -2,6 +2,7 @@
 import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import CimLibraryNav from '../components/CimLibraryNav.astro';
+import ContentTag from '../components/ContentTag.astro';
 import TaxonomyAtlas from '../components/TaxonomyAtlas.astro';
 import taxonomy from '../data/taxonomy.json';
 
@@ -12,6 +13,7 @@ const papers = entries
 ---
 <BaseLayout title="CIM Compiler/IR Paper Library">
   <CimLibraryNav />
+  <ContentTag />
   <header class="wrap page-header library-page-header">
     <p class="eyebrow eyebrow--dark">CIM compiler/IR corpus</p>
     <h1>Paper Library Taxonomy Atlas</h1>

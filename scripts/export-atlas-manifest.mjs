@@ -13,6 +13,7 @@ const taxonomyPath = path.join(root, 'src/data/taxonomy.json');
 const clustersPath = path.join(root, 'src/data/clusters.json');
 const papersDir = path.join(root, 'src/content/papers');
 const outputAbs = path.resolve(root, outputPath);
+const paperListOutputAbs = path.resolve(root, 'public/cim-library-paper-list.md');
 
 function fail(message) {
   console.error(`[export-atlas-manifest] ERROR: ${message}`);
@@ -170,6 +171,18 @@ function topEntries(map, limit = 12) {
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .map(([label, count]) => ({ label, count }));
+}
+
+function markdownCell(value) {
+  return String(value ?? '')
+    .replace(/\r?\n/g, ' ')
+    .replace(/\|/g, '\\|')
+    .trim();
+}
+
+function markdownLink(label, url) {
+  if (!url) return 'Not recorded';
+  return `[${markdownCell(label)}](${url})`;
 }
 
 const FALLBACK_OBJECT = 'Uncategorized object';
@@ -367,8 +380,10 @@ const manifest = {
     home: '/',
     project_index: '/projects/',
     project: '/projects/cim-library/',
+    methodology: '/projects/cim-library/methodology/',
     atlas: '/library/',
     clusters: clustersData?.route || '/clusters/',
+    paper_list_markdown: '/cim-library-paper-list.md',
     paper_index: '/papers/',
     paper_detail_pattern: '/papers/[slug]/'
   },
@@ -396,6 +411,12 @@ const manifest = {
       route: '/papers/',
       label: 'Paper notes',
       description: 'Plain listing of all recorded paper notes in the CIM Library.'
+    },
+    {
+      id: 'methodology',
+      route: '/projects/cim-library/methodology/',
+      label: 'Methodology',
+      description: 'Under-construction notes on AI-assisted scoped corpus methodology.'
     }
   ],
   taxonomy: {
@@ -427,4 +448,21 @@ if (papers.length !== files.length) {
 
 fs.mkdirSync(path.dirname(outputAbs), { recursive: true });
 fs.writeFileSync(outputAbs, `${JSON.stringify(manifest, null, 2)}\n`);
+const paperListMarkdown = [
+  '# CIM Library Paper List',
+  '',
+  `Generated from src/content/papers. Paper count: ${manifest.papers.length}.`,
+  '',
+  '| Title | Year | Library note | Paper link |',
+  '|---|---:|---|---|',
+  ...manifest.papers.map((paper) => [
+    markdownCell(paper.title),
+    paper.year ?? '',
+    markdownLink('note', paper.route),
+    markdownLink('paper', paper.links?.paper)
+  ].join(' | ').replace(/^/, '| ').replace(/$/, ' |')),
+  ''
+].join('\n');
+fs.writeFileSync(paperListOutputAbs, paperListMarkdown);
 console.log(`[export-atlas-manifest] wrote ${path.relative(root, outputAbs)} with ${papers.length} papers`);
+console.log(`[export-atlas-manifest] wrote ${path.relative(root, paperListOutputAbs)}`);

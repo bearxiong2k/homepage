@@ -38,8 +38,10 @@
         "home": { "type": "string", "pattern": "^/" },
         "project_index": { "type": "string", "pattern": "^/" },
         "project": { "type": "string", "pattern": "^/" },
+        "methodology": { "type": "string", "pattern": "^/" },
         "atlas": { "type": "string", "pattern": "^/" },
         "clusters": { "type": "string", "pattern": "^/" },
+        "paper_list_markdown": { "type": "string", "pattern": "^/" },
         "paper_index": { "type": "string", "pattern": "^/" },
         "paper_detail_pattern": { "type": "string", "pattern": "^/" }
       }
