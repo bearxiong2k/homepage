@@ -54,10 +54,14 @@
   --sans: var(--font-body);
 }
 * { box-sizing: border-box; }
-html { scroll-padding-top: 18px; }
+html {
+  scroll-padding-top: 18px;
+  overscroll-behavior: none;
+}
 body {
   margin: 0;
   padding-top: 0;
+  overscroll-behavior: none;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--sans);
@@ -2225,7 +2229,7 @@ button.secondary { background: var(--color-surface); color: #22304a; border-colo
   .source-link em { text-align: left; }
   .metadata-list div { grid-template-columns: 1fr; gap: 2px; }
   .detail-cloud { max-height: none; overflow-y: visible; }
-  .atlas-box { overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+  .atlas-box { overflow-x: auto; overscroll-behavior: none; -webkit-overflow-scrolling: touch; }
   #atlas { min-width: 760px; }
   .prose table { font-size: 13px; }
   .prose th, .prose td { min-width: 112px; }
