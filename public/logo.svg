@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title>Z logo</title>
+  <rect width="64" height="64" fill="#000000" rx="6" />
+  <path
+    d="M18 16h28v7.2L28.5 41H46v7H18v-7.2L35.5 23H18z"
+    fill="#ffffff"
+  />
+</svg>

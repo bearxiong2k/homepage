@@ -95,10 +95,19 @@ a {
 }
 .site-brand {
   color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-weight: 700;
   text-decoration: none;
   letter-spacing: 0;
   font-size: 20px;
+}
+.site-logo {
+  display: block;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
 }
 .site-links {
   display: flex;
@@ -2224,9 +2233,9 @@ button.secondary { background: var(--color-surface); color: #22304a; border-colo
 }
 @media (max-width: 520px) {
   .site-nav-inner {
-    justify-content: center;
+    justify-content: space-between;
   }
-  .site-brand {
+  .site-brand-text {
     display: none;
   }
   .project-nav-inner {
