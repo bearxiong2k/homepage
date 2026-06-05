@@ -982,6 +982,7 @@ textarea {
 
 .home-doc-main {
   display: grid;
+  flex: 1 1 auto;
   min-width: 0;
   gap: 4px;
 }
@@ -1032,10 +1033,10 @@ textarea {
 
 .library-level-field {
   display: grid;
-  grid-template-columns: auto minmax(12rem, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 8px;
-  min-width: min(34rem, 58vw);
+  min-width: 0;
 }
 
 .library-field-label {
@@ -1047,6 +1048,7 @@ textarea {
 
 .library-level-field input {
   width: 100%;
+  min-width: 0;
   border: 1px solid transparent;
   border-radius: 5px;
   padding: 0.16rem 0.24rem;
