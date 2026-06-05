@@ -267,7 +267,6 @@ async function chooseImportKind() {
     body: 'Choose what you want to open.',
     actions: [
       { value: 'source', label: 'Source HTML/PDF', className: 'primary' },
-      { value: 'quick-start', label: 'Start with quick-start.html' },
       { value: 'bundle', label: 'Single bundle' },
       { value: 'library', label: 'Library package' },
       { value: null, label: 'Cancel' }
