@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "HTML Annotation Reader",
-  "short_name": "Annotator",
-  "description": "Local-first HTML reading and blank-space note keeping.",
+  "name": "Marginalia",
+  "short_name": "Marginalia",
+  "description": "Browser-local reading and marginal note keeping.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
