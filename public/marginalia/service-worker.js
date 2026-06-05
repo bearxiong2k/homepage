@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'marginalia-static-';
-const CACHE_NAME = `${CACHE_PREFIX}v68`;
+const CACHE_NAME = `${CACHE_PREFIX}v69`;
 const STATIC_ASSETS = [
   './',
   './index.html',
