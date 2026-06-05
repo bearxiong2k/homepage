@@ -12,6 +12,7 @@
     "validate": "node scripts/validate-library.mjs",
     "new:paper": "node scripts/scaffold-paper.mjs",
     "sync:citation-metadata": "node scripts/sync-bibtex-display-metadata.mjs",
+    "sync:marginalia": "rsync -a --delete --exclude '.DS_Store' ../Marginalia/public/ public/marginalia/",
     "export:atlas": "node scripts/export-atlas-manifest.mjs",
     "contract:website": "node scripts/check-website-contract.mjs",
     "smoke:website": "node scripts/website-devkit-smoke.mjs"

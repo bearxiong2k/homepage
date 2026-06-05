@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Library - Annotator</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="home">
+    <section class="home-card">
+      <h1>Library</h1>
+      <p class="small">Open browser-local sources or import a local library package. The app entry page remains the reader.</p>
+      <div class="row">
+        <a id="openReaderLink" class="primary-link" href="reader.html">Open reader</a>
+        <button id="importHtmlBtn" type="button">Import source</button>
+        <button id="importBundleBtn" type="button">Import bundle</button>
+        <button id="importLibraryBtn" type="button">Import library</button>
+        <button id="saveLibraryBtn" type="button">Save library</button>
+        <button id="clearLibraryBtn" class="danger" type="button">Clear</button>
+      </div>
+      <input id="htmlFileInput" type="file" accept=".html,.htm,text/html,.pdf,application/pdf" hidden>
+      <input id="bundleFileInput" type="file" accept=".annotator.zip,.zip,application/zip" hidden>
+      <input id="libraryFileInput" type="file" accept=".annotator-library.zip,.zip,application/zip" hidden>
+      <div id="documents" class="home-documents" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <section id="appDialog" class="app-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle" hidden>
+    <div class="app-dialog">
+      <h2 id="appDialogTitle"></h2>
+      <p id="appDialogBody" class="small"></p>
+      <div id="appDialogActions" class="app-dialog-actions"></div>
+    </div>
+  </section>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

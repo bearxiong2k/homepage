@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="annotator-contract-version" content="1">
+  <title>Marginalia Quick Start</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #fffdf8;
+      --ink: #1d1915;
+      --muted: #675f55;
+      --line: #ded1be;
+      --accent: #7a3d00;
+      --soft: #f7f1e7;
+      --callout: #edf7f1;
+      --warn: #fff5dc;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 17px/1.65 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      width: min(860px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 48px 0 84px;
+    }
+
+    h1,
+    h2,
+    h3 {
+      line-height: 1.18;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 2.25rem;
+    }
+
+    h2 {
+      margin: 42px 0 12px;
+      font-size: 1.38rem;
+    }
+
+    h3 {
+      margin: 24px 0 8px;
+      font-size: 1.08rem;
+    }
+
+    p,
+    li {
+      max-width: 72ch;
+    }
+
+    p {
+      margin: 0 0 14px;
+    }
+
+    ul,
+    ol {
+      margin: 0 0 18px;
+      padding-left: 1.35rem;
+    }
+
+    li + li {
+      margin-top: 9px;
+    }
+
+    strong {
+      color: #3c250c;
+    }
+
+    code,
+    kbd {
+      border: 1px solid var(--line);
+      border-bottom-width: 2px;
+      border-radius: 6px;
+      padding: 0.05rem 0.32rem;
+      background: var(--soft);
+      font: 0.9em ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .intro {
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 34px;
+      padding-bottom: 28px;
+    }
+
+    .lede {
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .task-list {
+      display: grid;
+      gap: 14px;
+      margin: 22px 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .task-list li {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px 16px;
+      background: var(--soft);
+    }
+
+    .note {
+      border-left: 4px solid var(--accent);
+      margin: 22px 0;
+      padding: 12px 16px;
+      background: var(--soft);
+    }
+
+    .safe {
+      border-color: #5b8c62;
+      background: var(--callout);
+    }
+
+    .warning {
+      border-color: #b87912;
+      background: var(--warn);
+    }
+
+    .storage-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 14px;
+      margin: 18px 0 20px;
+    }
+
+    .storage-grid section {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px 16px;
+      background: var(--soft);
+    }
+
+    .storage-grid h3 {
+      margin-top: 0;
+    }
+
+    .button-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 12px 0 18px;
+      padding: 0;
+      list-style: none;
+    }
+
+    .button-strip li {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      max-width: none;
+      margin: 0;
+    }
+
+    .tool-button,
+    .rail-key {
+      display: inline-grid;
+      place-items: center;
+      min-width: 1.8rem;
+      height: 1.8rem;
+      border: 1px solid #d8c7a8;
+      border-radius: 4px;
+      background: #fffdf8;
+      color: var(--accent);
+      font: 700 0.88rem/1 ui-sans-serif, system-ui, sans-serif;
+      box-shadow: 0 2px 6px rgba(52, 38, 18, 0.08);
+    }
+
+    .rail-key {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 8px;
+      color: var(--ink);
+    }
+
+    .separator-demo {
+      display: inline-block;
+      width: 1rem;
+      height: 2.5rem;
+      margin: 0 0.2rem;
+      border-left: 3px solid rgba(122, 61, 0, 0.72);
+      vertical-align: middle;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    @media (max-width: 720px) {
+      .storage-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="intro" data-anchor-id="quick-start-intro">
+      <h1 data-anchor-id="quick-start-title">Marginalia Quick Start</h1>
+      <p class="lede" data-anchor-id="quick-start-lede">Marginalia is a browser-local reading workspace for PDFs and HTML documents. This page is meant to be marked up while you read it, so you can learn the basic features before importing your own material.</p>
+      <p data-anchor-id="quick-start-audience">Start with a few practice marks here, then import your own source when the basic flow feels familiar.</p>
+    </header>
+
+    <section data-anchor-id="quick-start-what-this-is">
+      <h2 data-anchor-id="quick-start-what-this-is-heading">Start by Marking Up This Page</h2>
+      <p data-anchor-id="quick-start-first-library">Because you selected <strong>Start with quick-start.html</strong>, this guide has been imported as the first source in your current library. Treat it as a practice document.</p>
+      <p data-anchor-id="quick-start-main-idea">Marginalia keeps the source document on the left and your notes in the margin. Highlights, text notes, quick marks, and ink drawings are stored separately from the original source.</p>
+      <p class="note" data-anchor-id="quick-start-practice-sentence">Practice sentence: Select this sentence, create a highlight, and write a short note about what you expect Marginalia to help you remember.</p>
+    </section>
+
+    <section data-anchor-id="quick-start-feature-walkthrough">
+      <h2 data-anchor-id="quick-start-feature-walkthrough-heading">Try the Core Features</h2>
+      <ol class="task-list">
+        <li data-anchor-id="quick-start-step-highlight"><strong>Create a note from text.</strong> Select the practice sentence above. When the small highlight button appears, click it. A highlighted note should appear in the side panel.</li>
+        <li data-anchor-id="quick-start-step-blank-note"><strong>Create a blank margin note.</strong> Double-click empty space in the side panel. This creates a note at that vertical position, even when you do not want to attach it to selected text.</li>
+        <li data-anchor-id="quick-start-step-note"><strong>Edit a margin note.</strong> Click the note title or body and type a short note, such as "First test note."</li>
+        <li data-anchor-id="quick-start-step-quick-mark"><strong>Try a quick mark.</strong> Drag the binder-clip button from the left rail onto a paragraph. Use this for fast marks while reading.</li>
+        <li data-anchor-id="quick-start-step-drawing"><strong>Try drawing in a note.</strong> Open a note, choose <strong>Draw below</strong>, and draw a small underline, arrow, or symbol in the canvas.</li>
+        <li data-anchor-id="quick-start-step-save"><strong>Save once.</strong> After making a few practice marks, use Save. Saving creates a portable library package outside the browser.</li>
+      </ol>
+      <p data-anchor-id="quick-start-navigation-hint">The left rail is intentionally compact. <span class="rail-key">I</span> imports another source or package, <span class="rail-key">S</span> saves the current source or library, and <span class="rail-key">L</span> opens the library view.</p>
+    </section>
+
+    <section data-anchor-id="quick-start-note-buttons">
+      <h2 data-anchor-id="quick-start-note-buttons-heading">Note Buttons</h2>
+      <p data-anchor-id="quick-start-note-buttons-intro">Each margin note has a small button row. The available buttons depend on the source and whether the note has a highlight.</p>
+      <ul class="button-strip">
+        <li data-anchor-id="quick-start-button-collapse"><span class="tool-button">▲</span><span><strong>Collapse.</strong> Hide the note body. The button changes to <span class="tool-button">▼</span> when the note is collapsed.</span></li>
+        <li data-anchor-id="quick-start-button-focus"><span class="tool-button">F</span><span><strong>Focus mode.</strong> For HTML sources, focus on the selected note and its highlighted passage.</span></li>
+        <li data-anchor-id="quick-start-button-add-highlight"><span class="tool-button">+</span><span><strong>Add highlight.</strong> Attach another selected passage to the same note.</span></li>
+        <li data-anchor-id="quick-start-button-remove-highlight"><span class="tool-button">−</span><span><strong>Remove highlight.</strong> Click a highlight attached to the note to remove that highlight.</span></li>
+        <li data-anchor-id="quick-start-button-pin"><span class="tool-button">「」</span><span><strong>Pin editor.</strong> Open a larger note editor. This is also where <strong>Text below</strong>, <strong>Draw below</strong>, and <strong>Remove</strong> controls appear for note blocks.</span></li>
+        <li data-anchor-id="quick-start-button-delete"><span class="tool-button">×</span><span><strong>Delete.</strong> Remove the note after confirmation.</span></li>
+      </ul>
+      <p class="note" data-anchor-id="quick-start-note-creation-reminder">Two common ways to create notes: select text and highlight it, or double-click blank space in the side panel for a free margin note.</p>
+    </section>
+
+    <section data-anchor-id="quick-start-reading-layout">
+      <h2 data-anchor-id="quick-start-reading-layout-heading">Reading and Layout Controls</h2>
+      <p data-anchor-id="quick-start-reading-mode"><span class="rail-key">R</span> <strong>Pure reading mode.</strong> Use this when you want the source to take over the screen. It hides the note margin and editing controls so you can read with fewer distractions.</p>
+      <p data-anchor-id="quick-start-separator"><span class="separator-demo" aria-hidden="true"></span> <strong>Draggable separator.</strong> Drag the vertical separator between the source and notes to give more width to the text or more width to the margin.</p>
+    </section>
+
+    <section data-anchor-id="quick-start-importing">
+      <h2 data-anchor-id="quick-start-importing-heading">Import and Save Behavior</h2>
+      <p data-anchor-id="quick-start-import-button">Use <span class="rail-key">I</span> to import a PDF, HTML file, single-source bundle, or library package. If a library is already open, importing a PDF or HTML file adds it to the current library.</p>
+      <p data-anchor-id="quick-start-import-library">Importing a saved library package opens that package as the current library. If another library is already open, Marginalia asks before replacing the current browser-local library context.</p>
+      <p data-anchor-id="quick-start-save-button">Use <span class="rail-key">S</span> to save. When a library is open, Save writes the whole library: all sources, highlights, note text, quick marks, and ink drawings. If you are working with only one source outside a library, Save offers a single bundle or a new library package.</p>
+      <p data-anchor-id="quick-start-source-kinds">PDF is the right choice for papers, scans, books, or forms. HTML is the right choice for prepared web pages or exported reading files.</p>
+      <p data-anchor-id="quick-start-file-stays-separate">Marginalia does not write highlights or notes back into your original PDF or HTML file. Your source file remains where it was on your computer, unchanged.</p>
+    </section>
+
+    <section data-anchor-id="quick-start-tablet">
+      <h2 data-anchor-id="quick-start-tablet-heading">Using a Graphic Tablet</h2>
+      <p data-anchor-id="quick-start-tablet-best">Marginalia works with a trackpad or mouse, but freehand notes are best with a graphic tablet. A pen tablet gives better control for arrows, diagrams, symbols, and handwritten margin notes.</p>
+      <h3 data-anchor-id="quick-start-tablet-setup-heading">Set Up the Tablet</h3>
+      <ul>
+        <li data-anchor-id="quick-start-tablet-connect">Connect the tablet before opening your reading session. If your tablet maker provides a driver, install or update it first.</li>
+        <li data-anchor-id="quick-start-tablet-map">In the tablet settings, map the pen to the screen area where your browser appears. If the pointer feels offset, recalibrate or remap the tablet area.</li>
+        <li data-anchor-id="quick-start-tablet-pressure">Keep pressure sensitivity enabled if your tablet supports it. In Marginalia's ink toolbar, leave <strong>Pressure</strong> checked for natural line weight.</li>
+      </ul>
+      <h3 data-anchor-id="quick-start-tablet-drawing-heading">Draw in Marginalia</h3>
+      <ol>
+        <li data-anchor-id="quick-start-tablet-step-note">Create or open a margin note.</li>
+        <li data-anchor-id="quick-start-tablet-step-draw">Choose <strong>Draw below</strong> to insert an ink canvas.</li>
+        <li data-anchor-id="quick-start-tablet-step-tools">Use <strong>Pen</strong>, <strong>Eraser</strong>, <strong>Color</strong>, <strong>Width</strong>, and <strong>Pressure</strong> in the ink toolbar.</li>
+        <li data-anchor-id="quick-start-tablet-step-resize">If you need more room, drag the small handle at the bottom of the drawing area to make it taller.</li>
+      </ol>
+      <p class="note" data-anchor-id="quick-start-tablet-tip">Tablet tip: use short strokes for diagrams and corrections. Short strokes are easier to erase, undo, and redraw than one long continuous line.</p>
+    </section>
+
+    <section data-anchor-id="quick-start-storage">
+      <h2 data-anchor-id="quick-start-storage-heading">Where Your Data Is Stored</h2>
+      <p data-anchor-id="quick-start-storage-summary">Marginalia has two storage layers: a working copy in the browser, and saved library packages that you create on your computer.</p>
+      <div class="storage-grid">
+        <section data-anchor-id="quick-start-browser-copy">
+          <h3 data-anchor-id="quick-start-browser-copy-heading">Working copy</h3>
+          <p data-anchor-id="quick-start-browser-copy-body">While you read, Marginalia stores a copy of each imported source, annotation metadata, note bodies, quick marks, and ink strokes in this browser's IndexedDB storage for this exact site address.</p>
+          <p data-anchor-id="quick-start-browser-copy-location">That working copy belongs to this browser profile on this computer. It is not automatically available in another browser, another profile, or another computer.</p>
+        </section>
+        <section data-anchor-id="quick-start-saved-package">
+          <h3 data-anchor-id="quick-start-saved-package-heading">Saved package</h3>
+          <p data-anchor-id="quick-start-saved-package-body">When you use Save, Marginalia writes a portable library package. Depending on your browser, this may be a folder you choose, usually ending in <code>.annotator-library</code>, or a downloaded zip file ending in <code>.annotator-library.zip</code>.</p>
+          <p data-anchor-id="quick-start-saved-package-location">If the browser downloads a zip, it usually goes to your Downloads folder unless your browser asks you to choose a location.</p>
+        </section>
+      </div>
+      <p data-anchor-id="quick-start-storage-import-later">To continue later, return to this site and import the saved library package. The package is what carries your sources, highlights, note text, quick marks, and drawings together.</p>
+      <p class="note safe" data-anchor-id="quick-start-backup">Good habit: save after an important reading session and keep the package somewhere you back up, such as iCloud Drive, Dropbox, Google Drive, or an external drive.</p>
+      <p class="note warning" data-anchor-id="quick-start-clearing-warning">Important: if you clear this site's browser data, use private browsing, reset the browser profile, or move to another computer without saving a package, the browser working copy may be gone.</p>
+    </section>
+
+    <section data-anchor-id="quick-start-privacy">
+      <h2 data-anchor-id="quick-start-privacy-heading">Privacy and Original Files</h2>
+      <p data-anchor-id="quick-start-no-account">The hosted PWA is designed for visitors. You do not need an account for browser-local reading and annotation.</p>
+      <p data-anchor-id="quick-start-original-files">Your original PDF or HTML file is not edited by Marginalia. Saved library packages contain their own copy of the source plus your annotations, so treat saved packages as personal reading data.</p>
+      <p data-anchor-id="quick-start-shared-device">On a shared computer, save your library package to your own folder, then clear this site's browser data when you are done if you do not want the working copy left in that browser profile.</p>
+    </section>
+
+    <section data-anchor-id="quick-start-next">
+      <h2 data-anchor-id="quick-start-next-heading">Next Step</h2>
+      <p data-anchor-id="quick-start-next-body">After you have highlighted this guide, written a margin note, tried a quick mark, and saved once, import a real source. Keep this quick start in the library as a reference, or delete it later from the library screen.</p>
+      <p class="small" data-anchor-id="quick-start-footer">You can return to this guide by opening the library and choosing Marginalia Quick Start.</p>
+    </section>
+  </main>
+</body>
+</html>

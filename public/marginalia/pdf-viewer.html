@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en" class="pdf-viewer-document">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PDF source</title>
+  <style>
+    :root {
+      color-scheme: light;
+      background: #f4f1eb;
+      color: #211b16;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --reader-side-note-layer-width: clamp(240px, 28vw, min(520px, 46vw));
+    }
+
+    body {
+      margin: 0;
+      padding: 0 0 80px;
+      min-width: 0;
+      background: #f4f1eb;
+      overflow-x: hidden;
+    }
+
+    :root.reader-embedded body {
+      padding-right: 0;
+    }
+
+    .pdf-toolbar {
+      position: fixed;
+      top: 8px;
+      left: 0;
+      right: auto;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 4px;
+      width: max-content;
+      max-width: calc(100vw - 8px);
+      min-height: 34px;
+      margin: 0;
+      padding: 3px;
+      border: 1px solid rgba(216, 199, 168, .88);
+      border-left: 0;
+      border-radius: 0 8px 8px 0;
+      background: rgba(244, 241, 235, .94);
+      box-shadow: 0 10px 26px rgba(52, 38, 18, .16);
+      backdrop-filter: blur(7px);
+    }
+
+    .pdf-toolbar-main {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 4px;
+      max-width: inherit;
+    }
+
+    .pdf-toolbar.is-collapsed .pdf-toolbar-main {
+      display: none;
+    }
+
+    .pdf-toolbar.is-collapsed {
+      min-height: 30px;
+      padding: 3px;
+    }
+
+    :root.reader-embedded .pdf-toolbar {
+      right: auto;
+      max-width: calc(100vw - var(--reader-side-note-layer-width) - 8px);
+    }
+
+    :root.reader-embedded body.reader-reading-mode .pdf-toolbar {
+      max-width: calc(100vw - 8px);
+    }
+
+    .pdf-toolbar button,
+    .pdf-toolbar select {
+      min-height: 26px;
+      border: 1px solid #d1c1a9;
+      border-radius: 5px;
+      background: #fffdf8;
+      color: #211b16;
+      font: 13px/1.2 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .pdf-toolbar button {
+      min-width: 28px;
+      padding: 0 6px;
+      cursor: pointer;
+    }
+
+    .pdf-toolbar button:hover,
+    .pdf-toolbar select:hover {
+      border-color: #ad6a23;
+    }
+
+    .pdf-toolbar button.is-active {
+      border-color: #ad6a23;
+      background: #f7e5bf;
+    }
+
+    .pdf-toolbar select {
+      min-width: 104px;
+      padding: 0 6px;
+    }
+
+    .pdf-pan-lock-button {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      min-width: 30px;
+      width: 30px;
+      padding: 1px 0 0;
+      line-height: 1;
+      overflow: hidden;
+    }
+
+    .pdf-lock-mark {
+      display: block;
+      width: 12px;
+      height: 12px;
+      margin-bottom: -2px;
+      background: url("assets/padlock-lock.png") center / contain no-repeat;
+    }
+
+    .pdf-pan-mark {
+      display: block;
+      height: 11px;
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    #pdfStatus {
+      min-width: 0;
+      max-width: min(180px, 22vw);
+      color: #6c6256;
+      font-size: 0.9rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #pdfStatus:empty {
+      display: none;
+    }
+
+    #pdfViewport {
+      width: 100vw;
+      overflow-x: auto;
+      overflow-y: hidden;
+      overscroll-behavior-x: contain;
+      overscroll-behavior-y: auto;
+      scrollbar-gutter: stable;
+    }
+
+    :root.reader-embedded #pdfViewport {
+      width: calc(100vw - var(--reader-side-note-layer-width));
+    }
+
+    :root.reader-embedded body.reader-reading-mode #pdfViewport {
+      width: 100vw;
+    }
+
+    #pdfRoot {
+      display: grid;
+      justify-content: center;
+      gap: 18px;
+      width: max-content;
+      min-width: 100%;
+      padding-top: 52px;
+    }
+
+    @supports (justify-content: safe center) {
+      #pdfRoot {
+        justify-content: safe center;
+      }
+    }
+
+    .pdf-page {
+      position: relative;
+      overflow: hidden;
+      background: white;
+      box-shadow: 0 12px 34px rgba(40, 32, 20, 0.18);
+    }
+
+    .pdf-page-canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      user-select: none;
+      backface-visibility: hidden;
+    }
+
+    .pdf-selection-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .pdf-selection-rect {
+      position: absolute;
+      border-radius: 1px;
+      background: rgba(92, 132, 220, .34);
+      mix-blend-mode: multiply;
+    }
+
+    .textLayer {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      overflow: hidden;
+      line-height: 1;
+      text-align: initial;
+      letter-spacing: normal;
+      word-spacing: normal;
+      text-size-adjust: none;
+      forced-color-adjust: none;
+      transform-origin: 0 0;
+      caret-color: CanvasText;
+      user-select: text;
+      -webkit-user-select: text;
+      touch-action: auto;
+      --min-font-size: 1;
+      --total-scale-factor: 1;
+      --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+      --min-font-size-inv: calc(1 / var(--min-font-size));
+    }
+
+    .textLayer span,
+    .textLayer br {
+      position: absolute;
+      color: transparent;
+      white-space: pre;
+      cursor: text;
+      transform-origin: 0% 0%;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
+    .textLayer > :not(.markedContent),
+    .textLayer .markedContent span:not(.markedContent) {
+      z-index: 1;
+      --font-height: 0;
+      --scale-x: 1;
+      --rotate: 0deg;
+      font-size: calc(var(--text-scale-factor) * var(--font-height));
+      transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+    }
+
+    .textLayer ::selection,
+    .textLayer span::selection {
+      background: rgba(64, 129, 255, .18);
+    }
+
+    .textLayer .markedContent {
+      display: contents;
+    }
+
+    .textLayer span[role="img"],
+    .textLayer .endOfContent {
+      cursor: default;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .textLayer .endOfContent {
+      display: block;
+      position: absolute;
+      inset: 100% 0 0;
+      z-index: 0;
+    }
+
+    .textLayer.selecting .endOfContent {
+      top: 0;
+    }
+
+    .pdf-page-placeholder {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background:
+        linear-gradient(90deg, rgba(244, 241, 235, 0), rgba(244, 241, 235, .72), rgba(244, 241, 235, 0)),
+        #fffdf8;
+      color: #8a8074;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="pdfToolbar" class="pdf-toolbar" aria-label="PDF controls">
+    <button id="toolbarToggleBtn" type="button" title="Collapse PDF controls" aria-label="Collapse PDF controls" aria-expanded="true">◀</button>
+    <div class="pdf-toolbar-main">
+      <button id="zoomOutBtn" type="button" title="Zoom out" aria-label="Zoom out">−</button>
+      <select id="zoomSelect" aria-label="PDF zoom relative to fit width">
+        <option value="0.5">50% of fit</option>
+        <option value="0.67">67% of fit</option>
+        <option value="0.75">75% of fit</option>
+        <option value="0.9">90% of fit</option>
+        <option value="1">100% fit</option>
+        <option value="1.1">110% of fit</option>
+        <option value="1.25">125% of fit</option>
+        <option value="1.5">150% of fit</option>
+        <option value="1.75">175% of fit</option>
+        <option value="2">200% of fit</option>
+        <option value="2.5">250% of fit</option>
+        <option value="3">300% of fit</option>
+      </select>
+      <button id="zoomInBtn" type="button" title="Zoom in" aria-label="Zoom in">+</button>
+      <button id="fitWidthBtn" type="button" title="Fit width" aria-label="Fit width">Fit</button>
+      <button id="horizontalPanLockBtn" class="pdf-pan-lock-button" type="button" title="Lock horizontal movement" aria-label="Lock horizontal movement" aria-pressed="false"><span class="pdf-lock-mark" aria-hidden="true"></span><span class="pdf-pan-mark" aria-hidden="true">↔</span></button>
+      <span id="pdfStatus" role="status">Loading PDF...</span>
+    </div>
+  </div>
+  <div id="pdfViewport">
+    <main id="pdfRoot" aria-label="PDF pages"></main>
+  </div>
+  <script type="module" src="pdf-viewer.js"></script>
+</body>
+</html>

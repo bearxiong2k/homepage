@@ -12,5 +12,17 @@
     "tags": ["Compute-in-Memory", "compiler", "IR", "paper atlas", "Astro"],
     "featured": true,
     "integration_role": "Primary research atlas module for the personal website"
+  },
+  {
+    "id": "marginalia",
+    "title": "Marginalia",
+    "kind": "browser-local-pwa",
+    "status": "active",
+    "summary": "A browser-local HTML/PDF reader for side notes, highlights, quick marks, and freehand marginal ink.",
+    "route": "/marginalia/",
+    "landing_route": "/projects/marginalia/",
+    "tags": ["PWA", "local-first", "reader", "notes", "PDF"],
+    "featured": false,
+    "integration_role": "Browser-local reading and note-taking app hosted as a static sub-PWA"
   }
 ]

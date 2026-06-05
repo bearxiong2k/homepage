@@ -1,0 +1,84 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import projects from '../../../data/project-registry.json';
+import profile from '../../../data/profile.json';
+import { sitePath } from '../../../lib/sitePath';
+
+const project = projects.find((entry) => entry.id === 'marginalia');
+if (!project) throw new Error('Missing marginalia project registry entry');
+
+const appRoute = project.route;
+---
+
+<BaseLayout
+  title={`${project.title} | ${profile.name}`}
+  description={project.summary}
+>
+  <main class="wrap page-shell project-landing">
+    <header class="page-header project-hero">
+      <p class="eyebrow eyebrow--dark">{project.kind} / {project.status}</p>
+      <h1>{project.title}</h1>
+      <p>{project.summary}</p>
+    </header>
+
+    <section class="landing-grid landing-grid--intro" aria-label="Marginalia introduction">
+      <article class="landing-panel landing-panel--wide">
+        <p class="eyebrow eyebrow--dark">Local-first reader</p>
+        <h2>A static reading workspace for notes that stay in the browser</h2>
+        <p class="overview-lede">Marginalia is hosted here as a self-contained PWA. It opens HTML and PDF documents, stores annotation state locally in the browser, and can export a portable library package for backup or transfer.</p>
+        <dl class="principle-list">
+          <div>
+            <dt>Side notes and highlights</dt>
+            <dd>Capture structured marginal notes, highlight passages, and keep quick marks near the document they belong to.</dd>
+          </div>
+          <div>
+            <dt>Freehand marginal ink</dt>
+            <dd>Use the side-note canvas for handwritten marks without sending document content to a backend service.</dd>
+          </div>
+          <div>
+            <dt>Static sub-PWA</dt>
+            <dd>The app is served from its own <code>/marginalia/</code> directory so its service worker remains scoped to the reader.</dd>
+          </div>
+        </dl>
+      </article>
+      <aside class="stat-board stat-board--landing">
+        <div>
+          <strong>HTML</strong>
+          <span>reader input</span>
+        </div>
+        <div>
+          <strong>PDF</strong>
+          <span>reader input</span>
+        </div>
+        <div>
+          <strong>PWA</strong>
+          <span>static app</span>
+        </div>
+        <div>
+          <strong>Local</strong>
+          <span>browser storage</span>
+        </div>
+      </aside>
+    </section>
+
+    <section class="landing-panel use-panel" aria-label="Open Marginalia">
+      <div class="section-title">
+        <div>
+          <p class="eyebrow eyebrow--dark">App surface</p>
+          <h2>Open the hosted reader</h2>
+        </div>
+        <span class="subtle">Served as static files</span>
+      </div>
+      <ol class="use-list">
+        <li>
+          <span>Launch the browser-local reader.</span>
+          <a class="inline-link" href={sitePath(appRoute)}>Open Marginalia</a>
+        </li>
+        <li>
+          <span>Use exported <code>.annotator-library.zip</code> packages to back up or restore local reading state.</span>
+          <a class="inline-link" href={sitePath(`${appRoute}library.html`)}>Open library view</a>
+        </li>
+      </ol>
+    </section>
+  </main>
+</BaseLayout>

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reader - HTML Annotation Reader</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="left-rail" aria-label="Reader navigation">
+      <a href="library.html" class="rail-button" title="Open library" aria-label="Open library">L</a>
+      <button id="readingModeBtn" class="rail-button" type="button" title="Pure reading mode" aria-label="Pure reading mode">R</button>
+      <button id="readingHighlightBtn" class="rail-button" type="button" title="Show highlights while reading" aria-label="Show highlights while reading" hidden>H</button>
+      <button id="undoBtn" class="rail-button" type="button" title="Undo" aria-label="Undo" disabled>↶</button>
+      <button id="redoBtn" class="rail-button" type="button" title="Redo" aria-label="Redo" disabled>↷</button>
+      <button id="clipToolBtn" class="rail-button clip-tool clip-color-0" type="button" title="Drag quick mark" aria-label="Drag quick mark"><span class="clip-icon" aria-hidden="true"></span></button>
+      <button id="importBundleBtn" class="rail-button" type="button" title="Import source, bundle, or library" aria-label="Import source, bundle, or library">I</button>
+      <button id="exportBundleBtn" class="rail-button" type="button" title="Save current source" aria-label="Save current source">S</button>
+      <div id="quickMarkStack" class="quick-mark-stack" aria-label="Offscreen quick marks"></div>
+      <button id="reloadBtn" class="is-hidden" type="button" aria-hidden="true" tabindex="-1">Reload</button>
+      <button id="cancelModeBtn" class="is-hidden" type="button" aria-hidden="true" tabindex="-1" disabled>Cancel mode</button>
+      <div id="docList" class="is-hidden" aria-hidden="true"></div>
+      <p id="status" class="sr-only" aria-live="polite"></p>
+    </aside>
+
+    <main class="reader-frame-wrap">
+      <section id="sourceStartPanel" class="source-start-panel" hidden>
+        <div class="source-start-inner">
+          <p class="source-start-kicker">No source loaded</p>
+          <h1>Import your source</h1>
+          <p class="small">Open an HTML or PDF source, an annotator bundle, or a local library package. Your notes stay in this browser until you save them.</p>
+          <div class="row source-start-actions">
+            <button id="importSourceBtn" class="primary" type="button">Import PDF/HTML</button>
+            <button id="quickStartBtn" type="button">Start with quick-start.html</button>
+          </div>
+        </div>
+      </section>
+      <section id="libraryChooserPanel" class="library-chooser-panel" hidden>
+        <div class="library-chooser">
+          <div class="library-chooser-head">
+            <div>
+              <p class="source-start-kicker">Local library</p>
+              <h1 id="libraryChooserTitle">Choose a source</h1>
+            </div>
+            <button id="libraryChooserCloseBtn" type="button" title="Open default source" aria-label="Open default source">Close</button>
+          </div>
+          <div id="libraryChooserList" class="library-chooser-list"></div>
+        </div>
+      </section>
+      <iframe id="readerFrame" title="Source HTML reader"></iframe>
+      <input id="sourceFileInput" type="file" accept=".html,.htm,text/html,.pdf,application/pdf,.annotator.zip,.annotator-library.zip,.zip,application/zip" hidden>
+    </main>
+
+    <button id="toggleNotesBtn" class="notes-tab" type="button" title="Open notes navigator" aria-label="Open notes navigator" aria-expanded="false" aria-controls="noteDrawerBody">
+      <span class="notes-tab-label">Notes</span>
+      <span class="notes-tab-arrow" aria-hidden="true">‹</span>
+    </button>
+
+    <aside id="rightPanel" class="right-panel is-collapsed" aria-label="Notes navigator">
+      <div id="noteDrawerBody" class="note-drawer-body">
+        <div class="drawer-head">
+          <div>
+            <h2 class="brand">Notes</h2>
+            <p id="noteCount" class="small"></p>
+          </div>
+          <button id="expandAllNotesBtn" class="drawer-head-action" type="button">Expand all</button>
+        </div>
+        <input id="bundleFileInput" type="file" accept=".html,.htm,text/html,.pdf,application/pdf,.annotator.zip,.annotator-library.zip,.zip,application/zip" hidden>
+        <div id="noteList" class="note-list"></div>
+      </div>
+    </aside>
+  </div>
+
+  <button id="highlightSelectionBtn" class="selection-highlight-btn" type="button" hidden title="Highlight selection" aria-label="Highlight selection">H</button>
+
+  <section id="appDialog" class="app-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle" hidden>
+    <div class="app-dialog">
+      <h2 id="appDialogTitle"></h2>
+      <p id="appDialogBody" class="small"></p>
+      <div id="appDialogActions" class="app-dialog-actions"></div>
+    </div>
+  </section>
+
+  <script type="module" src="reader.js"></script>
+</body>
+</html>

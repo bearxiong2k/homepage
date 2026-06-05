@@ -1,0 +1,19 @@
+{
+  "id": "./",
+  "name": "HTML Annotation Reader",
+  "short_name": "Annotator",
+  "description": "Local-first HTML reading and blank-space note keeping.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3efe7",
+  "theme_color": "#7a3d00",
+  "icons": [
+    {
+      "src": "assets/annotator-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
