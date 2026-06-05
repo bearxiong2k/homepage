@@ -12,6 +12,9 @@ const TEXT_ENCODER = new TextEncoder();
 const TEXT_DECODER = new TextDecoder();
 const BUNDLE_FOLDER_SUFFIX = '.annotator-bundle';
 const LIBRARY_FOLDER_SUFFIX = '.annotator-library';
+export const PACKAGE_LOCK_PATH = '.marginalia-package-lock.json';
+const PACKAGE_LOCK_FORMAT = 'marginalia-package-lock';
+const PACKAGE_LOCK_VERSION = 1;
 
 export function bundleFolderNameForDocument(documentMeta) {
   return `${safeName(documentMeta?.title || documentMeta?.id || 'document')}${BUNDLE_FOLDER_SUFFIX}`;
@@ -22,7 +25,10 @@ export function libraryFolderNameForTitle(value) {
 }
 
 export async function bundleFolderFilesFromArchiveBytes(bytes) {
-  return validateBundleFolderFiles(readStoredZip(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)));
+  return withPackageLock(
+    await validateBundleFolderFiles(readStoredZip(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes))),
+    'bundle'
+  );
 }
 
 export async function libraryFolderFilesFromArchiveBytes(bytes) {
@@ -55,7 +61,7 @@ export async function libraryFolderFilesFromArchiveBytes(bytes) {
     updatedAt: new Date().toISOString()
   };
   files.unshift(textFile('library.json', JSON.stringify(manifest, null, 2) + '\n'));
-  return files;
+  return withPackageLock(files, 'library');
 }
 
 export async function bundleArchiveBytesFromFolderFiles(files) {
@@ -64,16 +70,18 @@ export async function bundleArchiveBytesFromFolderFiles(files) {
 
 export async function libraryArchiveBytesFromFolderFiles(files) {
   const cleanFiles = normalizeFolderFiles(files);
-  for (const file of cleanFiles) {
+  validatePackageLock(cleanFiles, 'library');
+  const packageFiles = cleanFiles.filter((file) => file.path !== PACKAGE_LOCK_PATH);
+  for (const file of packageFiles) {
     if (file.path === 'library.json') continue;
     if (file.path.startsWith('bundles/')) continue;
     throw new Error(`Library folder contains unsupported file: ${file.path}`);
   }
-  const manifest = readJsonFile(cleanFiles, 'library.json');
+  const manifest = readJsonFile(packageFiles, 'library.json');
   if (manifest?.format !== 'annotator-library' || Number(manifest.formatVersion) !== 1) {
     throw new Error('Unsupported annotator library folder format.');
   }
-  const groups = groupBundleDirectories(cleanFiles);
+  const groups = groupBundleDirectories(packageFiles);
   const manifestEntries = Array.isArray(manifest.entries) ? manifest.entries : [];
   const orderedDirectories = [];
   const seenDirectories = new Set();
@@ -112,20 +120,22 @@ export async function libraryArchiveBytesFromFolderFiles(files) {
 
 async function validateBundleFolderFiles(files) {
   const cleanFiles = normalizeFolderFiles(files);
-  const manifest = readJsonFile(cleanFiles, 'manifest.json');
+  validatePackageLock(cleanFiles, 'bundle');
+  const packageFiles = cleanFiles.filter((file) => file.path !== PACKAGE_LOCK_PATH);
+  const manifest = readJsonFile(packageFiles, 'manifest.json');
   if (manifest?.format !== 'annotator-bundle' || Number(manifest.formatVersion) !== 1) {
     throw new Error('Unsupported annotator bundle folder format.');
   }
   const sourcePath = normalizePackagePath(manifest.document?.sourcePath || 'source.html');
   const allowedFixed = new Set(['manifest.json', 'annotations.json', sourcePath]);
-  for (const file of cleanFiles) {
+  for (const file of packageFiles) {
     if (allowedFixed.has(file.path)) continue;
     if (/^notes\/[^/]+\.note\.json$/.test(file.path)) continue;
     if (/^assets\/.+/.test(file.path)) continue;
     throw new Error(`Bundle folder contains unsupported file: ${file.path}`);
   }
-  await readAnnotatorBundleArchive(createStoredZip(cleanFiles));
-  return cleanFiles;
+  await readAnnotatorBundleArchive(createStoredZip(packageFiles));
+  return packageFiles;
 }
 
 function groupBundleDirectories(files) {
@@ -179,6 +189,38 @@ function readJsonFile(files, path) {
   const file = files.find((entry) => entry.path === path);
   if (!file) throw new Error(`Package folder is missing ${path}.`);
   return JSON.parse(TEXT_DECODER.decode(file.data));
+}
+
+function validatePackageLock(files, packageKind) {
+  const file = files.find((entry) => entry.path === PACKAGE_LOCK_PATH);
+  if (!file) return;
+  let lock = null;
+  try {
+    lock = JSON.parse(TEXT_DECODER.decode(file.data));
+  } catch {
+    throw new Error('Package folder lock file is not valid JSON.');
+  }
+  if (lock?.format !== PACKAGE_LOCK_FORMAT || Number(lock.formatVersion) !== PACKAGE_LOCK_VERSION) {
+    throw new Error('Package folder lock file is unsupported.');
+  }
+  if (lock.packageKind !== packageKind) {
+    throw new Error(`Package folder lock is for ${lock.packageKind || 'another package kind'}, not ${packageKind}.`);
+  }
+}
+
+function withPackageLock(files, packageKind) {
+  const cleanFiles = files.filter((file) => file.path !== PACKAGE_LOCK_PATH);
+  return [
+    textFile(PACKAGE_LOCK_PATH, JSON.stringify({
+      format: PACKAGE_LOCK_FORMAT,
+      formatVersion: PACKAGE_LOCK_VERSION,
+      packageKind,
+      packageFormat: packageKind === 'library' ? 'annotator-library' : 'annotator-bundle',
+      createdBy: 'Marginalia',
+      updatedAt: new Date().toISOString()
+    }, null, 2) + '\n'),
+    ...cleanFiles
+  ];
 }
 
 function textFile(path, text) {

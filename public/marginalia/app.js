@@ -8,6 +8,7 @@ import {
   pickAnnotatorBundleFile,
   pickAnnotatorBundleSaveHandle,
   pickAnnotatorPackageDirectory,
+  queryFileHandlePermissionState,
   readFilesFromDirectoryHandle,
   writeFilesToDirectoryHandle,
   writeBytesToFileHandle
@@ -66,9 +67,15 @@ async function init() {
     }
   });
   documentsEl?.addEventListener('click', (event) => {
-    const button = event.target?.closest?.('[data-delete-library-bundle]');
-    if (!button) return;
-    deleteLibraryBundleFromButton(button).catch(showError);
+    const deleteButton = event.target?.closest?.('[data-delete-library-bundle]');
+    if (deleteButton) {
+      deleteLibraryBundleFromButton(deleteButton).catch(showError);
+      return;
+    }
+    const forgetButton = event.target?.closest?.('[data-forget-library-handle]');
+    if (forgetButton) {
+      forgetCurrentLibraryHandle().catch(showError);
+    }
   });
   documentsEl?.addEventListener('keydown', (event) => {
     if (!event.target?.matches?.('[data-library-title], [data-library-bundle-title], [data-source-title]')) return;
@@ -90,10 +97,22 @@ async function loadDocuments() {
   documentsEl.innerHTML = '<p class="small">Loading documents...</p>';
   const documents = await storage.listDocuments();
   const library = await storage.getCurrentLibraryContext?.();
+  const profile = await storage.ensureLocalProfile?.();
+  const handleStatus = await currentLibraryHandleStatus(library);
   if (saveLibraryBtn) saveLibraryBtn.disabled = false;
   if (!documents.length && !library) {
     documentsEl.innerHTML = storageMode === 'indexeddb'
-      ? '<p class="small">No browser-local sources yet. Save library can initialize an empty local library folder, or import a source, bundle, or library package to begin.</p>'
+      ? `
+        <div class="library-dashboard">
+          <aside class="library-history" aria-label="Local profile">
+            <h2>Local profile</h2>
+            ${localProfileStatusMarkup(profile, handleStatus)}
+          </aside>
+          <section class="library-main">
+            <p class="small">No browser-local sources yet. Save library can initialize an empty local library folder, or import a source, bundle, or library package to begin.</p>
+          </section>
+        </div>
+      `
       : '<p class="small">No documents in the local library yet.</p>';
     return;
   }
@@ -134,6 +153,11 @@ async function loadDocuments() {
               <dd>${escapeHtml(library.fileHandleName)}</dd>
             </div>
           ` : ''}
+          <div>
+            <dt>Profile</dt>
+            <dd>${escapeHtml(profile?.name || 'Local profile')}</dd>
+          </div>
+          ${localPackageAccessMarkup(handleStatus)}
         </dl>
       </aside>
       <section class="library-main">
@@ -263,6 +287,48 @@ async function deleteLibraryBundleFromButton(button) {
   await storage.deleteLibraryBundle?.(entryId);
   await loadDocuments();
   appendLibraryLog(`Deleted "${label}". Save the library to update the local package folder.`);
+}
+
+async function forgetCurrentLibraryHandle() {
+  const library = await storage.getCurrentLibraryContext?.();
+  if (!library?.fileHandle && !library?.fileHandleName) return;
+  const confirmed = await showAppDialog({
+    title: 'Forget local handle?',
+    body: `Forget the remembered local package location "${library.fileHandleName || 'current library'}". Browser-local sources and notes stay in Marginalia; the next save will ask where to write the library package.`,
+    actions: [
+      { value: true, label: 'Forget handle', className: 'primary' },
+      { value: false, label: 'Cancel' }
+    ],
+    cancelValue: false
+  });
+  if (!confirmed) return;
+  await storage.clearCurrentLibraryFileHandle?.();
+  await loadDocuments();
+  appendLibraryLog('Forgot the remembered local package handle. Save will ask for a location next time.');
+}
+
+function localProfileStatusMarkup(profile, handleStatus) {
+  return `
+    <dl>
+      <div>
+        <dt>Profile</dt>
+        <dd>${escapeHtml(profile?.name || 'Local profile')}</dd>
+      </div>
+      ${localPackageAccessMarkup(handleStatus)}
+    </dl>
+  `;
+}
+
+function localPackageAccessMarkup(handleStatus) {
+  return `
+    <div>
+      <dt>Package access</dt>
+      <dd>
+        ${escapeHtml(handleStatus.label)}
+        ${handleStatus.canForget ? '<br><button class="library-handle-forget" type="button" data-forget-library-handle="current">Forget local handle</button>' : ''}
+      </dd>
+    </div>
+  `;
 }
 
 function startHtmlImport() {
@@ -579,6 +645,21 @@ function folderNameReminder(saved, library) {
   const expectedName = libraryFolderNameForTitle(library?.title || 'annotator-library');
   if (!saved?.folder || !saved?.name || saved.name === expectedName) return '';
   return 'Folder name is unchanged because the browser cannot rename the selected local folder automatically.';
+}
+
+async function currentLibraryHandleStatus(library) {
+  if (!library?.fileHandle && !library?.fileHandleName) {
+    return { label: 'No remembered local package handle', canForget: false };
+  }
+  const handleType = library.fileHandle?.kind === 'directory' ? 'folder'
+    : library.fileHandle?.kind === 'file' ? 'zip file'
+      : 'package handle';
+  const name = library.fileHandleName || library.fileHandle?.name || 'remembered package';
+  const permission = await queryFileHandlePermissionState(library.fileHandle, 'readwrite');
+  if (permission === 'granted') return { label: `Remembered ${handleType}: ${name}`, canForget: true };
+  if (permission === 'prompt') return { label: `Remembered ${handleType}: ${name}; permission will be requested on save`, canForget: true };
+  if (permission === 'denied') return { label: `Remembered ${handleType}: ${name}; permission denied`, canForget: true };
+  return { label: `Remembered ${handleType}: ${name}`, canForget: true };
 }
 
 async function documentNoteStats(doc) {

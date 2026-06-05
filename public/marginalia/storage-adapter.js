@@ -14,6 +14,7 @@ const DB_NAME = 'annotator-reader';
 const DB_VERSION = 2;
 const APP_META_LAST_OPEN_DOCUMENT = 'lastOpenDocument';
 const APP_META_CURRENT_LIBRARY = 'currentLibrary';
+const APP_META_LOCAL_PROFILE = 'localProfile';
 const ANCHORABLE_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'li', 'figure', 'figcaption', 'td', 'th', 'section', 'article']);
 const TEXT_ANCHOR_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'li', 'figcaption', 'td', 'th']);
 
@@ -192,6 +193,42 @@ export class IndexedDbStorageAdapter {
     return record?.library || null;
   }
 
+  async getLocalProfile() {
+    const db = await openDb();
+    const record = await readOne(db, 'appMeta', APP_META_LOCAL_PROFILE);
+    return record?.profile || null;
+  }
+
+  async ensureLocalProfile() {
+    const existing = await this.getLocalProfile();
+    if (existing) return existing;
+    const now = new Date().toISOString();
+    const profile = {
+      id: 'local',
+      name: 'Local profile',
+      createdAt: now,
+      updatedAt: now,
+      preferredSaveMode: 'folder',
+      lastLibraryHandleName: ''
+    };
+    await this.writeLocalProfile(profile);
+    return profile;
+  }
+
+  async writeLocalProfile(profile) {
+    const db = await openDb();
+    await writeTransaction(db, ['appMeta'], (stores) => {
+      stores.appMeta.put({
+        key: APP_META_LOCAL_PROFILE,
+        profile: {
+          ...profile,
+          updatedAt: new Date().toISOString()
+        }
+      });
+    });
+    return profile;
+  }
+
   async clearCurrentLibraryContext() {
     const db = await openDb();
     await writeTransaction(db, ['appMeta'], (stores) => {
@@ -220,10 +257,29 @@ export class IndexedDbStorageAdapter {
   async setCurrentLibraryFileHandle(handle) {
     const context = await this.getCurrentLibraryContext();
     if (!context || !handle) return false;
+    const fileHandleName = handle.name || context.fileHandleName || '';
     await this.writeCurrentLibraryContext({
       ...context,
       fileHandle: handle,
-      fileHandleName: handle.name || context.fileHandleName || ''
+      fileHandleName
+    });
+    const profile = await this.ensureLocalProfile();
+    await this.writeLocalProfile({
+      ...profile,
+      lastLibraryHandleName: fileHandleName
+    });
+    return true;
+  }
+
+  async clearCurrentLibraryFileHandle() {
+    const context = await this.getCurrentLibraryContext();
+    if (!context) return false;
+    const { fileHandle, fileHandleName, ...rest } = context;
+    await this.writeCurrentLibraryContext(rest);
+    const profile = await this.ensureLocalProfile();
+    await this.writeLocalProfile({
+      ...profile,
+      lastLibraryHandleName: ''
     });
     return true;
   }

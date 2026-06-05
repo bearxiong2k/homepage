@@ -956,6 +956,13 @@ textarea {
   overflow-wrap: anywhere;
 }
 
+.library-handle-forget {
+  margin-top: 6px;
+  border-radius: 5px;
+  padding: 0.2rem 0.44rem;
+  font-size: 0.78rem;
+}
+
 .library-main {
   min-width: 0;
 }

@@ -7,5 +7,5 @@
     },
     "resolveJsonModule": true
   },
-  "exclude": ["public/marginalia/**"]
+  "exclude": ["public/marginalia/**", "dist/**"]
 }
