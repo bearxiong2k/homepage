@@ -5,6 +5,7 @@ import { citationDisplayMetadata } from '../src/lib/bibtex.js';
 
 const root = process.cwd();
 const args = process.argv.slice(2);
+const checkMode = args.includes('--check');
 const outIndex = args.indexOf('--out');
 const outputPath = outIndex >= 0 && args[outIndex + 1]
   ? args[outIndex + 1]
@@ -15,6 +16,18 @@ const clustersPath = path.join(root, 'src/data/clusters.json');
 const papersDir = path.join(root, 'src/content/papers');
 const outputAbs = path.resolve(root, outputPath);
 const paperListOutputAbs = path.resolve(root, 'public/cim-library-paper-list.md');
+
+function normalizeManifestForCheck(value) {
+  return JSON.stringify({ ...value, generated_at: '__checked__' }, null, 2);
+}
+
+function compareGeneratedFile(filePath, expected, label) {
+  if (!fs.existsSync(filePath)) fail(`${label} is missing; run npm run export:atlas`);
+  const actual = fs.readFileSync(filePath, 'utf8');
+  if (actual !== expected) {
+    fail(`${label} is out of date; run npm run export:atlas`);
+  }
+}
 
 function fail(message) {
   console.error(`[export-atlas-manifest] ERROR: ${message}`);
@@ -473,8 +486,6 @@ if (papers.length !== files.length) {
   warn(`paper count mismatch: files=${files.length}, parsed=${papers.length}`);
 }
 
-fs.mkdirSync(path.dirname(outputAbs), { recursive: true });
-fs.writeFileSync(outputAbs, `${JSON.stringify(manifest, null, 2)}\n`);
 const paperListMarkdown = [
   '# CIM Library Paper List',
   '',
@@ -487,6 +498,25 @@ const paperListMarkdown = [
   )),
   ''
 ].join('\n');
-fs.writeFileSync(paperListOutputAbs, paperListMarkdown);
-console.log(`[export-atlas-manifest] wrote ${path.relative(root, outputAbs)} with ${papers.length} papers`);
-console.log(`[export-atlas-manifest] wrote ${path.relative(root, paperListOutputAbs)}`);
+
+if (checkMode) {
+  if (!fs.existsSync(outputAbs)) fail(`${path.relative(root, outputAbs)} is missing; run npm run export:atlas`);
+  let currentManifest;
+  try {
+    currentManifest = JSON.parse(fs.readFileSync(outputAbs, 'utf8'));
+  } catch (error) {
+    fail(`${path.relative(root, outputAbs)} is invalid JSON (${error.message})`);
+  }
+  if (normalizeManifestForCheck(currentManifest) !== normalizeManifestForCheck(manifest)) {
+    fail(`${path.relative(root, outputAbs)} is out of date; run npm run export:atlas`);
+  }
+  compareGeneratedFile(paperListOutputAbs, paperListMarkdown, path.relative(root, paperListOutputAbs));
+  console.log(`[export-atlas-manifest] checked ${path.relative(root, outputAbs)} with ${papers.length} papers`);
+  console.log(`[export-atlas-manifest] checked ${path.relative(root, paperListOutputAbs)}`);
+} else {
+  fs.mkdirSync(path.dirname(outputAbs), { recursive: true });
+  fs.writeFileSync(outputAbs, `${JSON.stringify(manifest, null, 2)}\n`);
+  fs.writeFileSync(paperListOutputAbs, paperListMarkdown);
+  console.log(`[export-atlas-manifest] wrote ${path.relative(root, outputAbs)} with ${papers.length} papers`);
+  console.log(`[export-atlas-manifest] wrote ${path.relative(root, paperListOutputAbs)}`);
+}

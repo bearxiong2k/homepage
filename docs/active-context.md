@@ -21,6 +21,7 @@ Website project integration is the active focus for the current session.
 - Current implementation: Marginalia is registered as a `browser-local-pwa`, has a narrative landing page at `/projects/marginalia/`, and is served as a static sub-PWA at `/marginalia/`. The static app is copied with `npm run sync:marginalia`.
 - Hosting constraint: Marginalia's service worker must stay inside `public/marginalia/service-worker.js` with scope `/homepage/marginalia/` in production. Its activation cleanup must only delete caches with the `marginalia-static-` prefix, because GitHub Pages cache storage is origin-wide.
 - Typecheck constraint: `tsconfig.json` excludes `public/marginalia/**` so Astro checks the homepage source without trying to diagnose vendored/static PWA files.
+- Workflow hook state: repo-owned Git hooks live in `.githooks/` and are installed with `npm run hooks:install`. The hooks call package scripts: `hook:precommit` for fast non-mutating checks and `hook:prepush` for the full production-base gate. Codex should run `npm run codex:checkpoint` for the same full gate.
 - Next work should be deployment-oriented: review the synced static diff, push through the normal homepage deployment path, then smoke the production URL `https://bearxiong2k.github.io/homepage/marginalia/` including import, note creation, `.annotator-library.zip` export, site-data clear, and restore.
 
 ## Paused Focus
@@ -71,13 +72,7 @@ Cluster analysis and working-group content is marked done.
 Latest known good loop after Marginalia integration:
 
 ```bash
-npm run qa
-npm run validate
-npm run export:atlas
-npm run contract:website
-npm run check
-ASTRO_SITE=https://bearxiong2k.github.io ASTRO_BASE=/homepage npm run build
-git diff --check
+npm run codex:checkpoint
 ```
 
 Baseline: 62 paper metadata files validated; website contract OK; `astro check` has 0 errors, 0 warnings, 0 hints; production-base static build emits 70 pages. Local static smoke confirmed `/homepage/marginalia/` redirects to `/homepage/marginalia/reader.html`, registers the service worker at scope `/homepage/marginalia/`, and loads the bundled quick-start document with Save enabled. The only observed browser console error was a missing root `favicon.ico` request.

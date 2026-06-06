@@ -81,15 +81,13 @@ npm run validate
 npm run check
 npm run build
 npm run dev
+npm run codex:checkpoint
 ```
 
 When touching website shell, project registry, manifest, atlas routing, cluster routing, or substantial content:
 
 ```bash
-npm run qa
-npm run validate
-npm run export:atlas
-npm run contract:website
-npm run check
-npm run build
+npm run codex:checkpoint
 ```
+
+Install repo-owned Git hooks once per clone with `npm run hooks:install`. The fast pre-commit hook is non-mutating; the pre-push hook runs the production-base checkpoint.

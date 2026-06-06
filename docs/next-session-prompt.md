@@ -16,6 +16,7 @@ Project status:
 - Marginalia must remain a static subdirectory PWA. Do not iframe it into Astro, move service-worker.js to public/, rename IndexedDB/package formats, or broaden the service-worker scope.
 - Marginalia's service worker cache cleanup must only delete caches with the marginalia-static- prefix because GitHub Pages cache storage is origin-wide.
 - tsconfig.json excludes public/marginalia/** so Astro diagnostics do not typecheck vendored/static PWA files.
+- Repo-owned Git hooks live in .githooks/ and can be installed with npm run hooks:install. They call hook:precommit and hook:prepush package scripts. Codex should use npm run codex:checkpoint for the full production-base gate.
 
 Active focus:
 - Website project integration for Marginalia.
@@ -43,13 +44,7 @@ Method:
 - Keep public/marginalia/ as a copied static app owned by ../Marginalia.
 
 After Marginalia/homepage edits, run:
-npm run qa
-npm run validate
-npm run export:atlas
-npm run contract:website
-npm run check
-ASTRO_SITE=https://bearxiong2k.github.io ASTRO_BASE=/homepage npm run build
-git diff --check
+npm run codex:checkpoint
 
 Latest known local smoke:
 - Marginalia checks in ../Marginalia passed: npm run check, npm test, git diff --check.

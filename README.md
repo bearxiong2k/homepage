@@ -58,6 +58,40 @@ npm run contract:website
 npm run build
 ```
 
+## Local workflow hooks
+
+Install the repo-owned Git hooks once per clone:
+
+```bash
+npm run hooks:install
+```
+
+The hooks call package scripts rather than duplicating command lists:
+
+```text
+pre-commit -> npm run hook:precommit
+pre-push   -> npm run hook:prepush
+```
+
+`hook:precommit` is the fast, non-mutating gate: content QA, metadata validation, atlas-export freshness check, website contract check, Marginalia sync drift check, and whitespace diff check.
+
+`hook:prepush` is the full local release gate: everything above plus `astro check` and a production-base build with `ASTRO_SITE=https://bearxiong2k.github.io` and `ASTRO_BASE=/homepage`.
+
+For Codex sessions, use the same full gate directly:
+
+```bash
+npm run codex:checkpoint
+```
+
+When Marginalia changes, sync from the Marginalia repo first when possible:
+
+```bash
+cd ../Marginalia
+npm run sync:homepage:validate
+```
+
+From this repo, `npm run sync:marginalia` mirrors `../Marginalia/public/` into `public/marginalia/`; `npm run sync:marginalia:check` verifies the copy without changing files.
+
 ## Deploy to GitHub Pages
 
 The repository includes a GitHub Actions Pages workflow at `.github/workflows/deploy-pages.yml`. It deploys pushes to `main` as a GitHub Pages project site:
