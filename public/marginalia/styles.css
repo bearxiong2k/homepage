@@ -1023,6 +1023,8 @@ textarea {
 .home-doc-actions {
   display: flex;
   flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 12px;
 }
@@ -1111,15 +1113,30 @@ textarea {
   color: #8f1f12;
 }
 
+.library-entry-replace,
 .library-entry-delete {
   border: 1px solid #e1b6ad;
   border-radius: 5px;
   padding: 0.24rem 0.48rem;
   background: transparent;
-  color: #8f1f12;
   font: inherit;
   font-weight: 650;
   cursor: pointer;
+}
+
+.library-entry-replace {
+  border-color: var(--border);
+  color: var(--accent);
+}
+
+.library-entry-delete {
+  color: #8f1f12;
+}
+
+.library-entry-replace:hover,
+.library-entry-replace:focus {
+  background: var(--panel);
+  outline: none;
 }
 
 .library-entry-delete:hover,

@@ -34,6 +34,7 @@ const saveLibraryBtn = document.querySelector('#saveLibraryBtn');
 const updateAppBtn = document.querySelector('#updateAppBtn');
 const clearLibraryBtn = document.querySelector('#clearLibraryBtn');
 const htmlFileInput = document.querySelector('#htmlFileInput');
+const replaceSourceFileInput = document.querySelector('#replaceSourceFileInput');
 const bundleFileInput = document.querySelector('#bundleFileInput');
 const libraryFileInput = document.querySelector('#libraryFileInput');
 const appDialog = document.querySelector('#appDialog');
@@ -41,6 +42,7 @@ const appDialogTitle = document.querySelector('#appDialogTitle');
 const appDialogBody = document.querySelector('#appDialogBody');
 const appDialogActions = document.querySelector('#appDialogActions');
 let activeDialog = null;
+let pendingReplaceSourceDocId = null;
 
 init().catch((error) => {
   documentsEl.innerHTML = `<p class="small">${escapeHtml(error.message)}</p>`;
@@ -50,6 +52,7 @@ async function init() {
   openReaderLink.href = urlWithStorage('reader.html', {}, storageMode);
   importHtmlBtn?.addEventListener('click', () => startHtmlImport());
   htmlFileInput?.addEventListener('change', () => importSelectedHtml().catch(showError));
+  replaceSourceFileInput?.addEventListener('change', () => importSelectedReplacementSource().catch(showError));
   importBundleBtn?.addEventListener('click', () => startBundleImport().catch(showError));
   bundleFileInput?.addEventListener('change', () => importSelectedBundle().catch(showError));
   importLibraryBtn?.addEventListener('click', () => startLibraryImport().catch(showError));
@@ -70,6 +73,11 @@ async function init() {
     }
   });
   documentsEl?.addEventListener('click', (event) => {
+    const replaceButton = event.target?.closest?.('[data-replace-source]');
+    if (replaceButton) {
+      startSourceReplacementFromButton(replaceButton).catch(showError);
+      return;
+    }
     const deleteButton = event.target?.closest?.('[data-delete-library-bundle]');
     if (deleteButton) {
       deleteLibraryBundleFromButton(deleteButton).catch(showError);
@@ -196,6 +204,7 @@ async function loadDocuments() {
             <span class="library-entry-stats">${escapeHtml(stats.summary)} · Last edit ${escapeHtml(formatDateTime(stats.lastEditAt))}</span>
           </span>
           <span class="home-doc-actions">
+            <button class="library-entry-replace" type="button" data-replace-source="${escapeAttr(doc.id)}">Replace</button>
             ${entry ? `<button class="library-entry-delete" type="button" data-delete-library-bundle="${escapeAttr(entry.id)}">Delete</button>` : ''}
             ${!entry ? `<button class="library-entry-delete" type="button" data-delete-document="${escapeAttr(doc.id)}">Delete</button>` : ''}
             <a class="home-doc-open" href="${escapeAttr(urlWithStorage('reader.html', { doc: doc.id }, storageMode))}">Open -&gt;</a>
@@ -296,6 +305,39 @@ async function deleteLibraryBundleFromButton(button) {
   await storage.deleteLibraryBundle?.(entryId);
   await loadDocuments();
   appendLibraryLog(`Deleted "${label}". Save the library to update the local package folder.`);
+}
+
+async function startSourceReplacementFromButton(button) {
+  const docId = button?.dataset?.replaceSource;
+  if (!docId) return;
+  const label = button.closest('.home-doc')?.querySelector('[data-source-title]')?.value || 'this source';
+  const confirmed = await showAppDialog({
+    title: 'Replace source?',
+    body: `Choose an updated source file for "${label}". Existing notes and highlights stay in this library entry, so use a file that keeps the same stable anchors.`,
+    actions: [
+      { value: true, label: 'Choose file', className: 'primary' },
+      { value: false, label: 'Cancel' }
+    ],
+    cancelValue: false
+  });
+  if (!confirmed) return;
+  pendingReplaceSourceDocId = docId;
+  replaceSourceFileInput?.click();
+}
+
+async function importSelectedReplacementSource() {
+  const docId = pendingReplaceSourceDocId;
+  const file = replaceSourceFileInput?.files?.[0];
+  if (!docId || !file) return;
+  documentsEl.innerHTML = '<p class="small">Replacing source...</p>';
+  try {
+    const updated = await storage.replaceDocumentSource?.(docId, file);
+    await loadDocuments();
+    appendLibraryLog(`Replaced source with "${updated?.sourcePath || file.name}". Existing notes and highlights were kept.`);
+  } finally {
+    pendingReplaceSourceDocId = null;
+    if (replaceSourceFileInput) replaceSourceFileInput.value = '';
+  }
 }
 
 async function deleteStandaloneDocumentFromButton(button) {

@@ -342,6 +342,60 @@ export class IndexedDbStorageAdapter {
     return updated;
   }
 
+  async replaceDocumentSource(docId, file) {
+    if (!docId) throw new Error('Document id is required.');
+    if (!file) throw new Error('Choose an updated source file.');
+    const sourceBytes = new Uint8Array(await file.arrayBuffer());
+    const incomingType = replacementSourceType(file, sourceBytes);
+    const db = await openDb();
+    const document = normalizeStoredDocument(await readOne(db, 'documents', docId));
+    if (!document) throw new Error(`Document not found: ${docId}`);
+    const currentType = document.sourceType || 'html';
+    if (incomingType !== currentType) {
+      throw new Error(`Choose a replacement ${sourceTypeLabel(currentType)} file for this source.`);
+    }
+    const now = new Date().toISOString();
+    let updated = null;
+    if (currentType === 'pdf') {
+      const metadata = await pdfMetadataFromBytes(sourceBytes);
+      updated = {
+        ...document,
+        title: file.name ? file.name.replace(/\.pdf$/i, '') : document.title,
+        sourcePath: sourceFilename(file.name || document.sourcePath || 'source.pdf', 'pdf'),
+        sourcePathEdited: true,
+        sourceBytes,
+        sourceHtml: '',
+        pageCount: metadata.pageCount,
+        pages: metadata.pages || null,
+        compatibility: pdfCompatibilityReport(metadata),
+        updatedAt: now
+      };
+    } else {
+      const sourceHtml = new TextDecoder().decode(sourceBytes);
+      const normalized = await normalizeHtmlForBrowserImport(sourceHtml, {
+        filename: file.name || document.sourcePath || 'source.html',
+        title: document.title || (file.name ? file.name.replace(/\.html?$/i, '') : '')
+      });
+      updated = {
+        ...document,
+        title: normalized.title || document.title,
+        sourceType: 'html',
+        sourcePath: sourceFilename(file.name || document.sourcePath || 'source.html', 'html'),
+        sourcePathEdited: true,
+        sourceHtml: normalized.sourceHtml,
+        sourceBytes: null,
+        pageCount: null,
+        pages: null,
+        compatibility: normalized.compatibility,
+        updatedAt: now
+      };
+    }
+    await writeTransaction(db, ['documents'], (stores) => {
+      stores.documents.put(updated);
+    });
+    return updated;
+  }
+
   async exportDocumentBundle(docId) {
     const db = await openDb();
     const document = normalizeStoredDocument(await readOne(db, 'documents', docId));
@@ -760,6 +814,16 @@ function normalizePdfCompatibility(compatibility, pages = null) {
 
 function isPdfFile(file) {
   return file?.type === 'application/pdf' || /\.pdf$/i.test(file?.name || '');
+}
+
+function replacementSourceType(file, bytes) {
+  if (isPdfFile(file) || looksLikePdfBytes(bytes)) return 'pdf';
+  if (file?.type === 'text/html' || /\.html?$/i.test(file?.name || '')) return 'html';
+  throw new Error('Choose an HTML or PDF source file.');
+}
+
+function sourceTypeLabel(sourceType) {
+  return sourceType === 'pdf' ? 'PDF' : 'HTML';
 }
 
 function sourceFilename(value, sourceType = 'html') {
