@@ -646,7 +646,8 @@ export class IndexedDbStorageAdapter {
       sourcePathEdited: true,
       sourceBytes,
       sourceHtml: '',
-      pages: metadata.pages,
+      pageCount: metadata.pageCount,
+      pages: metadata.pages || null,
       compatibility: pdfCompatibilityReport(metadata),
       createdAt: now,
       updatedAt: now
@@ -674,6 +675,7 @@ function normalizeDocumentFromBundle(document, sourceHtml, sourceBytes = null) {
     sourcePathEdited: Boolean(document?.sourcePathEdited),
     sourceHtml: sourceType === 'pdf' ? '' : sourceHtml,
     sourceBytes: sourceType === 'pdf' ? sourceBytes : null,
+    pageCount: sourceType === 'pdf' ? document?.pageCount || document?.pages?.length || null : null,
     pages: document?.pages || null,
     compatibility,
     createdAt: document?.createdAt || now,
@@ -685,7 +687,8 @@ function normalizeStoredDocument(document) {
   if (!document) return document;
   const normalized = {
     ...document,
-    sourcePath: sourcePathForDocument(document, document.sourceType || 'html')
+    sourcePath: sourcePathForDocument(document, document.sourceType || 'html'),
+    pageCount: document.sourceType === 'pdf' ? document.pageCount || document.pages?.length || null : null
   };
   if (document.sourceType !== 'pdf') return normalized;
   return {
@@ -697,22 +700,27 @@ function normalizeStoredDocument(document) {
 async function pdfMetadataFromBytes(bytes) {
   const pdfjs = await import('./vendor/pdfjs/pdf.mjs');
   pdfjs.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdfjs/pdf.worker.mjs', location.href).href;
-  const loadingTask = pdfjs.getDocument({ data: bytes.slice() });
-  const pdf = await loadingTask.promise;
-  const pages = [];
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-    const page = await pdf.getPage(pageNumber);
-    const viewport = page.getViewport({ scale: 1 });
-    pages.push({
-      id: `pdf-page-${pageNumber}`,
-      label: String(pageNumber),
-      index: pageNumber - 1,
-      width: viewport.width,
-      height: viewport.height
-    });
+  const loadingTask = pdfjs.getDocument({
+    data: bytes.slice(),
+    ...pdfAssetOptions()
+  });
+  let pdf = null;
+  try {
+    pdf = await loadingTask.promise;
+    return { pageCount: pdf.numPages, pages: null };
+  } finally {
+    await pdf?.destroy?.();
   }
-  await pdf.destroy?.();
-  return { pageCount: pages.length, pages };
+}
+
+function pdfAssetOptions() {
+  return {
+    cMapUrl: new URL('./vendor/pdfjs/cmaps/', location.href).href,
+    cMapPacked: true,
+    standardFontDataUrl: new URL('./vendor/pdfjs/standard_fonts/', location.href).href,
+    wasmUrl: new URL('./vendor/pdfjs/wasm/', location.href).href,
+    iccUrl: new URL('./vendor/pdfjs/iccs/', location.href).href
+  };
 }
 
 function pdfCompatibilityReport(metadata) {
@@ -733,7 +741,7 @@ function pdfCompatibilityReport(metadata) {
       inlineMedia: false,
       interactiveSource: false
     },
-    warnings: ['PDF text extraction is not scanned during import; notes use page-coordinate anchors.']
+    warnings: ['PDF text and page geometry are prepared lazily while reading; notes use page-coordinate anchors.']
   };
 }
 

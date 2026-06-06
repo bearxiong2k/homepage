@@ -1,6 +1,13 @@
 import * as pdfjsLib from './vendor/pdfjs/pdf.mjs';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdfjs/pdf.worker.mjs', location.href).href;
+const PDFJS_ASSETS = {
+  cMapUrl: new URL('./vendor/pdfjs/cmaps/', location.href).href,
+  cMapPacked: true,
+  standardFontDataUrl: new URL('./vendor/pdfjs/standard_fonts/', location.href).href,
+  wasmUrl: new URL('./vendor/pdfjs/wasm/', location.href).href,
+  iccUrl: new URL('./vendor/pdfjs/iccs/', location.href).href
+};
 
 const params = new URLSearchParams(location.search);
 const fileUrl = params.get('file');
@@ -68,7 +75,7 @@ renderPdf().catch((error) => {
 async function renderPdf() {
   if (!fileUrl) throw new Error('Missing PDF source.');
   status('Loading PDF...');
-  const loadingTask = pdfjsLib.getDocument({ url: fileUrl });
+  const loadingTask = pdfjsLib.getDocument({ url: fileUrl, ...PDFJS_ASSETS });
   pdfDocument = await loadingTask.promise;
   document.documentElement.dataset.pdfPageCount = String(pdfDocument.numPages);
   status(`Preparing ${pdfDocument.numPages} pages...`);
