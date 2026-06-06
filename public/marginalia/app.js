@@ -57,6 +57,7 @@ async function init() {
   saveLibraryBtn?.addEventListener('click', () => saveCurrentLibrary().catch(showError));
   updateAppBtn?.addEventListener('click', () => updateInstalledApp().catch(showError));
   clearLibraryBtn?.addEventListener('click', () => clearBrowserLibrary().catch(showError));
+  installFileDropImport();
   documentsEl?.addEventListener('change', (event) => {
     if (event.target?.matches?.('[data-library-title]')) {
       renameCurrentLibraryFromInput(event.target).catch(showError);
@@ -478,6 +479,82 @@ async function importLibraryFile(file, fileHandle = null) {
   } finally {
     if (libraryFileInput) libraryFileInput.value = '';
   }
+}
+
+function installFileDropImport() {
+  const dropCatcher = document.createElement('div');
+  dropCatcher.className = 'file-drop-catcher';
+  dropCatcher.setAttribute('aria-hidden', 'true');
+  document.body.append(dropCatcher);
+
+  let dragDepth = 0;
+  document.addEventListener('dragenter', (event) => {
+    if (!isFileDragEvent(event)) return;
+    dragDepth += 1;
+    event.preventDefault();
+    document.body.classList.add('is-file-dragging');
+  });
+  document.addEventListener('dragover', (event) => {
+    if (!isFileDragEvent(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+  });
+  document.addEventListener('dragleave', (event) => {
+    if (!isFileDragEvent(event)) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0 || event.clientX <= 0 || event.clientY <= 0) {
+      document.body.classList.remove('is-file-dragging');
+    }
+  });
+  document.addEventListener('drop', (event) => {
+    if (!isFileDragEvent(event)) return;
+    event.preventDefault();
+    dragDepth = 0;
+    document.body.classList.remove('is-file-dragging');
+    importDroppedFile(event).catch(showError);
+  });
+}
+
+function isFileDragEvent(event) {
+  return Array.from(event.dataTransfer?.types || []).includes('Files');
+}
+
+async function importDroppedFile(event) {
+  const file = event.dataTransfer?.files?.[0];
+  if (!file) return;
+  const importKind = await droppedFileImportKind(file);
+  if (importKind === 'library') {
+    await importLibraryFile(file);
+    return;
+  }
+  if (importKind === 'bundle') {
+    await importBundleFile(file);
+    return;
+  }
+  documentsEl.innerHTML = '<p class="small">Importing source...</p>';
+  const doc = await storage.importDocument(file);
+  location.href = urlWithStorage('reader.html', { doc: doc.id }, storageMode);
+}
+
+async function droppedFileImportKind(file) {
+  const name = file?.name || '';
+  const lowerName = name.toLowerCase();
+  if (isAnnotatorLibraryFilename(name)) return 'library';
+  if (/\.pdf$/i.test(lowerName) || file.type === 'application/pdf') return 'source';
+  if (await fileStartsWithPdfMagic(file)) return 'source';
+  if (/\.html?$/.test(lowerName) || file.type === 'text/html') return 'source';
+  if (/\.annotator\.zip$/i.test(lowerName) || /\.zip$/i.test(lowerName) || file.type === 'application/zip') return 'bundle';
+  throw new Error('Drop an HTML or PDF source file, .annotator.zip bundle, or .annotator-library.zip library.');
+}
+
+async function fileStartsWithPdfMagic(file) {
+  if (!file?.slice) return false;
+  const bytes = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+  return bytes[0] === 0x25
+    && bytes[1] === 0x50
+    && bytes[2] === 0x44
+    && bytes[3] === 0x46
+    && bytes[4] === 0x2d;
 }
 
 async function saveCurrentLibrary() {

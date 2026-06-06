@@ -85,6 +85,7 @@ const state = {
   tooltipTimer: null,
   tooltip: null,
   tooltipTarget: null,
+  saveToastTimer: 0,
   restoringScroll: false,
   annotationResolution: new Map(),
   appDialog: null,
@@ -121,7 +122,8 @@ const els = {
   appDialog: document.querySelector('#appDialog'),
   appDialogTitle: document.querySelector('#appDialogTitle'),
   appDialogBody: document.querySelector('#appDialogBody'),
-  appDialogActions: document.querySelector('#appDialogActions')
+  appDialogActions: document.querySelector('#appDialogActions'),
+  saveToast: document.querySelector('#saveToast')
 };
 
 els.importBundleBtn = document.querySelector('#importBundleBtn');
@@ -143,6 +145,7 @@ const QUICK_MARK_COLOR_VALUES = ['#f2d48d', '#b7d8ff', '#b9e4c4', '#ffc2c7', '#d
 const QUICK_MARK_ASSET_URLS = QUICK_MARK_COLORS.map((_, index) => new URL(`assets/binder-clip-${index}.png`, location.href).href);
 const MAX_QUICK_MARKS = 8;
 const PDF_READY_TIMEOUT_MS = 120000;
+const SAVE_SUCCESS_VISIBLE_MS = 3600;
 const INK_CANVAS_HEIGHT = { min: 96, default: 420, max: 1800, padding: 18 };
 const NOTE_JUMP_VIEWPORT_OFFSET_RATIO = 0.2;
 const MATH_DELIMITERS = [
@@ -196,6 +199,7 @@ function bindChromeEvents() {
   els.importBundleBtn?.addEventListener('click', () => startSourceImport().catch((error) => setStatus(error.message, true)));
   els.bundleFileInput?.addEventListener('change', () => importSelectedSourceFile(els.bundleFileInput).catch((error) => setStatus(error.message, true)));
   els.exportBundleBtn?.addEventListener('click', () => exportCurrentBundle().catch((error) => setStatus(error.message, true)));
+  installFileDropImport();
   installTooltipController(document);
   syncNotesPanelControls();
   syncHistoryControls();
@@ -426,6 +430,63 @@ async function importSourceFile(file, fileHandle = null, importKind = 'source') 
   setStatus(library ? `Opened library "${library.title}".` : `Imported "${doc?.title || name}".`);
 }
 
+function installFileDropImport() {
+  const dropCatcher = document.createElement('div');
+  dropCatcher.className = 'file-drop-catcher';
+  dropCatcher.setAttribute('aria-hidden', 'true');
+  document.body.append(dropCatcher);
+
+  let dragDepth = 0;
+  document.addEventListener('dragenter', (event) => {
+    if (!isFileDragEvent(event)) return;
+    dragDepth += 1;
+    event.preventDefault();
+    document.body.classList.add('is-file-dragging');
+  });
+  document.addEventListener('dragover', (event) => {
+    if (!isFileDragEvent(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+  });
+  document.addEventListener('dragleave', (event) => {
+    if (!isFileDragEvent(event)) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0 || event.clientX <= 0 || event.clientY <= 0) {
+      document.body.classList.remove('is-file-dragging');
+    }
+  });
+  document.addEventListener('drop', (event) => {
+    if (!isFileDragEvent(event)) return;
+    event.preventDefault();
+    dragDepth = 0;
+    document.body.classList.remove('is-file-dragging');
+    importDroppedFile(event).catch((error) => setStatus(error.message, true));
+  });
+}
+
+function isFileDragEvent(event) {
+  return Array.from(event.dataTransfer?.types || []).includes('Files');
+}
+
+async function importDroppedFile(event) {
+  const file = event.dataTransfer?.files?.[0];
+  if (!file) return;
+  const importKind = await droppedFileImportKind(file);
+  await validateImportKind(file, importKind);
+  if (await shouldProceedWithImport(file, importKind)) await importSourceFile(file, null, importKind);
+}
+
+async function droppedFileImportKind(file) {
+  const name = file?.name || '';
+  const lowerName = name.toLowerCase();
+  if (isAnnotatorLibraryFilename(name)) return 'library';
+  if (/\.pdf$/i.test(lowerName) || file.type === 'application/pdf') return 'source';
+  if (await fileStartsWithPdfMagic(file)) return 'source';
+  if (/\.html?$/.test(lowerName) || file.type === 'text/html') return 'source';
+  if (/\.annotator\.zip$/i.test(lowerName) || /\.zip$/i.test(lowerName) || file.type === 'application/zip') return 'bundle';
+  throw new Error('Drop an HTML or PDF source file, .annotator.zip bundle, or .annotator-library.zip library.');
+}
+
 async function validateImportKind(file, importKind) {
   const name = file?.name || '';
   const lowerName = name.toLowerCase();
@@ -598,9 +659,10 @@ async function exportCurrentBundle() {
         return;
       }
       if (saved?.handle) await rememberCurrentLibraryHandle(saved.handle);
-      setStatus(saved?.name && !saved.downloaded
+      const message = saved?.name && !saved.downloaded
         ? `Saved library "${context?.title || 'Annotator library'}" to ${saved.name}.`
-        : `Downloaded library "${libraryName}".`);
+        : `Downloaded library "${libraryName}".`;
+      setSaveSuccess(message);
       await loadDocuments();
       return;
     }
@@ -614,12 +676,12 @@ async function exportCurrentBundle() {
     }
     if (saved?.cancelled) return;
     if (saved?.name) {
-      setStatus(`Saved "${doc?.title || state.docId}" to ${saved.name}.`);
+      setSaveSuccess(`Saved "${doc?.title || state.docId}" to ${saved.name}.`);
       return;
     }
   }
   downloadBytes(bytes, filename);
-  setStatus(`Downloaded "${doc?.title || state.docId}".`);
+  setSaveSuccess(`Downloaded "${doc?.title || state.docId}".`);
 }
 
 async function saveBundleWithFileSystemAccess(bytes, filename) {
@@ -688,12 +750,12 @@ async function saveCurrentLibraryPackage(bytes, filename, title) {
     if (saved?.handle) await rememberCurrentLibraryHandle(saved.handle);
     if (saved?.name) {
       const reminder = libraryFolderNameReminder(saved, library);
-      setStatus(`Saved library "${title}" to ${saved.name}.${reminder ? ` ${reminder}` : ''}`);
+      setSaveSuccess(`Saved library "${title}" to ${saved.name}.${reminder ? ` ${reminder}` : ''}`);
       return saved;
     }
   }
   downloadBytes(bytes, filename);
-  setStatus(`Downloaded library "${title}".`);
+  setSaveSuccess(`Downloaded library "${title}".`);
   return { downloaded: true, name: filename };
 }
 
@@ -6669,4 +6731,17 @@ function libraryFolderNameReminder(saved, library) {
 function setStatus(message, isError = false) {
   els.status.textContent = message || '';
   els.status.style.color = isError ? '#8f1f12' : '';
+}
+
+function setSaveSuccess(message) {
+  setStatus(message);
+  if (!els.saveToast) return;
+  window.clearTimeout(state.saveToastTimer);
+  els.saveToast.textContent = message || 'Saved.';
+  els.saveToast.hidden = false;
+  state.saveToastTimer = window.setTimeout(() => {
+    els.saveToast.hidden = true;
+    els.saveToast.textContent = '';
+    state.saveToastTimer = 0;
+  }, SAVE_SUCCESS_VISIBLE_MS);
 }

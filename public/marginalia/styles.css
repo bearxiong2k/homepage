@@ -116,6 +116,21 @@ button:disabled { opacity: 0.48; cursor: not-allowed; }
   white-space: nowrap;
 }
 
+.file-drop-catcher {
+  position: fixed;
+  inset: 0;
+  z-index: 850;
+  display: none;
+  border: 3px dashed rgba(122, 61, 0, 0.58);
+  background: rgba(255, 253, 248, 0.18);
+  pointer-events: none;
+}
+
+body.is-file-dragging .file-drop-catcher {
+  display: block;
+  pointer-events: auto;
+}
+
 @media (max-width: 560px) {
   .app-dialog-actions {
     flex-wrap: wrap;
@@ -885,6 +900,24 @@ textarea {
   min-height: 1.4em;
   color: var(--muted);
   font-size: 0.86rem;
+}
+
+.save-toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 860;
+  max-width: min(420px, calc(100vw - 36px));
+  margin: 0;
+  border: 1px solid rgba(122, 61, 0, 0.32);
+  border-radius: 8px;
+  padding: 0.68rem 0.82rem;
+  background: rgba(255, 253, 248, 0.96);
+  color: var(--text);
+  box-shadow: 0 12px 32px rgba(52, 38, 18, 0.16);
+  font-size: 0.9rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .home {
