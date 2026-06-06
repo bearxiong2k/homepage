@@ -75,6 +75,11 @@ async function init() {
       deleteLibraryBundleFromButton(deleteButton).catch(showError);
       return;
     }
+    const documentDeleteButton = event.target?.closest?.('[data-delete-document]');
+    if (documentDeleteButton) {
+      deleteStandaloneDocumentFromButton(documentDeleteButton).catch(showError);
+      return;
+    }
     const forgetButton = event.target?.closest?.('[data-forget-library-handle]');
     if (forgetButton) {
       forgetCurrentLibraryHandle().catch(showError);
@@ -192,6 +197,7 @@ async function loadDocuments() {
           </span>
           <span class="home-doc-actions">
             ${entry ? `<button class="library-entry-delete" type="button" data-delete-library-bundle="${escapeAttr(entry.id)}">Delete</button>` : ''}
+            ${!entry ? `<button class="library-entry-delete" type="button" data-delete-document="${escapeAttr(doc.id)}">Delete</button>` : ''}
             <a class="home-doc-open" href="${escapeAttr(urlWithStorage('reader.html', { doc: doc.id }, storageMode))}">Open -&gt;</a>
           </span>
         </article>
@@ -290,6 +296,25 @@ async function deleteLibraryBundleFromButton(button) {
   await storage.deleteLibraryBundle?.(entryId);
   await loadDocuments();
   appendLibraryLog(`Deleted "${label}". Save the library to update the local package folder.`);
+}
+
+async function deleteStandaloneDocumentFromButton(button) {
+  const docId = button?.dataset?.deleteDocument;
+  if (!docId) return;
+  const label = button.closest('.home-doc')?.querySelector('[data-source-title]')?.value || 'this source';
+  const confirmed = await showAppDialog({
+    title: 'Delete source?',
+    body: `Delete "${label}" from browser-local storage. Saved package folders or zip files on your computer are not touched.`,
+    actions: [
+      { value: true, label: 'Delete source', className: 'danger' },
+      { value: false, label: 'Cancel' }
+    ],
+    cancelValue: false
+  });
+  if (!confirmed) return;
+  await storage.deleteDocumentData?.(docId);
+  await loadDocuments();
+  appendLibraryLog(`Deleted "${label}".`);
 }
 
 async function forgetCurrentLibraryHandle() {
