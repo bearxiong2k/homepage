@@ -1,4 +1,4 @@
-import { currentStorageMode, registerServiceWorker, urlWithStorage } from './runtime.js';
+import { currentStorageMode, registerServiceWorker, updateAppFromNetwork, urlWithStorage } from './runtime.js';
 import { createStorageAdapter } from './storage-adapter.js';
 import { downloadBytes } from './bundle.js';
 import {
@@ -31,6 +31,7 @@ const importHtmlBtn = document.querySelector('#importHtmlBtn');
 const importBundleBtn = document.querySelector('#importBundleBtn');
 const importLibraryBtn = document.querySelector('#importLibraryBtn');
 const saveLibraryBtn = document.querySelector('#saveLibraryBtn');
+const updateAppBtn = document.querySelector('#updateAppBtn');
 const clearLibraryBtn = document.querySelector('#clearLibraryBtn');
 const htmlFileInput = document.querySelector('#htmlFileInput');
 const bundleFileInput = document.querySelector('#bundleFileInput');
@@ -54,6 +55,7 @@ async function init() {
   importLibraryBtn?.addEventListener('click', () => startLibraryImport().catch(showError));
   libraryFileInput?.addEventListener('change', () => importSelectedLibrary().catch(showError));
   saveLibraryBtn?.addEventListener('click', () => saveCurrentLibrary().catch(showError));
+  updateAppBtn?.addEventListener('click', () => updateInstalledApp().catch(showError));
   clearLibraryBtn?.addEventListener('click', () => clearBrowserLibrary().catch(showError));
   documentsEl?.addEventListener('change', (event) => {
     if (event.target?.matches?.('[data-library-title]')) {
@@ -305,6 +307,23 @@ async function forgetCurrentLibraryHandle() {
   await storage.clearCurrentLibraryFileHandle?.();
   await loadDocuments();
   appendLibraryLog('Forgot the remembered local package handle. Save will ask for a location next time.');
+}
+
+async function updateInstalledApp() {
+  if (!updateAppBtn) return;
+  updateAppBtn.disabled = true;
+  appendLibraryLog('Checking homepage for the latest Marginalia app...');
+  try {
+    const result = await updateAppFromNetwork();
+    if (result.updated) {
+      appendLibraryLog('Updated Marginalia. Reloading the app...');
+      window.setTimeout(() => location.reload(), 120);
+      return;
+    }
+    appendLibraryLog('Marginalia is already using the latest app version available from the homepage.');
+  } finally {
+    updateAppBtn.disabled = false;
+  }
 }
 
 function localProfileStatusMarkup(profile, handleStatus) {

@@ -22,6 +22,11 @@ import {
   libraryFolderNameForTitle
 } from './folder-package.js';
 import { decodeInkForRuntime, encodeInkForStorage } from './ink-codec.js';
+import {
+  buildInkEraserStrokeIndex,
+  collectPendingEraseStrokes,
+  commitPendingEraseStrokes
+} from './ink-eraser.js';
 import { currentStorageMode, registerServiceWorker, urlWithStorage } from './runtime.js';
 
 const storageMode = currentStorageMode();
@@ -5943,23 +5948,28 @@ function beginSideInkPointerDown(canvas, event) {
   if (tool === 'eraser') {
     const annotation = state.annotations.find((item) => item.id === annotationId);
     if (!annotation) return;
+    const blocks = sideNoteContentBlocks(annotation);
+    const block = blocks[blockIndex];
+    if (block?.type !== 'ink') return;
     state.sideInkSession = {
       tool,
       annotationId,
       blockIndex,
       pointerId,
       canvas,
-      blocks: sideNoteContentBlocks(annotation),
+      blocks,
+      strokeIndex: buildInkEraserStrokeIndex(block.ink.strokes),
+      pendingEraseStrokes: new Set(),
       lastPoint: point,
-      removed: []
+      eraserWidth: currentInkLineWidth()
     };
     bindSideInkSessionEvents(canvas, state.sideInkSession, event);
-    eraseSideInkAt(canvas, annotationId, blockIndex, point, {
-      blocks: state.sideInkSession.blocks,
-      save: false,
-      history: false,
-      removed: state.sideInkSession.removed
-    });
+    collectPendingEraseStrokes(
+      state.sideInkSession.strokeIndex,
+      state.sideInkSession.pendingEraseStrokes,
+      point,
+      state.sideInkSession.eraserWidth
+    );
     requestSideInkRender(canvas);
     return;
   }
@@ -6038,13 +6048,13 @@ function onSideInkPointerMove(event, sessionCanvas = null) {
     const events = pointerSamples(event);
     for (const item of events) {
       const point = inkPointFromEvent(canvas, item);
-      eraseSideInkAt(canvas, session.annotationId, session.blockIndex, point, {
-        blocks: session.blocks,
-        fromPoint: session.lastPoint,
-        save: false,
-        history: false,
-        removed: session.removed
-      });
+      collectPendingEraseStrokes(
+        session.strokeIndex,
+        session.pendingEraseStrokes,
+        point,
+        session.eraserWidth,
+        session.lastPoint
+      );
       session.lastPoint = point;
     }
     requestSideInkRender(canvas);
@@ -6065,24 +6075,30 @@ function onSideInkPointerUp(event, sessionCanvas = null, options = {}) {
   if (session.tool === 'eraser') {
     if (options.includeEventPoint !== false && hasClientPoint(event)) {
       const point = inkPointFromEvent(canvas, event);
-      eraseSideInkAt(canvas, session.annotationId, session.blockIndex, point, {
-        blocks: session.blocks,
-        fromPoint: session.lastPoint,
-        save: false,
-        history: false,
-        removed: session.removed
-      });
+      collectPendingEraseStrokes(
+        session.strokeIndex,
+        session.pendingEraseStrokes,
+        point,
+        session.eraserWidth,
+        session.lastPoint
+      );
       session.lastPoint = point;
     }
     state.sideInkSession = null;
-    if (!session.removed.length) return;
     const annotation = state.annotations.find((item) => item.id === session.annotationId);
     if (!annotation) return;
     const blocks = session.blocks;
     const block = blocks[session.blockIndex];
     if (block?.type !== 'ink') return;
+    const { kept, removed } = commitPendingEraseStrokes(block.ink.strokes, session.pendingEraseStrokes);
+    if (!removed.length) {
+      requestSideInkRender(canvas);
+      return;
+    }
+    block.ink.strokes = kept;
+    applyAnnotationBlocksLocally(annotation, blocks);
     const history = sideInkHistory(session.annotationId, session.blockIndex);
-    history.undo.push({ type: 'erase', strokes: session.removed });
+    history.undo.push({ type: 'erase', strokes: removed });
     history.redo = [];
     queueSaveAnnotationBlocks(annotation, blocks, { render: false }).catch((error) => setStatus(error.message, true));
     requestSideInkRender(canvas);
@@ -6114,37 +6130,6 @@ function finishSideInkSession(event, canvas, options = {}) {
   onSideInkPointerUp(event, canvas, options);
 }
 
-async function eraseSideInkAt(canvas, annotationId, blockIndex, point, options = {}) {
-  if (!isFiniteInkPoint(point)) return [];
-  const annotation = state.annotations.find((item) => item.id === annotationId);
-  if (!annotation || !Number.isInteger(blockIndex)) return [];
-  const blocks = Array.isArray(options.blocks) ? options.blocks : sideNoteContentBlocks(annotation);
-  const block = blocks[blockIndex];
-  if (block?.type !== 'ink') return [];
-  const eraserWidth = currentInkLineWidth();
-  const removed = [];
-  block.ink.strokes = block.ink.strokes.filter((stroke) => {
-    const hit = strokeNearEraserPath(stroke, point, eraserWidth, options.fromPoint);
-    if (hit) removed.push(stroke);
-    return !hit;
-  });
-  if (!removed.length) return [];
-  if (Array.isArray(options.removed)) options.removed.push(...removed);
-  const updatedAnnotation = applyAnnotationBlocksLocally(annotation, blocks);
-  if (options.history !== false) {
-    const history = sideInkHistory(annotationId, blockIndex);
-    history.undo.push({ type: 'erase', strokes: removed });
-    history.redo = [];
-  }
-  requestSideInkRender(canvas);
-  if (options.save === 'queue') {
-    queueSaveAnnotationBlocks(updatedAnnotation, blocks, { render: false }).catch((error) => setStatus(error.message, true));
-    return removed;
-  }
-  if (options.save !== false) await saveAnnotationBlocks(annotation, blocks);
-  return removed;
-}
-
 function currentInkLineWidth() {
   return clampNumber(state.inkWidth, 1, 24, 3);
 }
@@ -6163,7 +6148,9 @@ function drawSideInkCanvas(canvas, annotationId, blockIndex, activeStroke = null
       ? state.sideInkSession.stroke
       : null
   );
-  drawInkSurface(canvas, block?.ink?.strokes || [], active);
+  drawInkSurface(canvas, block?.ink?.strokes || [], active, {
+    pendingEraseStrokes: sideInkPendingEraseStrokes(annotationId, blockIndex)
+  });
 }
 
 function activeSideInkSessionBlock(annotationId, blockIndex) {
@@ -6179,6 +6166,13 @@ function activeSideInkResizeSessionBlock(annotationId, blockIndex) {
   if (!session || session.annotationId !== annotationId || session.blockIndex !== blockIndex) return null;
   const block = session.blocks?.[blockIndex];
   return block?.type === 'ink' ? block : null;
+}
+
+function sideInkPendingEraseStrokes(annotationId, blockIndex) {
+  const session = state.sideInkSession;
+  if (!session || session.tool !== 'eraser') return null;
+  if (session.annotationId !== annotationId || session.blockIndex !== blockIndex) return null;
+  return session.pendingEraseStrokes || null;
 }
 
 function isIgnoredInkPointerEvent(event) {
@@ -6330,72 +6324,8 @@ function hasClientPoint(event) {
   return Number.isFinite(event?.clientX) && Number.isFinite(event?.clientY);
 }
 
-function isFiniteInkPoint(point) {
-  return Number.isFinite(point?.x) && Number.isFinite(point?.y);
-}
-
-function strokeNearEraserPath(stroke, point, eraserWidth, fromPoint = null) {
-  const points = stroke.points || [];
-  const baseWidth = clampNumber(stroke.width, 1, 24, 3);
-  const hitRadius = (candidate) => (eraserWidth + pointWidth(stroke, candidate, baseWidth)) / 2;
-  return points.some((candidate, index) => {
-    const threshold = hitRadius(candidate);
-    if (distance(candidate, point) <= threshold) return true;
-    if (isFiniteInkPoint(fromPoint) && distanceToSegment(candidate, fromPoint, point) <= threshold) return true;
-    const previous = points[index - 1];
-    if (!previous) return false;
-    const segmentThreshold = Math.max(threshold, hitRadius(previous));
-    if (distanceToSegment(point, previous, candidate) <= segmentThreshold) return true;
-    return isFiniteInkPoint(fromPoint) && segmentDistance(fromPoint, point, previous, candidate) <= segmentThreshold;
-  });
-}
-
 function distance(a, b) {
   return Math.hypot((a.x || 0) - (b.x || 0), (a.y || 0) - (b.y || 0));
-}
-
-function distanceToSegment(point, a, b) {
-  const abX = b.x - a.x;
-  const abY = b.y - a.y;
-  const lengthSquared = abX * abX + abY * abY;
-  if (!lengthSquared) return distance(point, a);
-  const t = Math.max(0, Math.min(1, ((point.x - a.x) * abX + (point.y - a.y) * abY) / lengthSquared));
-  return distance(point, { x: a.x + abX * t, y: a.y + abY * t });
-}
-
-function segmentDistance(a, b, c, d) {
-  if (segmentsIntersect(a, b, c, d)) return 0;
-  return Math.min(
-    distanceToSegment(a, c, d),
-    distanceToSegment(b, c, d),
-    distanceToSegment(c, a, b),
-    distanceToSegment(d, a, b)
-  );
-}
-
-function segmentsIntersect(a, b, c, d) {
-  const abC = orientation(a, b, c);
-  const abD = orientation(a, b, d);
-  const cdA = orientation(c, d, a);
-  const cdB = orientation(c, d, b);
-  if (!abC && pointOnSegment(c, a, b)) return true;
-  if (!abD && pointOnSegment(d, a, b)) return true;
-  if (!cdA && pointOnSegment(a, c, d)) return true;
-  if (!cdB && pointOnSegment(b, c, d)) return true;
-  return abC !== abD && cdA !== cdB;
-}
-
-function orientation(a, b, c) {
-  const value = (b.y - a.y) * (c.x - b.x) - (b.x - a.x) * (c.y - b.y);
-  if (Math.abs(value) < 1e-9) return 0;
-  return value > 0 ? 1 : 2;
-}
-
-function pointOnSegment(point, a, b) {
-  return point.x <= Math.max(a.x, b.x) + 1e-9
-    && point.x >= Math.min(a.x, b.x) - 1e-9
-    && point.y <= Math.max(a.y, b.y) + 1e-9
-    && point.y >= Math.min(a.y, b.y) - 1e-9;
 }
 
 function drawInkToCanvas(canvas, strokes, activeStroke) {
@@ -6419,7 +6349,7 @@ function requestSideInkRender(canvas) {
   });
 }
 
-function drawInkSurface(canvas, strokes, activeStroke = null) {
+function drawInkSurface(canvas, strokes, activeStroke = null, options = {}) {
   const ctx = canvas.getContext('2d');
   const ratio = inkBackingRatio(canvas.ownerDocument.defaultView || window);
   const metrics = inkCanvasMetrics(canvas);
@@ -6437,10 +6367,44 @@ function drawInkSurface(canvas, strokes, activeStroke = null) {
   const scale = inkCanvasLogicalScale(metrics);
   ctx.scale(scale, scale);
   const active = strokeForRender(activeStroke);
+  const pendingEraseStrokes = options.pendingEraseStrokes instanceof Set ? options.pendingEraseStrokes : null;
+  const pendingEraseStrokeKeys = pendingEraseStrokes?.size
+    ? new Set([...pendingEraseStrokes].map(inkStrokeRenderKey))
+    : null;
+  const isPendingEraseStroke = (stroke) => pendingEraseStrokes?.has(stroke) || pendingEraseStrokeKeys?.has(inkStrokeRenderKey(stroke));
   for (const stroke of [...strokes, active].filter(Boolean)) {
+    if (isPendingEraseStroke(stroke)) continue;
     drawStroke(ctx, stroke);
   }
+  if (pendingEraseStrokes?.size) {
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    for (const stroke of strokes) {
+      if (isPendingEraseStroke(stroke)) drawStroke(ctx, stroke);
+    }
+    ctx.restore();
+  }
   ctx.restore();
+}
+
+function inkStrokeRenderKey(stroke) {
+  const points = Array.isArray(stroke?.points) ? stroke.points : [];
+  return [
+    stroke?.color || '',
+    clampNumber(stroke?.width, 1, 24, 3),
+    stroke?.pressureEnabled === false ? '0' : '1',
+    points.map((point) => {
+      const x = Number.isFinite(point?.x) ? point.x : point?.[0];
+      const y = Number.isFinite(point?.y) ? point.y : point?.[1];
+      const pressure = Number.isFinite(point?.pressure) ? point.pressure : point?.[2];
+      return `${roundInkKeyValue(x)},${roundInkKeyValue(y)},${roundInkKeyValue(pressure)}`;
+    }).join(';')
+  ].join('|');
+}
+
+function roundInkKeyValue(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.round(number * 1000) / 1000 : '';
 }
 
 function inkCanvasLogicalScale(metrics) {

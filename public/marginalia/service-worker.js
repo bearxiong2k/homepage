@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'marginalia-static-';
-const CACHE_NAME = `${CACHE_PREFIX}v69`;
+const CACHE_NAME = `${CACHE_PREFIX}v71`;
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -17,6 +17,7 @@ const STATIC_ASSETS = [
   './file-access.js',
   './folder-package.js',
   './library-package.js',
+  './ink-eraser.js',
   './target-resolution.js',
   './manifest.webmanifest',
   './assets/annotator-icon.svg',
@@ -50,6 +51,10 @@ self.addEventListener('activate', (event) => {
       ))
       .then(() => self.clients.claim())
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'MARGINALIA_SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', (event) => {
