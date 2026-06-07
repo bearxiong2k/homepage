@@ -384,11 +384,11 @@ async function updateInstalledApp() {
   try {
     const result = await updateAppFromNetwork();
     if (result.updated) {
-      appendLibraryLog('Updated Marginalia. Reloading the app...');
+      appendLibraryLog(successMessage('Update', 'Updated Marginalia. Reloading the app...'));
       window.setTimeout(() => location.reload(), 120);
       return;
     }
-    appendLibraryLog('Marginalia is already using the latest app version available from the homepage.');
+    appendLibraryLog(successMessage('Update', 'Marginalia is already using the latest app version available from the homepage.'));
   } finally {
     updateAppBtn.disabled = false;
   }
@@ -798,10 +798,15 @@ function appendLibraryLog(message, isError = false) {
 }
 
 function librarySaveMessage(saved, filename, library) {
-  if (saved?.downloaded) return `Downloaded ${filename}.`;
+  if (saved?.downloaded) return successMessage('Save', `Downloaded ${filename}.`);
   const name = saved?.name || filename;
   const reminder = folderNameReminder(saved, library);
-  return reminder ? `Saved to ${name}. ${reminder}` : `Saved to ${name}.`;
+  const detail = reminder ? `Saved to ${name}. ${reminder}` : `Saved to ${name}.`;
+  return successMessage('Save', detail);
+}
+
+function successMessage(action, detail) {
+  return `${action} success: ${detail}`;
 }
 
 function folderNameReminder(saved, library) {

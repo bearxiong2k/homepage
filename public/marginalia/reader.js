@@ -155,7 +155,7 @@ const MAX_QUICK_MARKS = 8;
 const PDF_READY_TIMEOUT_MS = 120000;
 const SAVE_SUCCESS_VISIBLE_MS = 3600;
 const INK_CANVAS_HEIGHT = { min: 96, default: 420, max: 1800, padding: 18 };
-const NOTES_PANEL_WIDTH = { min: 260, default: 360, max: 680 };
+const NOTES_PANEL_WIDTH = { min: 260, default: 360 };
 const NOTE_JUMP_VIEWPORT_OFFSET_RATIO = 0.2;
 const MATH_DELIMITERS = [
   { open: '\\[', close: '\\]', displayMode: true },
@@ -4110,8 +4110,57 @@ function saveNotesPanelWidth() {
 }
 
 function normalizeNotesPanelWidth(value) {
-  const viewportMax = Math.max(NOTES_PANEL_WIDTH.min, Math.min(NOTES_PANEL_WIDTH.max, window.innerWidth - 52));
-  return clampNumber(value, NOTES_PANEL_WIDTH.min, viewportMax, Math.min(NOTES_PANEL_WIDTH.default, viewportMax));
+  const viewportMax = Math.max(NOTES_PANEL_WIDTH.min, window.innerWidth - 52);
+  const sideNoteMax = currentSideNotePanelWidth();
+  const preferredMax = Number.isFinite(sideNoteMax) && sideNoteMax > 0
+    ? Math.max(sideNoteMax, NOTES_PANEL_WIDTH.default)
+    : viewportMax;
+  const max = Math.max(NOTES_PANEL_WIDTH.min, Math.min(preferredMax, viewportMax));
+  return clampNumber(value, NOTES_PANEL_WIDTH.min, max, Math.min(NOTES_PANEL_WIDTH.default, max));
+}
+
+function currentSideNotePanelWidth() {
+  const doc = getFrameDoc();
+  try {
+    if (doc && state.iframeLoaded) {
+      const metrics = layoutMetrics(doc);
+      if (Number.isFinite(metrics?.noteLayerWidth) && metrics.noteLayerWidth > 0) return metrics.noteLayerWidth;
+      const layerWidth = doc.querySelector('.reader-side-note-layer')?.getBoundingClientRect?.().width;
+      if (Number.isFinite(layerWidth) && layerWidth > 0) return layerWidth;
+    }
+  } catch {
+    // Fall back to CSS state while the iframe is still loading.
+  }
+  return cssPixelValue(document.documentElement, '--reader-side-note-layer-width');
+}
+
+function cssPixelValue(element, propertyName) {
+  const value = getComputedStyle(element).getPropertyValue(propertyName).trim();
+  if (!value.endsWith('px')) return null;
+  const number = Number.parseFloat(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizeSaveSuccessMessage(message) {
+  const text = String(message || 'Saved.').trim();
+  if (/^save success\b/i.test(text)) return text;
+  return `Save success: ${text}`;
+}
+
+function setSaveSuccess(message) {
+  const successMessage = normalizeSaveSuccessMessage(message);
+  setStatus(successMessage);
+  if (!els.saveToast) return;
+  window.clearTimeout(state.saveToastTimer);
+  els.saveToast.textContent = successMessage;
+  els.saveToast.hidden = false;
+  els.saveToast.classList.add('is-visible');
+  state.saveToastTimer = window.setTimeout(() => {
+    els.saveToast.hidden = true;
+    els.saveToast.classList.remove('is-visible');
+    els.saveToast.textContent = '';
+    state.saveToastTimer = 0;
+  }, SAVE_SUCCESS_VISIBLE_MS);
 }
 
 function readerScrollStorageKey(docId = state.docId) {
@@ -7062,17 +7111,4 @@ function libraryFolderNameReminder(saved, library) {
 function setStatus(message, isError = false) {
   els.status.textContent = message || '';
   els.status.style.color = isError ? '#8f1f12' : '';
-}
-
-function setSaveSuccess(message) {
-  setStatus(message);
-  if (!els.saveToast) return;
-  window.clearTimeout(state.saveToastTimer);
-  els.saveToast.textContent = message || 'Saved.';
-  els.saveToast.hidden = false;
-  state.saveToastTimer = window.setTimeout(() => {
-    els.saveToast.hidden = true;
-    els.saveToast.textContent = '';
-    state.saveToastTimer = 0;
-  }, SAVE_SUCCESS_VISIBLE_MS);
 }
