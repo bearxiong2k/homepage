@@ -51,6 +51,8 @@ const state = {
   removeTargetAnnotationId: null,
   layoutDragSession: null,
   layoutWidths: null,
+  notesPanelWidth: null,
+  notesPanelResizeSession: null,
   readingMode: false,
   readingShowHighlights: true,
   pinnedAnnotationId: null,
@@ -111,6 +113,7 @@ const els = {
   noteDrawerBody: document.querySelector('#noteDrawerBody'),
   rightPanel: document.querySelector('#rightPanel'),
   toggleNotesBtn: document.querySelector('#toggleNotesBtn'),
+  notesPanelResizer: document.querySelector('#notesPanelResizer'),
   sourceStartPanel: document.querySelector('#sourceStartPanel'),
   importSourceBtn: document.querySelector('#importSourceBtn'),
   quickStartBtn: document.querySelector('#quickStartBtn'),
@@ -136,6 +139,8 @@ const HIGHLIGHT_ROOT_SELECTOR = `${ATOMIC_HIGHLIGHT_SELECTOR}, ${ANCHOR_SELECTOR
 const HEADING_SELECTOR = 'h1, h2, h3, h4, h5, h6';
 const INK_SPACE = { width: 1000, height: 562.5 };
 const INK_BACKING_SCALE = { min: 2, max: 3, multiplier: 1.5 };
+const INK_PREVIEW_BACKING_RATIO = 1;
+const INK_INACTIVE_BACKING_RATIO = 1;
 const PRESSURE_WIDTH = { min: 0.58, max: 1.45, curve: 0.68 };
 const inkLogicalBottomCache = new WeakMap();
 const TOOLTIP_DELAY = 500;
@@ -147,6 +152,7 @@ const MAX_QUICK_MARKS = 8;
 const PDF_READY_TIMEOUT_MS = 120000;
 const SAVE_SUCCESS_VISIBLE_MS = 3600;
 const INK_CANVAS_HEIGHT = { min: 96, default: 420, max: 1800, padding: 18 };
+const NOTES_PANEL_WIDTH = { min: 260, default: 360, max: 680 };
 const NOTE_JUMP_VIEWPORT_OFFSET_RATIO = 0.2;
 const MATH_DELIMITERS = [
   { open: '\\[', close: '\\]', displayMode: true },
@@ -186,6 +192,7 @@ function bindChromeEvents() {
   els.redoBtn.addEventListener('click', () => redoHistoryCommand().catch((error) => setStatus(error.message, true)));
   els.clipToolBtn.addEventListener('pointerdown', startQuickMarkToolDrag);
   els.toggleNotesBtn.addEventListener('click', toggleNotesPanel);
+  els.notesPanelResizer?.addEventListener('pointerdown', onNotesPanelResizerPointerDown);
   els.expandAllNotesBtn?.addEventListener('click', toggleExpandAllNotes);
   els.importSourceBtn?.addEventListener('click', () => startSourceImport().catch((error) => setStatus(error.message, true)));
   els.quickStartBtn?.addEventListener('click', () => startQuickStartImport().catch((error) => setStatus(error.message, true)));
@@ -904,6 +911,8 @@ async function loadDocument(docId) {
   state.focusModeAnchorViewportTop = null;
   state.pinnedAnnotationId = null;
   state.layoutWidths = loadLayoutWidths(docId);
+  state.notesPanelWidth = loadNotesPanelWidth(docId);
+  applyNotesPanelWidth();
   state.iframeLoaded = false;
   state.undoStack = [];
   state.redoStack = [];
@@ -1649,6 +1658,7 @@ function toggleNotesPanel() {
 }
 
 function setNotesPanelCollapsed(collapsed) {
+  if (!collapsed) applyNotesPanelWidth();
   els.rightPanel.classList.toggle('is-collapsed', collapsed);
   syncNotesPanelControls();
 }
@@ -1659,6 +1669,61 @@ function syncNotesPanelControls() {
   els.toggleNotesBtn.title = collapsed ? 'Open notes panel' : 'Close notes panel';
   const arrow = els.toggleNotesBtn.querySelector('.notes-tab-arrow');
   if (arrow) arrow.textContent = collapsed ? '‹' : '›';
+}
+
+function onNotesPanelResizerPointerDown(event) {
+  if (event.button != null && event.button !== 0) return;
+  event.preventDefault();
+  event.stopPropagation();
+  applyNotesPanelWidth();
+  const startWidth = currentNotesPanelWidth();
+  const session = {
+    startX: event.clientX,
+    startWidth,
+    handle: event.currentTarget
+  };
+  state.notesPanelResizeSession = session;
+  session.handle.classList.add('is-dragging');
+  try {
+    session.handle.setPointerCapture?.(event.pointerId);
+  } catch {
+    // Synthetic pointer events may not support capture.
+  }
+  document.addEventListener('pointermove', onNotesPanelResizeMove);
+  document.addEventListener('pointerup', finishNotesPanelResize);
+  document.addEventListener('pointercancel', finishNotesPanelResize);
+}
+
+function onNotesPanelResizeMove(event) {
+  const session = state.notesPanelResizeSession;
+  if (!session) return;
+  event.preventDefault();
+  const requestedWidth = session.startWidth + session.startX - event.clientX;
+  state.notesPanelWidth = normalizeNotesPanelWidth(requestedWidth);
+  applyNotesPanelWidth();
+}
+
+function finishNotesPanelResize(event) {
+  if (!state.notesPanelResizeSession) return;
+  event?.preventDefault?.();
+  const session = state.notesPanelResizeSession;
+  session.handle?.classList.remove('is-dragging');
+  document.removeEventListener('pointermove', onNotesPanelResizeMove);
+  document.removeEventListener('pointerup', finishNotesPanelResize);
+  document.removeEventListener('pointercancel', finishNotesPanelResize);
+  state.notesPanelResizeSession = null;
+  saveNotesPanelWidth();
+}
+
+function applyNotesPanelWidth() {
+  const width = normalizeNotesPanelWidth(state.notesPanelWidth);
+  state.notesPanelWidth = width;
+  document.documentElement.style.setProperty('--reader-notes-panel-width', `${Math.round(width)}px`);
+}
+
+function currentNotesPanelWidth() {
+  const width = els.rightPanel?.getBoundingClientRect?.().width;
+  return normalizeNotesPanelWidth(Number.isFinite(width) && width > 0 ? width : state.notesPanelWidth);
 }
 
 function handleEscapeKey(event) {
@@ -2819,7 +2884,7 @@ function attachMarker(doc, annotation) {
       canvas.addEventListener('contextmenu', (event) => event.preventDefault());
       const resizeHandle = createSideInkResizeHandle(doc, annotation.id, index, inkWrap);
       inkWrap.append(canvas, resizeHandle);
-      requestAnimationFrame(() => drawInkSurface(canvas, block.ink.strokes));
+      requestAnimationFrame(() => drawSideInkCanvas(canvas, annotation.id, index));
       card.append(inkWrap);
       if (annotation.id === state.activeAnnotationId) {
         const toolbar = createSideInkToolbar(doc, annotation.id, index);
@@ -2992,6 +3057,7 @@ async function convertBlankBlockToInk(annotationId, blockIndex, pointerEvent = n
   if (!annotation || !Number.isInteger(blockIndex)) return;
   const blocks = sideNoteContentBlocks(annotation);
   if (blocks[blockIndex]?.type !== 'blank') return;
+  const startPoint = pointerEvent ? normalizedPointInElement(pointerEvent.currentTarget || pointerEvent.target, pointerEvent) : null;
   blocks[blockIndex] = { type: 'ink', ink: { strokes: [], height: INK_CANVAS_HEIGHT.default } };
   queueSaveAnnotationBlocks(annotation, blocks, { render: false }).catch((error) => setStatus(error.message, true));
   renderAnnotations();
@@ -2999,7 +3065,40 @@ async function convertBlankBlockToInk(annotationId, blockIndex, pointerEvent = n
   const doc = getFrameDoc();
   const note = doc.querySelector(`.reader-side-note[data-annotation-id="${cssEscape(annotationId)}"]`);
   const canvas = note?.querySelector?.(`.reader-side-note-ink[data-block-index="${cssEscape(String(blockIndex))}"]`);
-  if (canvas && pointerEvent) beginSideInkPointerDown(canvas, pointerEvent);
+  const remappedEvent = canvas && pointerEvent && startPoint
+    ? remappedPointerEventForCanvas(canvas, pointerEvent, startPoint)
+    : null;
+  if (canvas && remappedEvent) beginSideInkPointerDown(canvas, remappedEvent);
+}
+
+function normalizedPointInElement(element, event) {
+  const rect = element?.getBoundingClientRect?.();
+  if (!rect || !Number.isFinite(event?.clientX) || !Number.isFinite(event?.clientY) || rect.width <= 0 || rect.height <= 0) {
+    return null;
+  }
+  return {
+    x: clampNumber((event.clientX - rect.left) / rect.width, 0, 1, 0),
+    y: clampNumber((event.clientY - rect.top) / rect.height, 0, 1, 0)
+  };
+}
+
+function remappedPointerEventForCanvas(canvas, sourceEvent, normalizedPoint) {
+  const rect = canvas.getBoundingClientRect();
+  const view = canvas.ownerDocument.defaultView || window;
+  return {
+    type: sourceEvent.type?.startsWith?.('pointer') ? 'pointerdown' : 'mousedown',
+    pointerId: sourceEvent.pointerId ?? 'mouse',
+    pointerType: sourceEvent.pointerType || 'mouse',
+    button: sourceEvent.button ?? 0,
+    buttons: sourceEvent.buttons || 1,
+    clientX: rect.left + rect.width * normalizedPoint.x,
+    clientY: rect.top + rect.height * normalizedPoint.y,
+    pressure: Number(sourceEvent.pressure) || 0.5,
+    timeStamp: Number.isFinite(sourceEvent.timeStamp) ? sourceEvent.timeStamp : performance.now(),
+    view,
+    preventDefault() {},
+    stopPropagation() {}
+  };
 }
 
 function createPinnedBlockControls(doc, blockIndex) {
@@ -3990,6 +4089,28 @@ function saveLayoutWidths() {
   localStorage.setItem(layoutStorageKey(), JSON.stringify(state.layoutWidths));
 }
 
+function notesPanelWidthStorageKey(docId = state.docId) {
+  return `reader-notes-panel-width:${docId || 'default'}`;
+}
+
+function loadNotesPanelWidth(docId = state.docId) {
+  try {
+    return normalizeNotesPanelWidth(JSON.parse(localStorage.getItem(notesPanelWidthStorageKey(docId)) || 'null'));
+  } catch {
+    return NOTES_PANEL_WIDTH.default;
+  }
+}
+
+function saveNotesPanelWidth() {
+  if (!state.docId) return;
+  localStorage.setItem(notesPanelWidthStorageKey(), JSON.stringify(normalizeNotesPanelWidth(state.notesPanelWidth)));
+}
+
+function normalizeNotesPanelWidth(value) {
+  const viewportMax = Math.max(NOTES_PANEL_WIDTH.min, Math.min(NOTES_PANEL_WIDTH.max, window.innerWidth - 52));
+  return clampNumber(value, NOTES_PANEL_WIDTH.min, viewportMax, Math.min(NOTES_PANEL_WIDTH.default, viewportMax));
+}
+
 function readerScrollStorageKey(docId = state.docId) {
   return `reader-scroll:${docId || 'default'}`;
 }
@@ -4076,12 +4197,24 @@ function layoutSideNotes(doc) {
 
 function redrawSideInkCanvases(doc) {
   if (!doc) return;
-  doc.querySelectorAll('.reader-side-note-ink').forEach((canvas) => {
-    const note = canvas.closest('.reader-side-note');
-    const annotationId = note?.dataset.annotationId;
-    const blockIndex = Number(canvas.dataset.blockIndex);
-    if (annotationId && Number.isInteger(blockIndex)) drawSideInkCanvas(canvas, annotationId, blockIndex);
-  });
+  const entries = Array.from(doc.querySelectorAll('.reader-side-note-ink'))
+    .map((canvas) => {
+      const note = canvas.closest('.reader-side-note');
+      const annotationId = note?.dataset.annotationId;
+      const blockIndex = Number(canvas.dataset.blockIndex);
+      if (!annotationId || !Number.isInteger(blockIndex)) return null;
+      return { canvas, annotationId, blockIndex };
+    })
+    .filter(Boolean);
+  const liveEntries = entries.filter((entry) => isLiveSideInkCanvas(entry.annotationId, entry.blockIndex));
+  const inactiveEntries = entries.filter((entry) => !isLiveSideInkCanvas(entry.annotationId, entry.blockIndex));
+  for (const { canvas, annotationId, blockIndex } of liveEntries) {
+    drawSideInkCanvas(canvas, annotationId, blockIndex);
+  }
+  if (state.sideInkSession) return;
+  for (const { canvas, annotationId, blockIndex } of inactiveEntries) {
+    drawSideInkCanvas(canvas, annotationId, blockIndex);
+  }
 }
 
 function sideNotePosition(doc, annotation) {
@@ -4845,7 +4978,8 @@ function createNavigatorNoteCard(annotation) {
   card.append(header);
 
   if (isNavigatorNoteExpanded(annotation.id)) {
-    card.append(createNavigatorNoteContent(annotation));
+    const content = createNavigatorNoteContent(annotation);
+    if (content) card.append(content);
   }
 
   card.addEventListener('click', (event) => {
@@ -4948,31 +5082,29 @@ function createNavigatorNoteContent(annotation) {
   let hasContent = false;
   for (const block of blocks) {
     if (block.type === 'text') {
+      if (!block.markdown?.trim()) continue;
       const text = document.createElement('div');
       text.className = 'note-card-content-text';
       text.textContent = block.markdown || '';
       content.append(text);
-      hasContent = hasContent || Boolean(block.markdown?.trim());
+      hasContent = true;
       continue;
     }
     if (block.type === 'ink') {
+      if (!block.ink?.strokes?.length) continue;
       const wrap = document.createElement('div');
       wrap.className = 'note-card-ink-wrap';
       const canvas = document.createElement('canvas');
       canvas.className = 'note-card-ink';
       wrap.append(canvas);
       content.append(wrap);
-      requestAnimationFrame(() => drawInkPreview(canvas, block.ink?.strokes || []));
+      requestAnimationFrame(() => drawInkPreview(canvas, block.ink));
       hasContent = true;
       continue;
     }
-    if (block.type === 'blank') {
-      const blank = document.createElement('div');
-      blank.className = 'note-card-content-blank';
-      content.append(blank);
-    }
   }
-  if (!hasContent && !content.children.length) {
+  if (!hasContent && sideNoteTitle(annotation).trim()) return null;
+  if (!hasContent) {
     const empty = document.createElement('div');
     empty.className = 'note-card-content-empty';
     empty.textContent = 'Empty note';
@@ -6202,7 +6334,6 @@ function drawSideInkCanvas(canvas, annotationId, blockIndex, activeStroke = null
   const annotation = state.annotations.find((item) => item.id === annotationId);
   const block = sessionBlock || resizeBlock || sideNoteContentBlocks(annotation)?.[blockIndex];
   const wrap = canvas.closest('.reader-side-note-ink-wrap');
-  if (block?.type === 'ink' && wrap) applyInkCanvasHeight(block.ink, wrap);
   const active = activeStroke || (
     state.sideInkSession?.tool === 'pen'
       && state.sideInkSession.annotationId === annotationId
@@ -6210,9 +6341,34 @@ function drawSideInkCanvas(canvas, annotationId, blockIndex, activeStroke = null
       ? state.sideInkSession.stroke
       : null
   );
-  drawInkSurface(canvas, block?.ink?.strokes || [], active, {
+  if (block?.type === 'ink' && wrap && !active) applyInkCanvasHeight(block.ink, wrap);
+  const renderOptions = {
     pendingEraseStrokes: sideInkPendingEraseStrokes(annotationId, blockIndex)
-  });
+  };
+  if (!isLiveSideInkCanvas(annotationId, blockIndex)) {
+    renderOptions.backingRatio = INK_INACTIVE_BACKING_RATIO;
+  }
+  drawInkSurface(canvas, block?.ink?.strokes || [], active, renderOptions);
+}
+
+function isLiveSideInkCanvas(annotationId, blockIndex) {
+  if (!annotationId || !Number.isInteger(blockIndex)) return false;
+  if (annotationId === state.activeAnnotationId) return true;
+  if (
+    state.sideInkSession
+    && state.sideInkSession.annotationId === annotationId
+    && state.sideInkSession.blockIndex === blockIndex
+  ) {
+    return true;
+  }
+  if (
+    state.sideInkResizeSession
+    && state.sideInkResizeSession.annotationId === annotationId
+    && state.sideInkResizeSession.blockIndex === blockIndex
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function activeSideInkSessionBlock(annotationId, blockIndex) {
@@ -6274,6 +6430,7 @@ function filteredSidePointFromEvent(event, options = {}) {
   const session = state.sideInkSession;
   if (!session?.canvas) return null;
   const raw = inkPointFromEvent(session.canvas, event, session.lastPressure);
+  if (!isInkPointNearCanvas(raw, session.canvas)) return null;
   const previous = session.lastPoint;
 
   if (!previous || options.force) {
@@ -6312,6 +6469,24 @@ function filteredSidePointFromEvent(event, options = {}) {
     session.lastPressure = point.pressure;
   }
   return point;
+}
+
+function isInkPointNearCanvas(point, canvas) {
+  const bounds = inkCanvasLogicalBounds(canvas);
+  const margin = 36;
+  return point.x >= -margin
+    && point.x <= bounds.width + margin
+    && point.y >= -margin
+    && point.y <= bounds.height + margin;
+}
+
+function inkCanvasLogicalBounds(canvas) {
+  const metrics = inkCanvasMetrics(canvas);
+  const scale = inkCanvasLogicalScale(metrics);
+  return {
+    width: metrics.width / scale,
+    height: metrics.height / scale
+  };
 }
 
 function inkPointFromEvent(canvas, event, fallbackPressure = 0.5) {
@@ -6413,7 +6588,9 @@ function requestSideInkRender(canvas) {
 
 function drawInkSurface(canvas, strokes, activeStroke = null, options = {}) {
   const ctx = canvas.getContext('2d');
-  const ratio = inkBackingRatio(canvas.ownerDocument.defaultView || window);
+  const ratio = Number.isFinite(Number(options.backingRatio))
+    ? Number(options.backingRatio)
+    : inkBackingRatio(canvas.ownerDocument.defaultView || window);
   const metrics = inkCanvasMetrics(canvas);
   const targetWidth = Math.max(1, Math.round(metrics.width * ratio));
   const targetHeight = Math.max(1, Math.round(metrics.height * ratio));
@@ -6570,8 +6747,18 @@ function placeCaretFromPoint(element, pointerEvent) {
   selection.addRange(range);
 }
 
-function drawInkPreview(canvas, strokes) {
-  drawInkSurface(canvas, strokes);
+function drawInkPreview(canvas, ink) {
+  const wrap = canvas.closest?.('.note-card-ink-wrap') || canvas.parentElement;
+  if (wrap) wrap.style.height = `${navigatorInkPreviewHeight(ink, wrap)}px`;
+  drawInkSurface(canvas, ink?.strokes || [], null, { backingRatio: INK_PREVIEW_BACKING_RATIO });
+}
+
+function navigatorInkPreviewHeight(ink, wrap) {
+  const width = wrap?.getBoundingClientRect?.().width || wrap?.clientWidth || 240;
+  const scale = Math.max(1, width) / INK_SPACE.width;
+  const bottom = ensureInkLogicalDrawingBottom(ink, { refresh: true });
+  const logicalHeight = bottom || INK_SPACE.height;
+  return clampNumber(Math.ceil(logicalHeight * scale + 14), 72, 520, 126);
 }
 
 function drawStroke(ctx, stroke) {
