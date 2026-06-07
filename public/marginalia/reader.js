@@ -66,6 +66,7 @@ const state = {
   sideInkHistory: new Map(),
   pendingSideInkRenders: new Set(),
   sideInkRenderRaf: 0,
+  sideInkSaveTimers: new Map(),
   annotationBlockSaveQueues: new Map(),
   annotationBlockSaveRevisions: new Map(),
   noteNavigatorExpandAll: false,
@@ -141,8 +142,10 @@ const INK_SPACE = { width: 1000, height: 562.5 };
 const INK_BACKING_SCALE = { min: 2, max: 3, multiplier: 1.5 };
 const INK_PREVIEW_BACKING_RATIO = 1;
 const INK_INACTIVE_BACKING_RATIO = 1;
+const INK_SAVE_IDLE_DELAY_MS = 260;
 const PRESSURE_WIDTH = { min: 0.58, max: 1.45, curve: 0.68 };
 const inkLogicalBottomCache = new WeakMap();
+const inkSurfaceCache = new WeakMap();
 const TOOLTIP_DELAY = 500;
 const MIN_VISIBLE_NOTE_WIDTH = 48;
 const QUICK_MARK_COLORS = ['clip-color-0', 'clip-color-1', 'clip-color-2', 'clip-color-3', 'clip-color-4'];
@@ -4269,9 +4272,9 @@ function sideNoteTitle(annotation) {
 }
 
 function sideNoteContentBlocks(annotation) {
-  const blocks = Array.isArray(annotation.note?.blocks)
-    ? annotation.note.blocks.map(normalizeSideNoteBlock).filter(Boolean)
-    : [];
+  const rawBlocks = Array.isArray(annotation.note?.blocks) ? annotation.note.blocks : [];
+  if (rawBlocks.length && rawBlocks.every(isRuntimeSideNoteBlock)) return rawBlocks;
+  const blocks = rawBlocks.map(normalizeSideNoteBlock).filter(Boolean);
   if (blocks.length) return blocks;
   const legacyBlocks = [];
   const markdown = annotation.note?.markdown || '';
@@ -4279,6 +4282,26 @@ function sideNoteContentBlocks(annotation) {
   if (markdown || !ink.strokes.length) legacyBlocks.push({ type: 'text', markdown });
   if (ink.strokes.length) legacyBlocks.push({ type: 'ink', ink });
   return legacyBlocks;
+}
+
+function isRuntimeSideNoteBlock(block) {
+  if (block?.type === 'blank') return true;
+  if (block?.type === 'text') return typeof block.markdown === 'string';
+  if (block?.type !== 'ink') return false;
+  const ink = block.ink;
+  if (!ink || ink.v != null || !Array.isArray(ink.strokes)) return false;
+  return ink.strokes.every(isRuntimeInkStroke);
+}
+
+function isRuntimeInkStroke(stroke) {
+  if (!stroke || typeof stroke !== 'object' || !Array.isArray(stroke.points)) return false;
+  return stroke.points.every((point) => (
+    point
+    && typeof point === 'object'
+    && !Array.isArray(point)
+    && Number.isFinite(point.x)
+    && Number.isFinite(point.y)
+  ));
 }
 
 function normalizeSideNoteBlock(block) {
@@ -4551,17 +4574,40 @@ function queueSaveAnnotationBlocks(annotation, blocks, options = {}) {
   const payload = applyAnnotationBlocksLocally(annotation, blocks, legacy);
   const revision = (state.annotationBlockSaveRevisions.get(key) || 0) + 1;
   state.annotationBlockSaveRevisions.set(key, revision);
-  const previous = state.annotationBlockSaveQueues.get(key) || Promise.resolve();
-  const next = previous
-    .catch(() => {})
-    .then(() => persistAnnotationBlocks(payload, options, revision));
-  const queued = next.finally(() => {
-    if (state.annotationBlockSaveQueues.get(key) === queued) {
-      state.annotationBlockSaveQueues.delete(key);
+  const delayMs = Math.max(0, Number(options.delayMs) || 0);
+  const waitForInkIdle = options.waitForInkIdle === true;
+  return new Promise((resolve, reject) => {
+    const existingTimer = state.sideInkSaveTimers.get(key);
+    if (existingTimer) {
+      clearTimeout(existingTimer.timer);
+      existingTimer.resolve?.(payload);
+    }
+    const enqueue = () => {
+      if (waitForInkIdle && state.sideInkSession) {
+        const timer = setTimeout(enqueue, delayMs || INK_SAVE_IDLE_DELAY_MS);
+        state.sideInkSaveTimers.set(key, { timer, resolve, reject });
+        return;
+      }
+      state.sideInkSaveTimers.delete(key);
+      const previous = state.annotationBlockSaveQueues.get(key) || Promise.resolve();
+      const next = previous
+        .catch(() => {})
+        .then(() => persistAnnotationBlocks(payload, options, revision));
+      const queued = next.finally(() => {
+        if (state.annotationBlockSaveQueues.get(key) === queued) {
+          state.annotationBlockSaveQueues.delete(key);
+        }
+      });
+      state.annotationBlockSaveQueues.set(key, queued);
+      queued.then(resolve, reject);
+    };
+    if (delayMs || waitForInkIdle) {
+      const timer = setTimeout(enqueue, delayMs || INK_SAVE_IDLE_DELAY_MS);
+      state.sideInkSaveTimers.set(key, { timer, resolve, reject });
+    } else {
+      enqueue();
     }
   });
-  state.annotationBlockSaveQueues.set(key, queued);
-  return queued;
 }
 
 function annotationHighlightTargets(annotation) {
@@ -6294,7 +6340,11 @@ function onSideInkPointerUp(event, sessionCanvas = null, options = {}) {
     const history = sideInkHistory(session.annotationId, session.blockIndex);
     history.undo.push({ type: 'erase', strokes: removed });
     history.redo = [];
-    queueSaveAnnotationBlocks(annotation, blocks, { render: false }).catch((error) => setStatus(error.message, true));
+    queueSaveAnnotationBlocks(annotation, blocks, {
+      render: false,
+      delayMs: INK_SAVE_IDLE_DELAY_MS,
+      waitForInkIdle: true
+    }).catch((error) => setStatus(error.message, true));
     requestSideInkRender(canvas);
     return;
   }
@@ -6316,8 +6366,13 @@ function onSideInkPointerUp(event, sessionCanvas = null, options = {}) {
   const history = sideInkHistory(session.annotationId, session.blockIndex);
   history.undo.push({ type: 'add', stroke: finalizedStroke });
   history.redo = [];
-  drawInkSurface(canvas, block.ink.strokes);
-  queueSaveAnnotationBlocks(annotation, blocks, { render: false }).catch((error) => setStatus(error.message, true));
+  applyAnnotationBlocksLocally(annotation, blocks);
+  commitSideInkStrokeToRenderCache(canvas, block.ink.strokes, finalizedStroke);
+  queueSaveAnnotationBlocks(annotation, blocks, {
+    render: false,
+    delayMs: INK_SAVE_IDLE_DELAY_MS,
+    waitForInkIdle: true
+  }).catch((error) => setStatus(error.message, true));
 }
 
 function finishSideInkSession(event, canvas, options = {}) {
@@ -6343,7 +6398,8 @@ function drawSideInkCanvas(canvas, annotationId, blockIndex, activeStroke = null
   );
   if (block?.type === 'ink' && wrap && !active) applyInkCanvasHeight(block.ink, wrap);
   const renderOptions = {
-    pendingEraseStrokes: sideInkPendingEraseStrokes(annotationId, blockIndex)
+    pendingEraseStrokes: sideInkPendingEraseStrokes(annotationId, blockIndex),
+    useCommittedCache: true
   };
   if (!isLiveSideInkCanvas(annotationId, blockIndex)) {
     renderOptions.backingRatio = INK_INACTIVE_BACKING_RATIO;
@@ -6596,34 +6652,122 @@ function drawInkSurface(canvas, strokes, activeStroke = null, options = {}) {
   const targetHeight = Math.max(1, Math.round(metrics.height * ratio));
   if (canvas.width !== targetWidth) canvas.width = targetWidth;
   if (canvas.height !== targetHeight) canvas.height = targetHeight;
-  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-  ctx.clearRect(0, 0, metrics.width, metrics.height);
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.save();
-  const scale = inkCanvasLogicalScale(metrics);
-  ctx.scale(scale, scale);
   const active = strokeForRender(activeStroke);
   const pendingEraseStrokes = options.pendingEraseStrokes instanceof Set ? options.pendingEraseStrokes : null;
   const pendingEraseStrokeKeys = pendingEraseStrokes?.size
     ? new Set([...pendingEraseStrokes].map(inkStrokeRenderKey))
     : null;
   const isPendingEraseStroke = (stroke) => pendingEraseStrokes?.has(stroke) || pendingEraseStrokeKeys?.has(inkStrokeRenderKey(stroke));
-  for (const stroke of [...strokes, active].filter(Boolean)) {
-    if (isPendingEraseStroke(stroke)) continue;
-    drawStroke(ctx, stroke);
+
+  if (options.useCommittedCache && !pendingEraseStrokes?.size) {
+    const cache = committedInkSurfaceCache(canvas, strokes, metrics, ratio, targetWidth, targetHeight);
+    prepareInkCanvasContext(ctx, ratio, metrics);
+    ctx.drawImage(cache.canvas, 0, 0, targetWidth, targetHeight, 0, 0, metrics.width, metrics.height);
+    if (active) drawInkStrokes(ctx, metrics, [active]);
+    return;
   }
+
+  prepareInkCanvasContext(ctx, ratio, metrics);
+  drawInkStrokes(ctx, metrics, [...strokes, active].filter((stroke) => stroke && !isPendingEraseStroke(stroke)));
   if (pendingEraseStrokes?.size) {
     ctx.save();
     ctx.globalAlpha = 0.18;
-    for (const stroke of strokes) {
-      if (isPendingEraseStroke(stroke)) drawStroke(ctx, stroke);
-    }
+    drawInkStrokes(ctx, metrics, strokes.filter((stroke) => isPendingEraseStroke(stroke)));
     ctx.restore();
   }
+}
+
+function prepareInkCanvasContext(ctx, ratio, metrics) {
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, metrics.width, metrics.height);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+}
+
+function drawInkStrokes(ctx, metrics, strokes) {
+  if (!strokes.length) return;
+  ctx.save();
+  ctx.scale(inkCanvasLogicalScale(metrics), inkCanvasLogicalScale(metrics));
+  for (const stroke of strokes) drawStroke(ctx, stroke);
   ctx.restore();
+}
+
+function committedInkSurfaceCache(canvas, strokes, metrics, ratio, targetWidth, targetHeight) {
+  const signature = committedInkSurfaceSignature(strokes);
+  const existing = inkSurfaceCache.get(canvas);
+  if (
+    existing
+    && existing.strokes === strokes
+    && existing.signature === signature
+    && existing.width === targetWidth
+    && existing.height === targetHeight
+    && existing.ratio === ratio
+  ) {
+    return existing;
+  }
+  const layer = existing?.canvas || canvas.ownerDocument.createElement('canvas');
+  if (layer.width !== targetWidth) layer.width = targetWidth;
+  if (layer.height !== targetHeight) layer.height = targetHeight;
+  const layerCtx = layer.getContext('2d');
+  prepareInkCanvasContext(layerCtx, ratio, metrics);
+  drawInkStrokes(layerCtx, metrics, strokes);
+  const cache = { canvas: layer, strokes, signature, width: targetWidth, height: targetHeight, ratio };
+  inkSurfaceCache.set(canvas, cache);
+  return cache;
+}
+
+function committedInkSurfaceSignature(strokes) {
+  const last = strokes.at(-1);
+  const pointCount = strokes.reduce((total, stroke) => total + (stroke.points?.length || 0), 0);
+  return `${strokes.length}:${pointCount}:${inkStrokeEndpointKey(last)}`;
+}
+
+function inkStrokeEndpointKey(stroke) {
+  const points = stroke?.points || [];
+  const first = points[0];
+  const last = points.at(-1);
+  return [
+    stroke?.color || '',
+    clampNumber(stroke?.width, 1, 24, 3),
+    stroke?.pressureEnabled === false ? '0' : '1',
+    points.length,
+    roundInkKeyValue(first?.x),
+    roundInkKeyValue(first?.y),
+    roundInkKeyValue(last?.x),
+    roundInkKeyValue(last?.y)
+  ].join('|');
+}
+
+function commitSideInkStrokeToRenderCache(canvas, strokes, stroke) {
+  if (!canvas || !stroke) return;
+  const metrics = inkCanvasMetrics(canvas);
+  const ratio = inkBackingRatio(canvas.ownerDocument.defaultView || window);
+  const targetWidth = Math.max(1, Math.round(metrics.width * ratio));
+  const targetHeight = Math.max(1, Math.round(metrics.height * ratio));
+  const previous = inkSurfaceCache.get(canvas);
+  if (
+    previous
+    && previous.strokes === strokes
+    && previous.width === targetWidth
+    && previous.height === targetHeight
+    && previous.ratio === ratio
+  ) {
+    const layerCtx = previous.canvas.getContext('2d');
+    layerCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    layerCtx.lineCap = 'round';
+    layerCtx.lineJoin = 'round';
+    layerCtx.imageSmoothingEnabled = true;
+    layerCtx.imageSmoothingQuality = 'high';
+    drawInkStrokes(layerCtx, metrics, [stroke]);
+    previous.signature = committedInkSurfaceSignature(strokes);
+    const ctx = canvas.getContext('2d');
+    prepareInkCanvasContext(ctx, ratio, metrics);
+    ctx.drawImage(previous.canvas, 0, 0, targetWidth, targetHeight, 0, 0, metrics.width, metrics.height);
+    return;
+  }
+  drawInkSurface(canvas, strokes, null, { useCommittedCache: true });
 }
 
 function inkStrokeRenderKey(stroke) {
