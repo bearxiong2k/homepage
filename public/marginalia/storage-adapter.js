@@ -17,6 +17,7 @@ const APP_META_CURRENT_LIBRARY = 'currentLibrary';
 const APP_META_LOCAL_PROFILE = 'localProfile';
 const ANCHORABLE_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'li', 'figure', 'figcaption', 'td', 'th', 'section', 'article']);
 const TEXT_ANCHOR_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'li', 'figcaption', 'td', 'th']);
+let dbPromise = null;
 
 export function createStorageAdapter(options = {}) {
   return new IndexedDbStorageAdapter(options);
@@ -72,21 +73,52 @@ export class IndexedDbStorageAdapter {
 
   async getAnnotations(docId) {
     const db = await openDb();
-    const annotations = await readIndexAll(db, 'annotations', 'docId', docId);
-    const hydrated = [];
-    for (const annotation of annotations) {
-      const body = await readOne(db, 'annotationBodies', annotation.id);
-      hydrated.push({
+    const [annotations, bodies] = await Promise.all([
+      readIndexAll(db, 'annotations', 'docId', docId),
+      readIndexAll(db, 'annotationBodies', 'docId', docId)
+    ]);
+    const bodiesById = new Map(bodies.map((body) => [body.id, body]));
+    return annotations
+      .map((annotation) => ({
         ...annotation,
-        note: normalizeNoteForStorage(body?.note)
-      });
-    }
-    return hydrated.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+        note: normalizeNoteForStorage(bodiesById.get(annotation.id)?.note)
+      }))
+      .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
   }
 
   async getAnnotation(docId, annotationId) {
     const annotations = await this.getAnnotations(docId);
     return annotations.find((annotation) => annotation.id === annotationId) || null;
+  }
+
+  async getDocumentNoteStats(docIds = null) {
+    const db = await openDb();
+    const [annotations, bodies] = await Promise.all([
+      readAll(db, 'annotations'),
+      readAll(db, 'annotationBodies')
+    ]);
+    const allowedDocIds = Array.isArray(docIds) && docIds.length
+      ? new Set(docIds.map((docId) => String(docId)))
+      : null;
+    const bodiesById = new Map(bodies.map((body) => [body.id, body]));
+    const statsByDocId = new Map();
+    for (const annotation of annotations) {
+      const docId = String(annotation?.docId || '');
+      if (!docId || (allowedDocIds && !allowedDocIds.has(docId))) continue;
+      const note = normalizeNoteForStorage(bodiesById.get(annotation.id)?.note);
+      const stats = statsByDocId.get(docId) || {
+        notes: 0,
+        highlights: 0,
+        ink: 0,
+        lastEditAt: ''
+      };
+      if (annotation.highlight?.enabled) stats.highlights += 1;
+      if (noteHasContent(note)) stats.notes += 1;
+      if (noteHasInk(note)) stats.ink += 1;
+      stats.lastEditAt = maxIsoDate(stats.lastEditAt, annotation.updatedAt || annotation.createdAt || '');
+      statsByDocId.set(docId, stats);
+    }
+    return statsByDocId;
   }
 
   async createAnnotation(docId, payload) {
@@ -1127,7 +1159,8 @@ function safeId(value) {
 }
 
 function openDb() {
-  return new Promise((resolve, reject) => {
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -1153,9 +1186,20 @@ function openDb() {
         db.createObjectStore('documentFileHandles', { keyPath: 'docId' });
       }
     };
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => {
+      dbPromise = null;
+      reject(request.error);
+    };
+    request.onsuccess = () => {
+      const db = request.result;
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      resolve(db);
+    };
   });
+  return dbPromise;
 }
 
 function readOne(db, storeName, key) {
@@ -1204,4 +1248,26 @@ function clearBrowserStateKeys(store, prefixes) {
     if (prefixes.some((prefix) => key?.startsWith(prefix))) keys.push(key);
   }
   for (const key of keys) store.removeItem(key);
+}
+
+function noteHasContent(note) {
+  if (!note) return false;
+  if (String(note.title || '').trim()) return true;
+  if (String(note.markdown || '').trim()) return true;
+  if (noteHasInk(note)) return true;
+  return (note.blocks || []).some((block) => {
+    if (block?.type === 'text') return Boolean(String(block.markdown || '').trim());
+    if (block?.type === 'ink') return noteHasInk({ ink: block.ink });
+    return block?.type === 'blank';
+  });
+}
+
+function noteHasInk(note) {
+  return Array.isArray(note?.ink?.strokes) && note.ink.strokes.length > 0;
+}
+
+function maxIsoDate(a, b) {
+  if (!a) return b || '';
+  if (!b) return a || '';
+  return String(a) > String(b) ? a : b;
 }

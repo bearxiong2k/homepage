@@ -62,6 +62,7 @@ document.addEventListener('pointermove', updateTextSelectionDrag, true);
 document.addEventListener('pointerup', finishTextSelectionDrag, true);
 document.addEventListener('pointercancel', finishTextSelectionDrag, true);
 document.addEventListener('reader-reading-mode-change', scheduleZoomRefresh);
+document.addEventListener('reader-side-note-layout-change', scheduleZoomRefresh);
 window.addEventListener('resize', scheduleZoomRefresh);
 pdfViewport?.addEventListener('scroll', handlePdfViewportScroll, { passive: true });
 

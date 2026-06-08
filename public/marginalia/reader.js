@@ -89,10 +89,14 @@ const state = {
   tooltip: null,
   tooltipTarget: null,
   saveToastTimer: 0,
+  saveToastHideTimer: 0,
+  saveToastVisibilityRaf: 0,
   restoringScroll: false,
   annotationResolution: new Map(),
   appDialog: null,
-  pendingImportKind: null
+  pendingImportKind: null,
+  navigatorInkPreviewRenderRaf: 0,
+  noteDrawerResizeObserver: null
 };
 
 const els = {
@@ -154,6 +158,7 @@ const QUICK_MARK_ASSET_URLS = QUICK_MARK_COLORS.map((_, index) => new URL(`asset
 const MAX_QUICK_MARKS = 8;
 const PDF_READY_TIMEOUT_MS = 120000;
 const SAVE_SUCCESS_VISIBLE_MS = 3600;
+const SAVE_SUCCESS_HIDE_TRANSITION_MS = 180;
 const INK_CANVAS_HEIGHT = { min: 96, default: 420, max: 1800, padding: 18 };
 const NOTES_PANEL_WIDTH = { min: 260, default: 360 };
 const NOTE_JUMP_VIEWPORT_OFFSET_RATIO = 0.2;
@@ -169,17 +174,25 @@ init().catch((error) => setStatus(error.message, true));
 
 async function init() {
   bindChromeEvents();
-  await registerServiceWorker();
-  await loadDocuments();
   const requestedDoc = new URLSearchParams(location.search).get('doc');
+  registerServiceWorker().catch(() => {});
+  const documentsPromise = loadDocuments();
+  if (requestedDoc) {
+    await loadDocument(requestedDoc);
+    await documentsPromise;
+    if (state.currentDocument?.id === requestedDoc) return;
+  } else {
+    await documentsPromise;
+  }
   const rememberedDoc = requestedDoc ? null : await rememberedDocumentId();
   const firstDoc = state.documents[0]?.id;
-  const docId = requestedDoc || rememberedDoc || firstDoc;
+  const docId = rememberedDoc || firstDoc;
   if (!docId) {
     showSourceStartPanel();
     setStatus('Import a source to begin.');
     return;
   }
+  if (state.currentDocument?.id === docId && state.docId === docId) return;
   await loadDocument(docId);
 }
 
@@ -211,6 +224,7 @@ function bindChromeEvents() {
   els.exportBundleBtn?.addEventListener('click', () => exportCurrentBundle().catch((error) => setStatus(error.message, true)));
   installFileDropImport();
   installTooltipController(document);
+  installNoteDrawerResizeObserver();
   syncNotesPanelControls();
   syncHistoryControls();
   syncReadingModeControls();
@@ -897,13 +911,13 @@ function readerUrlForDoc(docId) {
 async function loadDocument(docId) {
   if (!docId) return;
   state.docId = docId;
-  state.currentDocument = state.documents.find((item) => item.id === docId) || await storage.getDocument(docId);
-  if (!state.currentDocument) {
+  const currentDocument = state.documents.find((item) => item.id === docId) || await storage.getDocument(docId);
+  state.currentDocument = currentDocument;
+  if (!currentDocument) {
     setStatus(`Document not found: ${docId}`, true);
     return;
   }
   hideSourceStartPanel();
-  await storage.rememberDocumentOpen?.(docId);
   syncBundleControls();
   state.currentTarget = null;
   state.activeAnnotationId = null;
@@ -930,9 +944,12 @@ async function loadDocument(docId) {
   setStatus('Loading document…');
   const shouldHideFrameUntilRestored = hasSavedReaderScrollPosition(docId);
   setReaderFrameRestoring(shouldHideFrameUntilRestored);
+  const rememberOpenPromise = storage.rememberDocumentOpen?.(docId);
   const annotationsPromise = fetchAnnotations(docId);
-  await loadReaderFrame(await storage.getDocumentHtmlUrl(docId));
+  const frameSrcPromise = storage.getDocumentHtmlUrl(docId);
+  await loadReaderFrame(await frameSrcPromise);
   state.annotations = await annotationsPromise;
+  await rememberOpenPromise;
   state.iframeLoaded = true;
   await instrumentIframe();
   await waitForFramePdfReadyIfNeeded();
@@ -1664,6 +1681,8 @@ function setNotesPanelCollapsed(collapsed) {
   if (!collapsed) applyNotesPanelWidth();
   els.rightPanel.classList.toggle('is-collapsed', collapsed);
   syncNotesPanelControls();
+  requestNavigatorInkPreviewRedraw();
+  if (state.iframeLoaded) renderAnnotations();
 }
 
 function syncNotesPanelControls() {
@@ -1704,6 +1723,7 @@ function onNotesPanelResizeMove(event) {
   const requestedWidth = session.startWidth + session.startX - event.clientX;
   state.notesPanelWidth = normalizeNotesPanelWidth(requestedWidth);
   applyNotesPanelWidth();
+  requestNavigatorInkPreviewRedraw();
 }
 
 function finishNotesPanelResize(event) {
@@ -1727,6 +1747,14 @@ function applyNotesPanelWidth() {
 function currentNotesPanelWidth() {
   const width = els.rightPanel?.getBoundingClientRect?.().width;
   return normalizeNotesPanelWidth(Number.isFinite(width) && width > 0 ? width : state.notesPanelWidth);
+}
+
+function isNotesPanelExpanded() {
+  return Boolean(els.rightPanel && !els.rightPanel.classList.contains('is-collapsed'));
+}
+
+function sideNotesVisibleForMetrics(metrics) {
+  return !state.readingMode && !isNotesPanelExpanded() && Boolean(metrics?.noteVisible);
 }
 
 function handleEscapeKey(event) {
@@ -2592,6 +2620,8 @@ async function createAnnotationFromTarget(sourceTarget, options = {}) {
 function renderAnnotations() {
   if (!state.iframeLoaded) return;
   const doc = getFrameDoc();
+  const metrics = layoutMetrics(doc);
+  const sideNotesVisible = sideNotesVisibleForMetrics(metrics);
   syncPinnedNoteChrome();
   injectReaderStyles(doc);
   clearRenderedAnnotations(doc);
@@ -2610,13 +2640,13 @@ function renderAnnotations() {
     }
   }
 
-  if (!state.readingMode) {
+  if (sideNotesVisible) {
     for (const annotation of state.annotations) {
       attachMarker(doc, annotation);
     }
   }
-  if (!state.readingMode) applyFocusModeDisplay(doc);
-  if (!state.readingMode) layoutSideNotes(doc);
+  if (sideNotesVisible) applyFocusModeDisplay(doc);
+  if (sideNotesVisible) layoutSideNotes(doc);
   syncJumpToNoteButton(doc);
   renderLayoutEditor(doc);
   renderQuickMarks(doc);
@@ -3809,16 +3839,28 @@ function positionSideNoteLayer(doc, layer = doc.querySelector('.reader-side-note
 
 function updateResponsiveReaderLayout(doc) {
   const metrics = layoutMetrics(doc);
+  const sideNotesVisible = sideNotesVisibleForMetrics(metrics);
   const noteLayerWidth = `${Math.round(metrics.noteLayerWidth)}px`;
+  const previousNoteLayerWidth = doc.documentElement.style.getPropertyValue('--reader-side-note-layer-width');
+  const previousNotesHidden = doc.body.classList.contains('reader-notes-hidden');
   state.layoutWidths = metrics.layout;
   doc.documentElement.style.setProperty('--annotator-source-panel-width', `${Math.round(metrics.sourceWidth)}px`);
   doc.documentElement.style.setProperty('--annotator-note-panel-width', noteLayerWidth);
-  doc.documentElement.style.setProperty('--annotator-panel-gap', `${metrics.noteVisible ? metrics.gap : 0}px`);
+  doc.documentElement.style.setProperty('--annotator-panel-gap', `${sideNotesVisible ? metrics.gap : 0}px`);
   doc.documentElement.style.setProperty('--reader-side-note-layer-width', noteLayerWidth);
-  doc.documentElement.style.setProperty('--reader-side-note-gap', `${metrics.noteVisible ? metrics.gap : 0}px`);
+  doc.documentElement.style.setProperty('--reader-side-note-gap', `${sideNotesVisible ? metrics.gap : 0}px`);
   doc.documentElement.style.setProperty('--reader-text-note-edge', `${Math.round(metrics.sourceNoteX)}px`);
   document.documentElement.style.setProperty('--reader-side-note-layer-width', noteLayerWidth);
-  doc.body.classList.toggle('reader-notes-hidden', state.readingMode || !metrics.noteVisible);
+  doc.body.classList.toggle('reader-notes-hidden', !sideNotesVisible);
+  if (previousNoteLayerWidth !== noteLayerWidth || previousNotesHidden !== !sideNotesVisible) {
+    const FrameCustomEvent = doc.defaultView?.CustomEvent || CustomEvent;
+    doc.dispatchEvent(new FrameCustomEvent('reader-side-note-layout-change', {
+      detail: {
+        noteLayerWidth: metrics.noteLayerWidth,
+        notesHidden: !sideNotesVisible
+      }
+    }));
+  }
 }
 
 function layoutMetrics(doc) {
@@ -3915,6 +3957,7 @@ function renderLayoutResizers(doc) {
   doc.querySelectorAll('.reader-layout-resizer').forEach((handle) => handle.remove());
   const metrics = layoutMetrics(doc);
   if (state.readingMode && metrics.layout.noteFraction > 0) return;
+  if (isNotesPanelExpanded()) return;
   if (!metrics.noteVisible) return;
   const handle = doc.createElement('div');
   handle.className = 'reader-layout-resizer';
@@ -4152,15 +4195,34 @@ function setSaveSuccess(message) {
   setStatus(successMessage);
   if (!els.saveToast) return;
   window.clearTimeout(state.saveToastTimer);
+  window.clearTimeout(state.saveToastHideTimer);
+  if (state.saveToastVisibilityRaf) cancelAnimationFrame(state.saveToastVisibilityRaf);
   els.saveToast.textContent = successMessage;
   els.saveToast.hidden = false;
-  els.saveToast.classList.add('is-visible');
-  state.saveToastTimer = window.setTimeout(() => {
+  els.saveToast.classList.remove('is-visible');
+  void els.saveToast.offsetWidth;
+  state.saveToastVisibilityRaf = requestAnimationFrame(() => {
+    state.saveToastVisibilityRaf = 0;
+    els.saveToast.classList.add('is-visible');
+  });
+  state.saveToastTimer = window.setTimeout(() => hideSaveToast(), SAVE_SUCCESS_VISIBLE_MS);
+}
+
+function hideSaveToast() {
+  if (!els.saveToast) return;
+  if (state.saveToastVisibilityRaf) {
+    cancelAnimationFrame(state.saveToastVisibilityRaf);
+    state.saveToastVisibilityRaf = 0;
+  }
+  window.clearTimeout(state.saveToastTimer);
+  state.saveToastTimer = 0;
+  els.saveToast.classList.remove('is-visible');
+  window.clearTimeout(state.saveToastHideTimer);
+  state.saveToastHideTimer = window.setTimeout(() => {
     els.saveToast.hidden = true;
-    els.saveToast.classList.remove('is-visible');
     els.saveToast.textContent = '';
-    state.saveToastTimer = 0;
-  }, SAVE_SUCCESS_VISIBLE_MS);
+    state.saveToastHideTimer = 0;
+  }, SAVE_SUCCESS_HIDE_TRANSITION_MS);
 }
 
 function readerScrollStorageKey(docId = state.docId) {
@@ -4206,6 +4268,12 @@ function restoreReaderScrollPosition(doc) {
 }
 
 function layoutSideNotes(doc) {
+  if (!doc) return;
+  if (!sideNotesVisibleForMetrics(layoutMetrics(doc))) {
+    updateResponsiveReaderLayout(doc);
+    doc.querySelectorAll('.reader-side-note-layer').forEach((layer) => layer.remove());
+    return;
+  }
   getSideNoteLayer(doc);
   const notes = Array.from(doc.querySelectorAll('.reader-side-note'))
     .map((note) => {
@@ -4267,6 +4335,14 @@ function redrawSideInkCanvases(doc) {
   for (const { canvas, annotationId, blockIndex } of inactiveEntries) {
     drawSideInkCanvas(canvas, annotationId, blockIndex);
   }
+}
+
+function installNoteDrawerResizeObserver() {
+  if (!els.noteDrawerBody || typeof ResizeObserver !== 'function' || state.noteDrawerResizeObserver) return;
+  state.noteDrawerResizeObserver = new ResizeObserver(() => {
+    requestNavigatorInkPreviewRedraw();
+  });
+  state.noteDrawerResizeObserver.observe(els.noteDrawerBody);
 }
 
 function sideNotePosition(doc, annotation) {
@@ -5020,6 +5096,7 @@ function renderNoteList(options = {}) {
     els.noteList.append(createNavigatorNoteCard(annotation));
   }
   restoreNavigatorScrollAnchor(scrollAnchor);
+  requestNavigatorInkPreviewRedraw();
 }
 
 function createNavigatorNoteCard(annotation) {
@@ -5175,7 +5252,7 @@ function createNavigatorNoteContent(annotation) {
   content.className = 'note-card-content';
   const blocks = sideNoteContentBlocks(annotation);
   let hasContent = false;
-  for (const block of blocks) {
+  for (const [index, block] of blocks.entries()) {
     if (block.type === 'text') {
       if (!block.markdown?.trim()) continue;
       const text = document.createElement('div');
@@ -5191,6 +5268,8 @@ function createNavigatorNoteContent(annotation) {
       wrap.className = 'note-card-ink-wrap';
       const canvas = document.createElement('canvas');
       canvas.className = 'note-card-ink';
+      canvas.dataset.annotationId = annotation.id;
+      canvas.dataset.blockIndex = String(index);
       wrap.append(canvas);
       content.append(wrap);
       requestAnimationFrame(() => drawInkPreview(canvas, block.ink));
@@ -5369,7 +5448,8 @@ function documentPageLabel(element) {
 
 function currentDocumentPages() {
   const documentMeta = state.documents.find((doc) => doc.id === state.docId);
-  return Array.isArray(documentMeta?.pages) ? documentMeta.pages : [];
+  if (Array.isArray(documentMeta?.pages)) return documentMeta.pages;
+  return Array.isArray(state.currentDocument?.pages) ? state.currentDocument.pages : [];
 }
 
 function labelsEquivalent(a, b) {
@@ -6941,9 +7021,30 @@ function placeCaretFromPoint(element, pointerEvent) {
 }
 
 function drawInkPreview(canvas, ink) {
+  if (!canvas?.isConnected) return;
   const wrap = canvas.closest?.('.note-card-ink-wrap') || canvas.parentElement;
   if (wrap) wrap.style.height = `${navigatorInkPreviewHeight(ink, wrap)}px`;
   drawInkSurface(canvas, ink?.strokes || [], null, { backingRatio: INK_PREVIEW_BACKING_RATIO });
+}
+
+function requestNavigatorInkPreviewRedraw() {
+  if (state.navigatorInkPreviewRenderRaf) return;
+  state.navigatorInkPreviewRenderRaf = requestAnimationFrame(() => {
+    state.navigatorInkPreviewRenderRaf = 0;
+    redrawNavigatorInkPreviews();
+  });
+}
+
+function redrawNavigatorInkPreviews() {
+  if (!els.noteList || !isNotesPanelExpanded()) return;
+  els.noteList.querySelectorAll('.note-card-ink').forEach((canvas) => {
+    const annotationId = canvas.dataset.annotationId;
+    const blockIndex = Number(canvas.dataset.blockIndex);
+    if (!annotationId || !Number.isInteger(blockIndex)) return;
+    const annotation = state.annotations.find((item) => item.id === annotationId);
+    const block = sideNoteContentBlocks(annotation)?.[blockIndex];
+    if (block?.type === 'ink') drawInkPreview(canvas, block.ink);
+  });
 }
 
 function navigatorInkPreviewHeight(ink, wrap) {

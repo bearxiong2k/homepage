@@ -946,6 +946,15 @@ textarea {
   font-size: 0.9rem;
   line-height: 1.35;
   overflow-wrap: anywhere;
+  opacity: 0;
+  transform: translateY(14px) scale(0.98);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  pointer-events: none;
+}
+
+.save-toast.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
 }
 
 .home {

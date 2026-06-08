@@ -105,15 +105,17 @@ async function init() {
       event.target.blur();
     }
   });
-  await registerServiceWorker();
+  registerServiceWorker().catch(() => {});
   await loadDocuments();
 }
 
 async function loadDocuments() {
   documentsEl.innerHTML = '<p class="small">Loading documents...</p>';
-  const documents = await storage.listDocuments();
-  const library = await storage.getCurrentLibraryContext?.();
-  const profile = await storage.ensureLocalProfile?.();
+  const [documents, library, profile] = await Promise.all([
+    storage.listDocuments(),
+    storage.getCurrentLibraryContext?.(),
+    storage.ensureLocalProfile?.()
+  ]);
   const handleStatus = await currentLibraryHandleStatus(library);
   if (saveLibraryBtn) saveLibraryBtn.disabled = false;
   if (!documents.length && !library) {
@@ -142,11 +144,20 @@ async function loadDocuments() {
       }))
       .filter((item) => item.doc)
     : documents.map((doc) => ({ entry: null, doc }));
-  const rows = await Promise.all(orderedItems.map(async ({ doc, entry }) => ({
-    doc,
-    entry,
-    stats: await documentNoteStats(doc)
-  })));
+  const precomputedStats = storage.getDocumentNoteStats
+    ? await storage.getDocumentNoteStats(orderedItems.map(({ doc }) => doc.id))
+    : null;
+  const rows = precomputedStats
+    ? orderedItems.map(({ doc, entry }) => ({
+      doc,
+      entry,
+      stats: documentNoteStatsFromRecord(doc, precomputedStats.get(doc.id))
+    }))
+    : await Promise.all(orderedItems.map(async ({ doc, entry }) => ({
+      doc,
+      entry,
+      stats: await documentNoteStats(doc)
+    })));
   const sourceCount = rows.length;
   const libraryTitle = library?.title || 'Annotator library';
   const libraryStats = summarizeLibraryStats(rows, library);
@@ -842,6 +853,14 @@ async function documentNoteStats(doc) {
     if (noteHasInk(annotation.note)) ink += 1;
     lastEditAt = maxIsoDate(lastEditAt, annotation.updatedAt || annotation.createdAt || '');
   }
+  return documentNoteStatsFromRecord(doc, { notes, highlights, ink, lastEditAt });
+}
+
+function documentNoteStatsFromRecord(doc, stats = null) {
+  const notes = Number(stats?.notes) || 0;
+  const highlights = Number(stats?.highlights) || 0;
+  const ink = Number(stats?.ink) || 0;
+  const lastEditAt = stats?.lastEditAt || doc?.updatedAt || doc?.createdAt || '';
   return {
     notes,
     highlights,
