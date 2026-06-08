@@ -75,7 +75,7 @@
     }
 
     .pdf-toolbar button,
-    .pdf-toolbar select {
+    .pdf-toolbar input {
       min-height: 26px;
       border: 1px solid #d1c1a9;
       border-radius: 5px;
@@ -91,7 +91,8 @@
     }
 
     .pdf-toolbar button:hover,
-    .pdf-toolbar select:hover {
+    .pdf-toolbar input:hover,
+    .pdf-toolbar input:focus {
       border-color: #ad6a23;
     }
 
@@ -100,9 +101,10 @@
       background: #f7e5bf;
     }
 
-    .pdf-toolbar select {
-      min-width: 104px;
+    .pdf-toolbar input {
+      width: 78px;
       padding: 0 6px;
+      text-align: center;
     }
 
     .pdf-pan-lock-button {
@@ -297,20 +299,7 @@
     <button id="toolbarToggleBtn" type="button" title="Collapse PDF controls" aria-label="Collapse PDF controls" aria-expanded="true">◀</button>
     <div class="pdf-toolbar-main">
       <button id="zoomOutBtn" type="button" title="Zoom out" aria-label="Zoom out">−</button>
-      <select id="zoomSelect" aria-label="PDF zoom relative to fit width">
-        <option value="0.5">50% of fit</option>
-        <option value="0.67">67% of fit</option>
-        <option value="0.75">75% of fit</option>
-        <option value="0.9">90% of fit</option>
-        <option value="1">100% fit</option>
-        <option value="1.1">110% of fit</option>
-        <option value="1.25">125% of fit</option>
-        <option value="1.5">150% of fit</option>
-        <option value="1.75">175% of fit</option>
-        <option value="2">200% of fit</option>
-        <option value="2.5">250% of fit</option>
-        <option value="3">300% of fit</option>
-      </select>
+      <input id="zoomInput" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="100%" aria-label="PDF zoom percent relative to fit width">
       <button id="zoomInBtn" type="button" title="Zoom in" aria-label="Zoom in">+</button>
       <button id="fitWidthBtn" type="button" title="Fit width" aria-label="Fit width">Fit</button>
       <button id="horizontalPanLockBtn" class="pdf-pan-lock-button" type="button" title="Lock horizontal movement" aria-label="Lock horizontal movement" aria-pressed="false"><span class="pdf-lock-mark" aria-hidden="true"></span><span class="pdf-pan-mark" aria-hidden="true">↔</span></button>

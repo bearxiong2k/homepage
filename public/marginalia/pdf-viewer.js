@@ -16,7 +16,7 @@ const root = document.querySelector('#pdfRoot');
 const statusEl = document.querySelector('#pdfStatus');
 const zoomOutBtn = document.querySelector('#zoomOutBtn');
 const zoomInBtn = document.querySelector('#zoomInBtn');
-const zoomSelect = document.querySelector('#zoomSelect');
+const zoomInput = document.querySelector('#zoomInput');
 const fitWidthBtn = document.querySelector('#fitWidthBtn');
 const horizontalPanLockBtn = document.querySelector('#horizontalPanLockBtn');
 const toolbar = document.querySelector('#pdfToolbar');
@@ -29,13 +29,11 @@ const MAX_RENDER_CONCURRENCY = 2;
 const MAX_DEVICE_SCALE = 2.5;
 const MIN_PAGE_SCALE = 0.35;
 const MAX_PAGE_SCALE = 10;
-const ZOOM_PRESETS = [
-  0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3
-];
+const ZOOM_STEP_RATIO = 0.1;
 let activeRenderCount = 0;
 let observer = null;
 let pdfDocument = null;
-let zoomRatio = 1;
+let zoomScale = null;
 let zoomGeneration = 0;
 let selectionOverlayRaf = 0;
 let textSelectionDrag = null;
@@ -52,8 +50,11 @@ zoomInBtn?.addEventListener('click', () => stepZoom(1));
 fitWidthBtn?.addEventListener('click', () => setZoomMode('fit-width'));
 horizontalPanLockBtn?.addEventListener('click', toggleHorizontalPanLock);
 toolbarToggleBtn?.addEventListener('click', toggleToolbarCollapsed);
-zoomSelect?.addEventListener('change', () => {
-  setExplicitZoom(Number(zoomSelect.value));
+zoomInput?.addEventListener('change', commitZoomInput);
+zoomInput?.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  zoomInput.blur();
 });
 document.addEventListener('wheel', handlePdfWheel, { passive: false });
 document.addEventListener('selectionchange', scheduleSelectionOverlayUpdate);
@@ -287,7 +288,8 @@ function updatePageGeometry(record) {
 }
 
 function pageCssScale(viewport) {
-  return clamp(fitScaleForViewport(viewport) * zoomRatio, MIN_PAGE_SCALE, MAX_PAGE_SCALE);
+  if (!Number.isFinite(zoomScale)) zoomScale = fitScaleForViewport(viewport);
+  return clamp(zoomScale, MIN_PAGE_SCALE, MAX_PAGE_SCALE);
 }
 
 function fitScaleForViewport(viewport) {
@@ -313,14 +315,23 @@ function availablePdfWidth() {
 
 function setZoomMode(mode) {
   if (mode !== 'fit-width') return;
-  zoomRatio = 1;
+  zoomScale = representativeFitScale();
   refreshZoomedPages();
 }
 
-function setExplicitZoom(ratio) {
+function setExplicitZoomRatio(ratio) {
   if (!Number.isFinite(ratio)) return;
-  zoomRatio = clamp(ratio, ZOOM_PRESETS[0], ZOOM_PRESETS[ZOOM_PRESETS.length - 1]);
+  zoomScale = clamp(representativeFitScale() * ratio, MIN_PAGE_SCALE, MAX_PAGE_SCALE);
   refreshZoomedPages();
+}
+
+function commitZoomInput() {
+  const ratio = parseZoomInputValue(zoomInput?.value);
+  if (!Number.isFinite(ratio)) {
+    syncZoomControls();
+    return;
+  }
+  setExplicitZoomRatio(ratio);
 }
 
 let zoomRefreshRaf = 0;
@@ -370,21 +381,20 @@ function restoreHorizontalPan(pan) {
   if (!pdfViewport || !pan) return;
   requestAnimationFrame(() => {
     const maxScroll = Math.max(0, pdfViewport.scrollWidth - pdfViewport.clientWidth);
-    pdfViewport.scrollLeft = maxScroll > 0
-      ? clamp(pan.ratio * maxScroll, 0, maxScroll)
-      : 0;
+    if (horizontalPanLocked) {
+      pdfViewport.scrollLeft = clamp(pan.left, 0, maxScroll);
+    } else {
+      pdfViewport.scrollLeft = maxScroll > 0
+        ? clamp(pan.ratio * maxScroll, 0, maxScroll)
+        : 0;
+    }
     lastHorizontalScroll = pdfViewport.scrollLeft;
   });
 }
 
 function stepZoom(direction) {
   const current = currentRepresentativeZoomRatio();
-  const sorted = ZOOM_PRESETS;
-  const index = sorted.findIndex((item) => item >= current - 0.001);
-  const nextIndex = direction > 0
-    ? Math.min(sorted.length - 1, index < 0 ? 0 : index + (sorted[index] <= current + 0.001 ? 1 : 0))
-    : Math.max(0, (index < 0 ? sorted.length : index) - 1);
-  setExplicitZoom(sorted[nextIndex]);
+  setExplicitZoomRatio(current + (direction > 0 ? ZOOM_STEP_RATIO : -ZOOM_STEP_RATIO));
 }
 
 function currentRepresentativeScale() {
@@ -393,18 +403,28 @@ function currentRepresentativeScale() {
 }
 
 function currentRepresentativeZoomRatio() {
-  return zoomRatio;
+  return currentRepresentativeScale() / representativeFitScale();
+}
+
+function representativeFitScale() {
+  const firstRecord = pageRecords.values().next().value;
+  return firstRecord?.baseViewport ? fitScaleForViewport(firstRecord.baseViewport) : 1;
+}
+
+function parseZoomInputValue(value) {
+  const normalized = String(value || '').trim().replace(/%$/, '');
+  if (!normalized) return NaN;
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed / 100 : NaN;
 }
 
 function syncZoomControls() {
-  document.documentElement.dataset.pdfZoomMode = zoomRatio === 1 ? 'fit-width' : 'relative';
+  const zoomRatio = currentRepresentativeZoomRatio();
+  document.documentElement.dataset.pdfZoomMode = Math.abs(zoomRatio - 1) < 0.001 ? 'fit-width' : 'relative';
   document.documentElement.dataset.pdfZoom = String(Number(currentRepresentativeScale().toFixed(4)));
   document.documentElement.dataset.pdfZoomRatio = String(Number(zoomRatio.toFixed(4)));
-  if (!zoomSelect) return;
-  const closest = ZOOM_PRESETS.reduce((best, item) => (
-    Math.abs(item - zoomRatio) < Math.abs(best - zoomRatio) ? item : best
-  ), ZOOM_PRESETS[0]);
-  zoomSelect.value = String(closest);
+  if (!zoomInput || document.activeElement === zoomInput) return;
+  zoomInput.value = `${Math.round(zoomRatio * 100)}%`;
 }
 
 function captureScrollAnchor() {
@@ -755,9 +775,10 @@ function rectIntersects(a, b) {
 
 function handlePdfWheel(event) {
   if (event.ctrlKey || event.metaKey) return;
-  const left = horizontalPanLocked ? 0 : wheelDelta(event.deltaX, event.deltaMode);
+  const requestedLeft = wheelDelta(event.deltaX, event.deltaMode);
+  const left = horizontalPanLocked ? 0 : requestedLeft;
   const top = wheelDelta(event.deltaY, event.deltaMode);
-  if (!left && !top) return;
+  if (!left && !top && !(horizontalPanLocked && requestedLeft)) return;
   event.preventDefault();
   if (left && pdfViewport) {
     pdfViewport.scrollBy({ left, behavior: 'auto' });
@@ -774,6 +795,10 @@ function handlePdfWheel(event) {
 
 function handlePdfViewportScroll() {
   if (!pdfViewport) return;
+  if (horizontalPanLocked && Math.round(pdfViewport.scrollLeft) !== Math.round(lastHorizontalScroll)) {
+    pdfViewport.scrollLeft = lastHorizontalScroll;
+    return;
+  }
   if (Math.round(pdfViewport.scrollLeft) === Math.round(lastHorizontalScroll)) return;
   lastHorizontalScroll = pdfViewport.scrollLeft;
   scheduleSelectionOverlayUpdate();
@@ -786,6 +811,7 @@ function toggleHorizontalPanLock() {
 
 function syncHorizontalPanLock() {
   document.documentElement.dataset.pdfHorizontalPan = horizontalPanLocked ? 'locked' : 'unlocked';
+  if (horizontalPanLocked && pdfViewport) lastHorizontalScroll = pdfViewport.scrollLeft;
   if (!horizontalPanLockBtn) return;
   horizontalPanLockBtn.classList.toggle('is-active', horizontalPanLocked);
   horizontalPanLockBtn.setAttribute('aria-pressed', String(horizontalPanLocked));

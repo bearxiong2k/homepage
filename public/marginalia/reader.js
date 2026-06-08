@@ -130,6 +130,8 @@ const els = {
   appDialogBody: document.querySelector('#appDialogBody'),
   appDialogActions: document.querySelector('#appDialogActions'),
   saveToast: document.querySelector('#saveToast'),
+  saveToastTitle: document.querySelector('#saveToastTitle'),
+  saveToastClose: document.querySelector('#saveToastClose'),
   saveToastBody: document.querySelector('#saveToastBody')
 };
 
@@ -219,7 +221,8 @@ function bindChromeEvents() {
   });
   els.importBundleBtn?.addEventListener('click', () => startSourceImport().catch((error) => setStatus(error.message, true)));
   els.bundleFileInput?.addEventListener('change', () => importSelectedSourceFile(els.bundleFileInput).catch((error) => setStatus(error.message, true)));
-  els.exportBundleBtn?.addEventListener('click', () => exportCurrentBundle().catch((error) => setStatus(error.message, true)));
+  els.exportBundleBtn?.addEventListener('click', () => exportCurrentBundle().catch((error) => setSaveFailure(error)));
+  els.saveToastClose?.addEventListener('click', hideSaveToast);
   installFileDropImport();
   installTooltipController(document);
   installNoteDrawerResizeObserver();
@@ -642,21 +645,27 @@ function annotationHasUserContent(annotation) {
 }
 
 async function exportCurrentBundle() {
-  if (!state.docId) return;
-  setStatus('Saving current source...');
+  if (!state.docId) {
+    setSaveNotice('No source is open.', { title: 'Save unavailable', state: 'error', autoHide: false });
+    return;
+  }
+  setSaveProgress('Preparing save...');
   const doc = state.documents.find((item) => item.id === state.docId) || await storage.getDocument(state.docId);
   const library = await storage.getCurrentLibraryContext?.();
   if (library) {
+    setSaveProgress(`Saving library "${library.title || 'Annotator library'}"...`);
     const bytes = await storage.exportCurrentLibraryPackage();
     const filename = libraryFilenameForTitle(library.title || 'annotator-library');
     const saved = await saveCurrentLibraryPackage(bytes, filename, library.title || filename);
-    if (saved?.cancelled) return;
+    if (saved?.cancelled) setSaveCancelled('Save cancelled.');
     return;
   }
+  setSaveProgress(`Packaging "${doc?.title || state.docId}"...`);
   const bytes = await storage.exportDocumentBundle(state.docId);
   const filename = bundleFilenameForDocument(doc);
   const currentHandle = await storage.getDocumentFileHandle?.(state.docId);
   if (!currentHandle) {
+    setSaveProgress('Choose a save format.');
     const saveMode = await showAppDialog({
       title: 'Save current source',
       body: 'Choose whether to save this source as one portable bundle or save all browser-local sources as a new local library package.',
@@ -668,16 +677,19 @@ async function exportCurrentBundle() {
       cancelValue: 'cancel'
     });
     if (saveMode === 'cancel') {
-      setStatus('Save cancelled.');
+      setSaveCancelled('Save cancelled.');
       return;
     }
     if (saveMode === 'library') {
+      setSaveProgress('Creating library package...');
       const context = await storage.createCurrentLibraryFromDocuments?.(state.docId);
       const libraryBytes = await storage.exportCurrentLibraryPackage();
       const libraryName = libraryFilenameForTitle(context?.title || 'annotator-library');
+      setSaveProgress(`Saving library "${context?.title || 'Annotator library'}"...`);
       const saved = await saveNewLibraryPackage(libraryBytes, libraryName);
       if (saved?.cancelled) {
         await storage.clearCurrentLibraryContext?.();
+        setSaveCancelled('Save cancelled.');
         return;
       }
       if (saved?.handle) await rememberCurrentLibraryHandle(saved.handle);
@@ -692,16 +704,21 @@ async function exportCurrentBundle() {
   if (state.storageMode === 'indexeddb' && canUseFileSystemAccess()) {
     let saved = null;
     try {
+      setSaveProgress(`Saving "${doc?.title || state.docId}"...`);
       saved = await saveBundleWithFileSystemAccess(bytes, filename);
     } catch (error) {
-      setStatus(`File save picker failed (${error.message}). Downloading a copy...`, true);
+      setSaveProgress(`File save picker failed (${error.message}). Downloading a copy...`);
     }
-    if (saved?.cancelled) return;
+    if (saved?.cancelled) {
+      setSaveCancelled('Save cancelled.');
+      return;
+    }
     if (saved?.name) {
       setSaveSuccess(`Saved "${doc?.title || state.docId}" to ${saved.name}.`);
       return;
     }
   }
+  setSaveProgress(`Downloading "${filename}"...`);
   downloadBytes(bytes, filename);
   setSaveSuccess(`Downloaded "${doc?.title || state.docId}".`);
 }
@@ -721,14 +738,14 @@ async function saveBundleWithFileSystemAccess(bytes, filename) {
         return { name: existingHandle.name || folderName, handle: existingHandle, folder: true };
       }
       if (!packageHandleNameMatches(existingHandle, filename)) {
-        setStatus(`Current source package was renamed. Choose a save location named "${filename}" to update the local file name.`);
+        setSaveProgress(`Current source package was renamed. Choose a save location named "${filename}" to update the local file name.`);
         throw new Error('Remembered bundle file name does not match the current bundle name.');
       }
       await writeBytesToFileHandle(existingHandle, bytes);
       return { name: existingHandle.name || filename };
     } catch (error) {
       await storage.clearDocumentFileHandle?.(state.docId);
-      setStatus(`Current file could not be written (${error.message}). Choose a save location...`, true);
+      setSaveProgress(`Current file could not be written (${error.message}). Choose a save location...`);
     }
   }
   if (canUseDirectoryAccess()) {
@@ -738,10 +755,10 @@ async function saveBundleWithFileSystemAccess(bytes, filename) {
       return saved;
     } catch (error) {
       if (error.name === 'AbortError') {
-        setStatus('Save cancelled.');
+        setSaveCancelled('Save cancelled.');
         return { cancelled: true };
       }
-      setStatus(`Folder save failed (${error.message}). Choose a zip save location...`, true);
+      setSaveProgress(`Folder save failed (${error.message}). Choose a zip save location...`);
     }
   }
   try {
@@ -752,7 +769,7 @@ async function saveBundleWithFileSystemAccess(bytes, filename) {
     return { name: handle.name || filename };
   } catch (error) {
     if (error.name === 'AbortError') {
-      setStatus('Save cancelled.');
+      setSaveCancelled('Save cancelled.');
       return { cancelled: true };
     }
     throw error;
@@ -764,9 +781,10 @@ async function saveCurrentLibraryPackage(bytes, filename, title) {
     let saved = null;
     try {
       const library = await storage.getCurrentLibraryContext?.();
+      setSaveProgress(`Saving library "${title}"...`);
       saved = await saveLibraryBytesWithLocalAccess(bytes, filename, library, 'Current library file could not be written');
     } catch (error) {
-      setStatus(`Library save picker failed (${error.message}). Downloading a copy...`, true);
+      setSaveProgress(`Library save picker failed (${error.message}). Downloading a copy...`);
     }
     if (saved?.cancelled) return saved;
     if (saved?.handle) await rememberCurrentLibraryHandle(saved.handle);
@@ -776,6 +794,7 @@ async function saveCurrentLibraryPackage(bytes, filename, title) {
       return saved;
     }
   }
+  setSaveProgress(`Downloading "${filename}"...`);
   downloadBytes(bytes, filename);
   setSaveSuccess(`Downloaded library "${title}".`);
   return { downloaded: true, name: filename };
@@ -783,16 +802,19 @@ async function saveCurrentLibraryPackage(bytes, filename, title) {
 
 async function saveNewLibraryPackage(bytes, filename) {
   if (state.storageMode !== 'indexeddb' || (!canUseDirectoryAccess() && !canUseFileSystemAccess())) {
+    setSaveProgress(`Downloading "${filename}"...`);
     downloadBytes(bytes, filename);
     return { downloaded: true, name: filename };
   }
   try {
+    setSaveProgress('Choose a library save location...');
     const saved = await saveLibraryBytesWithLocalAccess(bytes, filename, null);
     if (saved?.cancelled) return saved;
     if (saved?.name) return saved;
   } catch (error) {
-    setStatus(`Library save picker failed (${error.message}). Downloading a copy...`, true);
+    setSaveProgress(`Library save picker failed (${error.message}). Downloading a copy...`);
   }
+  setSaveProgress(`Downloading "${filename}"...`);
   downloadBytes(bytes, filename);
   return { downloaded: true, name: filename };
 }
@@ -829,7 +851,7 @@ async function saveLibraryBytesWithLocalAccess(bytes, filename, library = null, 
       await writeBytesToFileHandle(existingHandle, bytes);
       return { name: existingHandle.name || filename, handle: existingHandle };
     } catch (error) {
-      setStatus(`${retryPrefix} (${error.message}). Choose a save location...`, true);
+      setSaveProgress(`${retryPrefix} (${error.message}). Choose a save location...`);
     }
   }
   if (canUseDirectoryAccess()) {
@@ -839,17 +861,17 @@ async function saveLibraryBytesWithLocalAccess(bytes, filename, library = null, 
       });
     } catch (error) {
       if (error.name === 'AbortError') {
-        setStatus('Save cancelled.');
+        setSaveCancelled('Save cancelled.');
         return { cancelled: true };
       }
-      setStatus(`Folder save failed (${error.message}). Choose a zip save location...`, true);
+      setSaveProgress(`Folder save failed (${error.message}). Choose a zip save location...`);
     }
   }
   return saveBytesWithFileSystemAccess(bytes, filename, null, retryPrefix);
 }
 
 async function saveArchiveBytesAsPackageFolder(bytes, folderName, packageKind, pickerId, options = {}) {
-  setStatus(`Choose or create the package folder "${folderName}". Do not choose its parent folder.`);
+  setSaveProgress(`Choose or create the package folder "${folderName}". Do not choose its parent folder.`);
   const handle = await pickAnnotatorPackageDirectory(pickerId);
   if (!handle) return null;
   if (!options.allowMismatchedPackageName && !packageHandleNameMatches(handle, folderName)) {
@@ -873,7 +895,7 @@ async function saveBytesWithFileSystemAccess(bytes, filename, existingHandle = n
       await writeBytesToFileHandle(existingHandle, bytes);
       return { name: existingHandle.name || filename, handle: existingHandle };
     } catch (error) {
-      setStatus(`${retryPrefix} (${error.message}). Choose a save location...`, true);
+      setSaveProgress(`${retryPrefix} (${error.message}). Choose a save location...`);
     }
   }
   try {
@@ -886,7 +908,7 @@ async function saveBytesWithFileSystemAccess(bytes, filename, existingHandle = n
     return { name: handle.name || filename, handle };
   } catch (error) {
     if (error.name === 'AbortError') {
-      setStatus('Save cancelled.');
+      setSaveCancelled('Save cancelled.');
       return { cancelled: true };
     }
     throw error;
@@ -4198,22 +4220,49 @@ function normalizeSaveSuccessMessage(message) {
   return `Save success: ${text}`;
 }
 
+function setSaveProgress(message) {
+  setSaveNotice(message, { title: 'Saving', state: 'processing', autoHide: false });
+}
+
 function setSaveSuccess(message) {
   const successMessage = normalizeSaveSuccessMessage(message);
-  setStatus(successMessage);
-  if (!els.saveToast || !els.saveToastBody) return;
+  setSaveNotice(successMessage, { title: 'Save success', state: 'success', autoHide: true });
+}
+
+function setSaveFailure(error) {
+  const message = error?.message || String(error || 'Save failed.');
+  setSaveNotice(`Save failed: ${message}`, { title: 'Save failed', state: 'error', autoHide: false });
+}
+
+function setSaveCancelled(message = 'Save cancelled.') {
+  setSaveNotice(message, { title: 'Save cancelled', state: 'cancelled', autoHide: false });
+}
+
+function setSaveNotice(message, options = {}) {
+  const text = String(message || 'Save status unavailable.').trim();
+  const title = options.title || 'Save status';
+  const noticeState = options.state || 'info';
+  setStatus(text, noticeState === 'error');
+  if (!els.saveToast || !els.saveToastBody || !els.saveToastTitle) return;
   window.clearTimeout(state.saveToastTimer);
-  els.saveToastBody.textContent = successMessage;
+  state.saveToastTimer = 0;
+  els.saveToastTitle.textContent = title;
+  els.saveToastBody.textContent = text;
+  els.saveToast.dataset.saveState = noticeState;
   els.saveToast.hidden = false;
-  state.saveToastTimer = window.setTimeout(() => hideSaveToast(), SAVE_SUCCESS_VISIBLE_MS);
+  if (options.autoHide) {
+    state.saveToastTimer = window.setTimeout(() => hideSaveToast(), SAVE_SUCCESS_VISIBLE_MS);
+  }
 }
 
 function hideSaveToast() {
-  if (!els.saveToast || !els.saveToastBody) return;
+  if (!els.saveToast || !els.saveToastBody || !els.saveToastTitle) return;
   window.clearTimeout(state.saveToastTimer);
   state.saveToastTimer = 0;
   els.saveToast.hidden = true;
+  els.saveToastTitle.textContent = 'Save status';
   els.saveToastBody.textContent = '';
+  delete els.saveToast.dataset.saveState;
 }
 
 function readerScrollStorageKey(docId = state.docId) {

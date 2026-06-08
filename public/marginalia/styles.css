@@ -942,11 +942,40 @@ textarea {
 }
 
 .save-toast-card {
+  position: relative;
   width: min(620px, 100%);
+  pointer-events: auto;
 }
 
 .save-toast-card h2 {
   margin: 0 0 6px;
+}
+
+.save-toast-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.save-toast-shell[data-save-state="processing"] .save-toast-card {
+  border-color: #ad6a23;
+}
+
+.save-toast-shell[data-save-state="success"] .save-toast-card {
+  border-color: #7c9b5a;
+}
+
+.save-toast-shell[data-save-state="error"] .save-toast-card {
+  border-color: #b65043;
 }
 
 .home {
