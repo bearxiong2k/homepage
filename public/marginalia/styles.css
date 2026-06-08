@@ -233,6 +233,24 @@ body.is-file-dragging .file-drop-catcher {
   pointer-events: auto;
 }
 
+.app-version {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.app-version-rail {
+  width: 40px;
+  margin: 2px 0 0;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 0.64rem;
+  line-height: 1.1;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
 .quick-mark-rail {
   display: grid;
   place-items: center;

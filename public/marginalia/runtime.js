@@ -1,3 +1,5 @@
+import { APP_VERSION, APP_VERSION_LABEL } from './app-version.js';
+
 export function currentStorageMode() {
   return 'indexeddb';
 }
@@ -49,6 +51,24 @@ export async function updateAppFromNetwork(options = {}) {
   return watcher.promise;
 }
 
+export async function fetchNetworkAppVersion(options = {}) {
+  const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : 5000;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const url = new URL('./app-version.js', location.href);
+    url.searchParams.set('version-check', String(Date.now()));
+    const response = await fetch(url, { cache: 'no-store', signal: controller.signal });
+    if (!response.ok) return null;
+    const source = await response.text();
+    return parseVersionModuleSource(source);
+  } catch {
+    return null;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 function createServiceWorkerActivationWatcher(registration, timeoutMs) {
   let settled = false;
   let timeoutId = 0;
@@ -93,4 +113,15 @@ function createServiceWorkerActivationWatcher(registration, timeoutMs) {
 
 function requestWaitingWorkerActivation(registration) {
   registration.waiting?.postMessage?.({ type: 'MARGINALIA_SKIP_WAITING' });
+}
+
+function parseVersionModuleSource(source) {
+  const version = moduleStringExport(source, 'APP_VERSION') || APP_VERSION;
+  const label = moduleStringExport(source, 'APP_VERSION_LABEL') || `Version ${version}`;
+  return { version, label, isCurrent: version === APP_VERSION, currentLabel: APP_VERSION_LABEL };
+}
+
+function moduleStringExport(source, exportName) {
+  const pattern = new RegExp(`export\\s+const\\s+${exportName}\\s*=\\s*(['"])(.*?)\\1`);
+  return pattern.exec(String(source || ''))?.[2] || '';
 }

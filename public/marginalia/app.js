@@ -1,4 +1,5 @@
-import { currentStorageMode, registerServiceWorker, updateAppFromNetwork, urlWithStorage } from './runtime.js';
+import { APP_VERSION_LABEL } from './app-version.js';
+import { currentStorageMode, fetchNetworkAppVersion, registerServiceWorker, updateAppFromNetwork, urlWithStorage } from './runtime.js';
 import { createStorageAdapter } from './storage-adapter.js';
 import { downloadBytes } from './bundle.js';
 import {
@@ -26,6 +27,7 @@ const storageMode = currentStorageMode();
 const storage = createStorageAdapter({ mode: storageMode });
 
 const documentsEl = document.querySelector('#documents');
+const appVersionEl = document.querySelector('#appVersion');
 const openReaderLink = document.querySelector('#openReaderLink');
 const importHtmlBtn = document.querySelector('#importHtmlBtn');
 const importBundleBtn = document.querySelector('#importBundleBtn');
@@ -51,6 +53,7 @@ init().catch((error) => {
 });
 
 async function init() {
+  if (appVersionEl) appVersionEl.textContent = APP_VERSION_LABEL;
   openReaderLink.href = urlWithStorage('reader.html', {}, storageMode);
   importHtmlBtn?.addEventListener('click', () => startHtmlImport());
   htmlFileInput?.addEventListener('change', () => importSelectedHtml().catch(showError));
@@ -399,15 +402,17 @@ async function forgetCurrentLibraryHandle() {
 async function updateInstalledApp() {
   if (!updateAppBtn) return;
   updateAppBtn.disabled = true;
-  appendLibraryLog('Checking homepage for the latest Marginalia app...');
+  appendLibraryLog(`Checking homepage for the latest Marginalia app. Current ${APP_VERSION_LABEL}.`);
   try {
+    const networkVersion = await fetchNetworkAppVersion();
     const result = await updateAppFromNetwork();
     if (result.updated) {
-      appendLibraryLog(successMessage('Update', 'Updated Marginalia. Reloading the app...'));
+      appendLibraryLog(successMessage('Update', `Updated Marginalia${networkVersion?.label ? ` to ${networkVersion.label}` : ''}. Reloading the app...`));
       window.setTimeout(() => location.reload(), 120);
       return;
     }
-    appendLibraryLog(successMessage('Update', 'Marginalia is already using the latest app version available from the homepage.'));
+    const latest = networkVersion?.label || 'the latest app version available from the homepage';
+    appendLibraryLog(successMessage('Update', `Marginalia is already using ${latest}.`));
   } finally {
     updateAppBtn.disabled = false;
   }

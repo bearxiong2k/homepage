@@ -28,6 +28,7 @@ import {
   commitPendingEraseStrokes
 } from './ink-eraser.js';
 import { currentStorageMode, registerServiceWorker, urlWithStorage } from './runtime.js';
+import { APP_VERSION_LABEL, APP_VERSION_SHORT } from './app-version.js';
 
 const storageMode = currentStorageMode();
 const storage = createStorageAdapter({ mode: storageMode });
@@ -121,6 +122,7 @@ const els = {
   importSourceBtn: document.querySelector('#importSourceBtn'),
   quickStartBtn: document.querySelector('#quickStartBtn'),
   sourceFileInput: document.querySelector('#sourceFileInput'),
+  appVersion: document.querySelector('#appVersion'),
   libraryChooserPanel: document.querySelector('#libraryChooserPanel'),
   libraryChooserTitle: document.querySelector('#libraryChooserTitle'),
   libraryChooserList: document.querySelector('#libraryChooserList'),
@@ -173,6 +175,10 @@ const BLANK_NOTE_BLOCK = { type: 'blank' };
 init().catch((error) => setStatus(error.message, true));
 
 async function init() {
+  if (els.appVersion) {
+    els.appVersion.textContent = APP_VERSION_SHORT;
+    els.appVersion.title = APP_VERSION_LABEL;
+  }
   bindChromeEvents();
   const requestedDoc = new URLSearchParams(location.search).get('doc');
   registerServiceWorker().catch(() => {});
@@ -777,10 +783,10 @@ async function saveBundleWithFileSystemAccess(bytes, filename) {
 }
 
 async function saveCurrentLibraryPackage(bytes, filename, title) {
+  const library = await storage.getCurrentLibraryContext?.();
   if (state.storageMode === 'indexeddb' && (canUseDirectoryAccess() || canUseFileSystemAccess())) {
     let saved = null;
     try {
-      const library = await storage.getCurrentLibraryContext?.();
       setSaveProgress(`Saving library "${title}"...`);
       saved = await saveLibraryBytesWithLocalAccess(bytes, filename, library, 'Current library file could not be written');
     } catch (error) {
