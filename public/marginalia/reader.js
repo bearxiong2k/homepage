@@ -225,6 +225,7 @@ function bindChromeEvents() {
   installFileDropImport();
   installTooltipController(document);
   installNoteDrawerResizeObserver();
+  window.addEventListener('resize', onWindowResize);
   syncNotesPanelControls();
   syncHistoryControls();
   syncReadingModeControls();
@@ -1682,7 +1683,7 @@ function setNotesPanelCollapsed(collapsed) {
   els.rightPanel.classList.toggle('is-collapsed', collapsed);
   syncNotesPanelControls();
   requestNavigatorInkPreviewRedraw();
-  if (state.iframeLoaded) renderAnnotations();
+  if (state.iframeLoaded) syncFrameNotesPanelOverlayState(getFrameDoc());
 }
 
 function syncNotesPanelControls() {
@@ -1754,7 +1755,17 @@ function isNotesPanelExpanded() {
 }
 
 function sideNotesVisibleForMetrics(metrics) {
-  return !state.readingMode && !isNotesPanelExpanded() && Boolean(metrics?.noteVisible);
+  return !state.readingMode && Boolean(metrics?.noteVisible);
+}
+
+function syncFrameNotesPanelOverlayState(doc) {
+  if (!doc?.body) return;
+  doc.body.classList.toggle('reader-notes-overlay-open', isNotesPanelExpanded());
+  renderLayoutResizers(doc);
+}
+
+function onWindowResize() {
+  if (!els.saveToast?.hidden) positionSaveToast();
 }
 
 function handleEscapeKey(event) {
@@ -2649,6 +2660,7 @@ function renderAnnotations() {
   if (sideNotesVisible) layoutSideNotes(doc);
   syncJumpToNoteButton(doc);
   renderLayoutEditor(doc);
+  syncFrameNotesPanelOverlayState(doc);
   renderQuickMarks(doc);
 }
 
@@ -3202,6 +3214,9 @@ function injectReaderStyles(doc) {
     body:not(.reader-reading-mode):not(.reader-notes-hidden) { padding-right: calc(var(--reader-side-note-layer-width) + var(--reader-side-note-gap)) !important; }
     html.pdf-viewer-document body:not(.reader-reading-mode):not(.reader-notes-hidden) { padding-right: 0 !important; }
     body.reader-notes-hidden .reader-side-note-layer { display: none !important; }
+    body.reader-notes-overlay-open .reader-side-note-layer,
+    body.reader-notes-overlay-open .reader-side-note-layer * { pointer-events: none !important; }
+    body.reader-notes-overlay-open .reader-layout-resizer { display: none !important; }
     .reader-focus-before-marker { margin-bottom: 0 !important; }
     .reader-focus-after-marker { margin-top: 0 !important; }
     .reader-focus-contraction-marker { display: grid; place-items: center; width: 100%; height: 1.05rem; margin: .28rem 0; color: #9a6a15; opacity: .55; pointer-events: none; }
@@ -4198,6 +4213,7 @@ function setSaveSuccess(message) {
   window.clearTimeout(state.saveToastHideTimer);
   if (state.saveToastVisibilityRaf) cancelAnimationFrame(state.saveToastVisibilityRaf);
   els.saveToast.textContent = successMessage;
+  positionSaveToast();
   els.saveToast.hidden = false;
   els.saveToast.classList.remove('is-visible');
   void els.saveToast.offsetWidth;
@@ -4223,6 +4239,30 @@ function hideSaveToast() {
     els.saveToast.textContent = '';
     state.saveToastHideTimer = 0;
   }, SAVE_SUCCESS_HIDE_TRANSITION_MS);
+}
+
+function positionSaveToast() {
+  if (!els.saveToast || !els.exportBundleBtn) return;
+  const buttonRect = els.exportBundleBtn.getBoundingClientRect();
+  const viewportWidth = Math.max(240, window.innerWidth || 0);
+  const viewportHeight = Math.max(160, window.innerHeight || 0);
+  const preferredMaxWidth = Math.min(360, Math.max(180, viewportWidth - 24));
+  const left = clampNumber(
+    buttonRect.right + 12,
+    12,
+    viewportWidth - preferredMaxWidth - 12,
+    buttonRect.right + 12
+  );
+  const top = clampNumber(
+    buttonRect.top + buttonRect.height / 2,
+    18,
+    viewportHeight - 18,
+    72
+  );
+  const maxWidth = Math.max(160, viewportWidth - left - 12);
+  els.saveToast.style.left = `${Math.round(left)}px`;
+  els.saveToast.style.top = `${Math.round(top)}px`;
+  els.saveToast.style.maxWidth = `${Math.round(maxWidth)}px`;
 }
 
 function readerScrollStorageKey(docId = state.docId) {

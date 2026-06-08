@@ -41,6 +41,8 @@ const appDialog = document.querySelector('#appDialog');
 const appDialogTitle = document.querySelector('#appDialogTitle');
 const appDialogBody = document.querySelector('#appDialogBody');
 const appDialogActions = document.querySelector('#appDialogActions');
+const libraryLogEntries = [];
+const MAX_LIBRARY_LOG_ENTRIES = 12;
 let activeDialog = null;
 let pendingReplaceSourceDocId = null;
 
@@ -125,6 +127,7 @@ async function loadDocuments() {
           <aside class="library-history" aria-label="Local profile">
             <h2>Local profile</h2>
             ${localProfileStatusMarkup(profile, handleStatus)}
+            ${libraryActivityLogSectionMarkup()}
           </aside>
           <section class="library-main">
             <p class="small">No browser-local sources yet. Save library can initialize an empty local library folder, or import a source, bundle, or library package to begin.</p>
@@ -186,6 +189,7 @@ async function loadDocuments() {
           </div>
           ${localPackageAccessMarkup(handleStatus)}
         </dl>
+        ${libraryActivityLogSectionMarkup()}
       </aside>
       <section class="library-main">
         <label class="library-title-field">
@@ -800,12 +804,47 @@ function handleAppDialogBackdropPointerDown(event) {
 }
 
 function showError(error) {
-  appendLibraryLog(error.message, true);
+  appendLibraryLog(error?.message || String(error), true);
 }
 
 function appendLibraryLog(message, isError = false) {
-  const className = isError ? 'small library-log is-error' : 'small library-log';
-  documentsEl.insertAdjacentHTML('beforeend', `<p class="${className}">${escapeHtml(message)}</p>`);
+  libraryLogEntries.unshift({
+    id: `${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+    message: String(message || '').trim() || 'Unknown event.',
+    isError,
+    createdAt: new Date().toISOString()
+  });
+  if (libraryLogEntries.length > MAX_LIBRARY_LOG_ENTRIES) libraryLogEntries.length = MAX_LIBRARY_LOG_ENTRIES;
+  renderLibraryActivityLog();
+}
+
+function libraryActivityLogSectionMarkup() {
+  return `
+    <section class="library-activity-stream" aria-label="Latest activity">
+      <h3>Latest</h3>
+      <div id="libraryActivityLog" class="library-activity-log">${libraryActivityLogMarkup()}</div>
+    </section>
+  `;
+}
+
+function libraryActivityLogMarkup() {
+  if (!libraryLogEntries.length) return '<p class="small library-log-empty">No activity yet.</p>';
+  return `
+    <ol class="library-log-list">
+      ${libraryLogEntries.map((entry) => `
+        <li class="library-log-entry ${entry.isError ? 'is-error' : ''}">
+          <time class="library-log-time" datetime="${escapeAttr(entry.createdAt)}">${escapeHtml(formatActivityTimestamp(entry.createdAt))}</time>
+          <span class="library-log-message">${escapeHtml(entry.message)}</span>
+        </li>
+      `).join('')}
+    </ol>
+  `;
+}
+
+function renderLibraryActivityLog() {
+  const container = document.querySelector('#libraryActivityLog');
+  if (!container) return;
+  container.innerHTML = libraryActivityLogMarkup();
 }
 
 function librarySaveMessage(saved, filename, library) {
@@ -916,6 +955,18 @@ function formatDateTime(value) {
   if (Number.isNaN(date.getTime())) return 'Unknown';
   return new Intl.DateTimeFormat(undefined, {
     year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+}
+
+function formatActivityTimestamp(value) {
+  if (!value) return 'Unknown';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Unknown';
+  return new Intl.DateTimeFormat(undefined, {
     month: 'short',
     day: '2-digit',
     hour: '2-digit',
