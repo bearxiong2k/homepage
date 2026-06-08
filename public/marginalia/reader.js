@@ -89,8 +89,6 @@ const state = {
   tooltip: null,
   tooltipTarget: null,
   saveToastTimer: 0,
-  saveToastHideTimer: 0,
-  saveToastVisibilityRaf: 0,
   restoringScroll: false,
   annotationResolution: new Map(),
   appDialog: null,
@@ -131,7 +129,8 @@ const els = {
   appDialogTitle: document.querySelector('#appDialogTitle'),
   appDialogBody: document.querySelector('#appDialogBody'),
   appDialogActions: document.querySelector('#appDialogActions'),
-  saveToast: document.querySelector('#saveToast')
+  saveToast: document.querySelector('#saveToast'),
+  saveToastBody: document.querySelector('#saveToastBody')
 };
 
 els.importBundleBtn = document.querySelector('#importBundleBtn');
@@ -144,7 +143,7 @@ const HIGHLIGHT_ROOT_SELECTOR = `${ATOMIC_HIGHLIGHT_SELECTOR}, ${ANCHOR_SELECTOR
 const HEADING_SELECTOR = 'h1, h2, h3, h4, h5, h6';
 const INK_SPACE = { width: 1000, height: 562.5 };
 const INK_BACKING_SCALE = { min: 2, max: 3, multiplier: 1.5 };
-const INK_PREVIEW_BACKING_RATIO = 1;
+const INK_PREVIEW_BACKING_RATIO = Math.min(3, Math.max(2, Number(globalThis.devicePixelRatio) || 1));
 const INK_INACTIVE_BACKING_RATIO = 1;
 const INK_SAVE_IDLE_DELAY_MS = 260;
 const PRESSURE_WIDTH = { min: 0.58, max: 1.45, curve: 0.68 };
@@ -158,7 +157,6 @@ const QUICK_MARK_ASSET_URLS = QUICK_MARK_COLORS.map((_, index) => new URL(`asset
 const MAX_QUICK_MARKS = 8;
 const PDF_READY_TIMEOUT_MS = 120000;
 const SAVE_SUCCESS_VISIBLE_MS = 3600;
-const SAVE_SUCCESS_HIDE_TRANSITION_MS = 180;
 const INK_CANVAS_HEIGHT = { min: 96, default: 420, max: 1800, padding: 18 };
 const NOTES_PANEL_WIDTH = { min: 260, default: 360 };
 const NOTE_JUMP_VIEWPORT_OFFSET_RATIO = 0.2;
@@ -225,7 +223,6 @@ function bindChromeEvents() {
   installFileDropImport();
   installTooltipController(document);
   installNoteDrawerResizeObserver();
-  window.addEventListener('resize', onWindowResize);
   syncNotesPanelControls();
   syncHistoryControls();
   syncReadingModeControls();
@@ -1762,10 +1759,6 @@ function syncFrameNotesPanelOverlayState(doc) {
   if (!doc?.body) return;
   doc.body.classList.toggle('reader-notes-overlay-open', isNotesPanelExpanded());
   renderLayoutResizers(doc);
-}
-
-function onWindowResize() {
-  if (!els.saveToast?.hidden) positionSaveToast();
 }
 
 function handleEscapeKey(event) {
@@ -4208,61 +4201,19 @@ function normalizeSaveSuccessMessage(message) {
 function setSaveSuccess(message) {
   const successMessage = normalizeSaveSuccessMessage(message);
   setStatus(successMessage);
-  if (!els.saveToast) return;
+  if (!els.saveToast || !els.saveToastBody) return;
   window.clearTimeout(state.saveToastTimer);
-  window.clearTimeout(state.saveToastHideTimer);
-  if (state.saveToastVisibilityRaf) cancelAnimationFrame(state.saveToastVisibilityRaf);
-  els.saveToast.textContent = successMessage;
-  positionSaveToast();
+  els.saveToastBody.textContent = successMessage;
   els.saveToast.hidden = false;
-  els.saveToast.classList.remove('is-visible');
-  void els.saveToast.offsetWidth;
-  state.saveToastVisibilityRaf = requestAnimationFrame(() => {
-    state.saveToastVisibilityRaf = 0;
-    els.saveToast.classList.add('is-visible');
-  });
   state.saveToastTimer = window.setTimeout(() => hideSaveToast(), SAVE_SUCCESS_VISIBLE_MS);
 }
 
 function hideSaveToast() {
-  if (!els.saveToast) return;
-  if (state.saveToastVisibilityRaf) {
-    cancelAnimationFrame(state.saveToastVisibilityRaf);
-    state.saveToastVisibilityRaf = 0;
-  }
+  if (!els.saveToast || !els.saveToastBody) return;
   window.clearTimeout(state.saveToastTimer);
   state.saveToastTimer = 0;
-  els.saveToast.classList.remove('is-visible');
-  window.clearTimeout(state.saveToastHideTimer);
-  state.saveToastHideTimer = window.setTimeout(() => {
-    els.saveToast.hidden = true;
-    els.saveToast.textContent = '';
-    state.saveToastHideTimer = 0;
-  }, SAVE_SUCCESS_HIDE_TRANSITION_MS);
-}
-
-function positionSaveToast() {
-  if (!els.saveToast || !els.exportBundleBtn) return;
-  const buttonRect = els.exportBundleBtn.getBoundingClientRect();
-  const viewportWidth = Math.max(240, window.innerWidth || 0);
-  const viewportHeight = Math.max(160, window.innerHeight || 0);
-  const preferredMaxWidth = Math.min(360, Math.max(180, viewportWidth - 24));
-  const left = clampNumber(
-    buttonRect.right + 12,
-    12,
-    viewportWidth - preferredMaxWidth - 12,
-    buttonRect.right + 12
-  );
-  const top = clampNumber(
-    buttonRect.top + buttonRect.height / 2,
-    18,
-    viewportHeight - 18,
-    72
-  );
-  const maxWidth = Math.max(160, viewportWidth - left - 12);
-  els.saveToast.style.left = `${Math.round(left)}px`;
-  els.saveToast.style.top = `${Math.round(top)}px`;
-  els.saveToast.style.maxWidth = `${Math.round(maxWidth)}px`;
+  els.saveToast.hidden = true;
+  els.saveToastBody.textContent = '';
 }
 
 function readerScrollStorageKey(docId = state.docId) {

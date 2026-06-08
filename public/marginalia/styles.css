@@ -930,33 +930,23 @@ textarea {
   font-size: 0.86rem;
 }
 
-.save-toast {
+.save-toast-shell {
   position: fixed;
-  left: 70px;
-  top: 72px;
-  z-index: 860;
-  max-width: min(360px, calc(100vw - 24px));
-  margin: 0;
-  border: 1px solid rgba(185, 139, 61, 0.72);
-  border-radius: 8px;
-  padding: 0.68rem 0.82rem;
-  background: rgba(255, 247, 214, 0.98);
-  color: #5d3700;
-  box-shadow: 0 12px 28px rgba(52, 38, 18, 0.22);
-  font-size: 0.9rem;
-  font-weight: 650;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-  opacity: 0;
-  transform: translateY(calc(-50% + 14px)) scale(0.98);
-  transform-origin: left center;
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  inset: 0;
+  z-index: 890;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  padding: 18px;
   pointer-events: none;
 }
 
-.save-toast.is-visible {
-  opacity: 1;
-  transform: translateY(-50%) scale(1);
+.save-toast-card {
+  width: min(620px, 100%);
+}
+
+.save-toast-card h2 {
+  margin: 0 0 6px;
 }
 
 .home {
@@ -983,6 +973,11 @@ textarea {
   display: grid;
   gap: 12px;
   margin-top: 24px;
+}
+
+.library-dashboard-shell {
+  display: grid;
+  gap: 22px;
 }
 
 .library-dashboard {
@@ -1144,27 +1139,42 @@ textarea {
   line-height: 1.3;
 }
 
-.library-activity-stream {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
+.library-activity-window {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--panel);
+  padding: 16px 18px;
 }
 
-.library-activity-stream h3 {
-  margin: 0 0 10px;
+.library-activity-window-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+.library-activity-window-head h2 {
+  margin: 0;
   color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 750;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
 .library-activity-log {
   min-width: 0;
+  min-height: 18rem;
+  max-height: min(58vh, 42rem);
+  overflow: auto;
+  padding-right: 6px;
 }
 
 .library-log-list {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1176,6 +1186,13 @@ textarea {
   gap: 10px;
   align-items: start;
   margin: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(218, 205, 185, 0.66);
+}
+
+.library-log-entry:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 .library-log-time {

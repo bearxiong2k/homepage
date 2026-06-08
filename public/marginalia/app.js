@@ -42,7 +42,7 @@ const appDialogTitle = document.querySelector('#appDialogTitle');
 const appDialogBody = document.querySelector('#appDialogBody');
 const appDialogActions = document.querySelector('#appDialogActions');
 const libraryLogEntries = [];
-const MAX_LIBRARY_LOG_ENTRIES = 12;
+const MAX_LIBRARY_LOG_ENTRIES = 200;
 let activeDialog = null;
 let pendingReplaceSourceDocId = null;
 
@@ -123,15 +123,17 @@ async function loadDocuments() {
   if (!documents.length && !library) {
     documentsEl.innerHTML = storageMode === 'indexeddb'
       ? `
-        <div class="library-dashboard">
-          <aside class="library-history" aria-label="Local profile">
-            <h2>Local profile</h2>
-            ${localProfileStatusMarkup(profile, handleStatus)}
-            ${libraryActivityLogSectionMarkup()}
-          </aside>
-          <section class="library-main">
-            <p class="small">No browser-local sources yet. Save library can initialize an empty local library folder, or import a source, bundle, or library package to begin.</p>
-          </section>
+        <div class="library-dashboard-shell">
+          <div class="library-dashboard">
+            <aside class="library-history" aria-label="Local profile">
+              <h2>Local profile</h2>
+              ${localProfileStatusMarkup(profile, handleStatus)}
+            </aside>
+            <section class="library-main">
+              <p class="small">No browser-local sources yet. Save library can initialize an empty local library folder, or import a source, bundle, or library package to begin.</p>
+            </section>
+          </div>
+          ${libraryActivityLogSectionMarkup()}
         </div>
       `
       : '<p class="small">No documents in the local library yet.</p>';
@@ -165,40 +167,40 @@ async function loadDocuments() {
   const libraryTitle = library?.title || 'Annotator library';
   const libraryStats = summarizeLibraryStats(rows, library);
   documentsEl.innerHTML = `
-    <div class="library-dashboard">
-      <aside class="library-history" aria-label="Library activity">
-        <h2>History</h2>
-        <dl>
-          <div>
-            <dt>Last edit</dt>
-            <dd>${escapeHtml(formatDateTime(libraryStats.lastEditAt))}</dd>
-          </div>
-          <div>
-            <dt>Snapshot</dt>
-            <dd>${escapeHtml(libraryStats.snapshot)}</dd>
-          </div>
-          ${library?.fileHandleName ? `
+    <div class="library-dashboard-shell">
+      <div class="library-dashboard">
+        <aside class="library-history" aria-label="Library profile">
+          <h2>History</h2>
+          <dl>
             <div>
-              <dt>Local folder</dt>
-              <dd>${escapeHtml(library.fileHandleName)}</dd>
+              <dt>Last edit</dt>
+              <dd>${escapeHtml(formatDateTime(libraryStats.lastEditAt))}</dd>
             </div>
-          ` : ''}
-          <div>
-            <dt>Profile</dt>
-            <dd>${escapeHtml(profile?.name || 'Local profile')}</dd>
-          </div>
-          ${localPackageAccessMarkup(handleStatus)}
-        </dl>
-        ${libraryActivityLogSectionMarkup()}
-      </aside>
-      <section class="library-main">
-        <label class="library-title-field">
-          <span class="library-field-label">Library</span>
-          <input type="text" value="${escapeAttr(libraryTitle)}" data-original-title="${escapeAttr(libraryTitle)}" data-library-title="current" ${library ? '' : 'disabled'}>
-          <span class="small">${sourceCount} source${sourceCount === 1 ? '' : 's'}</span>
-        </label>
-        ${!rows.length ? '<p class="small">This local library has no bundles yet. Import a source or bundle, then save again to update the same library folder.</p>' : ''}
-        ${rows.map(({ doc, entry, stats }) => {
+            <div>
+              <dt>Snapshot</dt>
+              <dd>${escapeHtml(libraryStats.snapshot)}</dd>
+            </div>
+            ${library?.fileHandleName ? `
+              <div>
+                <dt>Local folder</dt>
+                <dd>${escapeHtml(library.fileHandleName)}</dd>
+              </div>
+            ` : ''}
+            <div>
+              <dt>Profile</dt>
+              <dd>${escapeHtml(profile?.name || 'Local profile')}</dd>
+            </div>
+            ${localPackageAccessMarkup(handleStatus)}
+          </dl>
+        </aside>
+        <section class="library-main">
+          <label class="library-title-field">
+            <span class="library-field-label">Library</span>
+            <input type="text" value="${escapeAttr(libraryTitle)}" data-original-title="${escapeAttr(libraryTitle)}" data-library-title="current" ${library ? '' : 'disabled'}>
+            <span class="small">${sourceCount} source${sourceCount === 1 ? '' : 's'}</span>
+          </label>
+          ${!rows.length ? '<p class="small">This local library has no bundles yet. Import a source or bundle, then save again to update the same library folder.</p>' : ''}
+          ${rows.map(({ doc, entry, stats }) => {
       const entryTitle = entry?.title || doc.title || doc.id;
       const sourceTitle = doc.sourcePath || (doc.sourceType === 'pdf' ? 'source.pdf' : 'source.html');
       return `
@@ -226,8 +228,10 @@ async function loadDocuments() {
           </span>
         </article>
       `;
-        }).join('')}
-      </section>
+          }).join('')}
+        </section>
+      </div>
+      ${libraryActivityLogSectionMarkup()}
     </div>
   `;
 }
@@ -820,8 +824,11 @@ function appendLibraryLog(message, isError = false) {
 
 function libraryActivityLogSectionMarkup() {
   return `
-    <section class="library-activity-stream" aria-label="Latest activity">
-      <h3>Latest</h3>
+    <section class="library-activity-window" aria-label="Latest activity">
+      <div class="library-activity-window-head">
+        <h2>Latest</h2>
+        <p class="small">Newest on top.</p>
+      </div>
       <div id="libraryActivityLog" class="library-activity-log">${libraryActivityLogMarkup()}</div>
     </section>
   `;
