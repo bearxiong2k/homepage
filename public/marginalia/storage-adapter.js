@@ -171,19 +171,24 @@ export class IndexedDbStorageAdapter {
 
   async rememberDocumentOpen(docId) {
     if (!docId) return false;
+    const now = new Date().toISOString();
     const db = await openDb();
     await writeTransaction(db, ['appMeta'], (stores) => {
       stores.appMeta.put({
         key: APP_META_LAST_OPEN_DOCUMENT,
         docId,
-        updatedAt: new Date().toISOString()
+        updatedAt: now
       });
     });
     const library = await this.getCurrentLibraryContext();
     if (library?.entries?.some((entry) => entry.docId === docId)) {
+      const activeEntryId = library.entries.find((entry) => entry.docId === docId)?.id || library.activeEntryId;
       await this.writeCurrentLibraryContext({
         ...library,
-        activeEntryId: library.entries.find((entry) => entry.docId === docId)?.id || library.activeEntryId
+        activeEntryId,
+        entries: library.entries.map((entry) => entry.docId === docId
+          ? { ...entry, lastOpenedAt: now }
+          : entry)
       });
     }
     return true;
@@ -222,7 +227,7 @@ export class IndexedDbStorageAdapter {
   async getCurrentLibraryContext() {
     const db = await openDb();
     const record = await readOne(db, 'appMeta', APP_META_CURRENT_LIBRARY);
-    return record?.library || null;
+    return normalizeCurrentLibraryContext(record?.library);
   }
 
   async getLocalProfile() {
@@ -352,6 +357,108 @@ export class IndexedDbStorageAdapter {
       ...context,
       entries
     };
+    await this.writeCurrentLibraryContext(nextContext);
+    return nextContext;
+  }
+
+  async createLibraryFolder(title, parentId = null) {
+    const context = await this.getCurrentLibraryContext();
+    if (!context) throw new Error('No current library is open.');
+    const normalizedTitle = String(title || '').trim();
+    if (!normalizedTitle) throw new Error('Folder name cannot be empty.');
+    const folders = context.folders || [];
+    const targetParentId = folders.some((folder) => folder.id === parentId) ? parentId : null;
+    const nextFolder = {
+      id: uniqueLibraryFolderId(normalizedTitle, folders),
+      title: normalizedTitle,
+      parentId: targetParentId,
+      order: folders.filter((folder) => (folder.parentId || null) === targetParentId).length
+    };
+    const nextContext = {
+      ...context,
+      folders: [...folders, nextFolder]
+    };
+    await this.writeCurrentLibraryContext(nextContext);
+    return nextContext;
+  }
+
+  async renameLibraryFolder(folderId, title) {
+    const context = await this.getCurrentLibraryContext();
+    if (!context) throw new Error('No current library is open.');
+    const normalizedTitle = String(title || '').trim();
+    if (!normalizedTitle) throw new Error('Folder name cannot be empty.');
+    let found = false;
+    const folders = (context.folders || []).map((folder) => {
+      if (folder.id !== folderId) return folder;
+      found = true;
+      return { ...folder, title: normalizedTitle };
+    });
+    if (!found) throw new Error('Folder not found.');
+    const nextContext = { ...context, folders };
+    await this.writeCurrentLibraryContext(nextContext);
+    return nextContext;
+  }
+
+  async moveLibraryFolder(folderId, parentId = null) {
+    const context = await this.getCurrentLibraryContext();
+    if (!context) throw new Error('No current library is open.');
+    const folders = context.folders || [];
+    const targetParentId = parentId && folders.some((folder) => folder.id === parentId) ? parentId : null;
+    const folder = folders.find((item) => item.id === folderId);
+    if (!folder) throw new Error('Folder not found.');
+    if (targetParentId === folderId || libraryFolderHasAncestor(folders, targetParentId, folderId)) {
+      throw new Error('A folder cannot be moved inside itself.');
+    }
+    const siblingOrder = folders.filter((item) => item.id !== folderId && (item.parentId || null) === targetParentId).length;
+    const nextContext = {
+      ...context,
+      folders: folders.map((item) => item.id === folderId
+        ? { ...item, parentId: targetParentId, order: siblingOrder }
+        : item)
+    };
+    await this.writeCurrentLibraryContext(nextContext);
+    return nextContext;
+  }
+
+  async deleteLibraryFolder(folderId) {
+    const context = await this.getCurrentLibraryContext();
+    if (!context) throw new Error('No current library is open.');
+    const folders = context.folders || [];
+    if (!folders.some((folder) => folder.id === folderId)) throw new Error('Folder not found.');
+    if (folders.some((folder) => folder.parentId === folderId)) {
+      throw new Error('Delete or move child folders before deleting this folder.');
+    }
+    if ((context.entries || []).some((entry) => entry.folderId === folderId)) {
+      throw new Error('Move bundles out of this folder before deleting it.');
+    }
+    const nextContext = {
+      ...context,
+      folders: folders.filter((folder) => folder.id !== folderId)
+    };
+    await this.writeCurrentLibraryContext(nextContext);
+    return nextContext;
+  }
+
+  async moveLibraryBundle(entryId, folderId = null) {
+    const context = await this.getCurrentLibraryContext();
+    if (!context) throw new Error('No current library is open.');
+    const folders = context.folders || [];
+    const targetFolderId = folderId && folders.some((folder) => folder.id === folderId) ? folderId : null;
+    let found = false;
+    const siblingOrder = (context.entries || [])
+      .filter((entry) => entry.id !== entryId && (entry.folderId || null) === targetFolderId)
+      .length;
+    const entries = (context.entries || []).map((entry) => {
+      if (entry.id !== entryId) return entry;
+      found = true;
+      return {
+        ...entry,
+        folderId: targetFolderId,
+        order: siblingOrder
+      };
+    });
+    if (!found) throw new Error('Bundle not found.');
+    const nextContext = { ...context, entries };
     await this.writeCurrentLibraryContext(nextContext);
     return nextContext;
   }
@@ -498,7 +605,9 @@ export class IndexedDbStorageAdapter {
         id: entry.id || document.id,
         docId: document.id,
         title: entry.title || document.title,
-        order: Number.isFinite(Number(entry.order)) ? Number(entry.order) : entries.length
+        folderId: entry.folderId || null,
+        order: Number.isFinite(Number(entry.order)) ? Number(entry.order) : entries.length,
+        lastOpenedAt: entry.lastOpenedAt || ''
       });
     }
     const activeEntryId = library.manifest.activeEntryId && entries.some((entry) => entry.id === library.manifest.activeEntryId)
@@ -510,6 +619,7 @@ export class IndexedDbStorageAdapter {
       createdAt: library.manifest.createdAt || new Date().toISOString(),
       packageUpdatedAt: library.manifest.updatedAt || library.manifest.createdAt || '',
       activeEntryId,
+      folders: library.manifest.folders || [],
       entries,
       updatedAt: new Date().toISOString()
     };
@@ -531,7 +641,9 @@ export class IndexedDbStorageAdapter {
       entries.push({
         id: entry.id || document.id,
         title: entry.title || document.title,
+        folderId: entry.folderId || null,
         order: Number.isFinite(Number(entry.order)) ? Number(entry.order) : entries.length,
+        lastOpenedAt: entry.lastOpenedAt || '',
         data: await this.exportDocumentBundle(document.id)
       });
     }
@@ -539,6 +651,7 @@ export class IndexedDbStorageAdapter {
       id: context.id,
       title: context.title,
       activeEntryId: context.activeEntryId,
+      folders: context.folders || [],
       entries
     });
   }
@@ -550,11 +663,13 @@ export class IndexedDbStorageAdapter {
       id: document.id,
       title: title || document.title || document.id,
       activeEntryId: document.id,
+      folders: [],
       entries: [{
         id: document.id,
         docId: document.id,
         title: document.title || document.id,
-        order: 0
+        order: 0,
+        lastOpenedAt: new Date().toISOString()
       }],
       updatedAt: new Date().toISOString()
     };
@@ -570,13 +685,15 @@ export class IndexedDbStorageAdapter {
       id: document.id,
       docId: document.id,
       title: document.title || document.id,
-      order: index
+      order: index,
+      lastOpenedAt: document.id === activeDocId ? new Date().toISOString() : ''
     }));
     const activeEntryId = entries.find((entry) => entry.docId === activeDocId)?.id || entries[0]?.id || null;
     const context = {
       id: activeEntryId || safeId(title || 'annotator-library'),
       title: title || (documents.length === 1 ? documents[0].title || documents[0].id : 'Annotator library'),
       activeEntryId,
+      folders: [],
       entries,
       updatedAt: new Date().toISOString()
     };
@@ -633,11 +750,12 @@ export class IndexedDbStorageAdapter {
 
   async writeCurrentLibraryContext(context) {
     const db = await openDb();
+    const library = normalizeCurrentLibraryContext(context);
     await writeTransaction(db, ['appMeta'], (stores) => {
       stores.appMeta.put({
         key: APP_META_CURRENT_LIBRARY,
         library: {
-          ...context,
+          ...library,
           updatedAt: new Date().toISOString()
         }
       });
@@ -651,6 +769,7 @@ export class IndexedDbStorageAdapter {
       id,
       docId: document.id,
       title: document.title || document.id,
+      folderId: null,
       order: entries.length
     });
     await this.writeCurrentLibraryContext({
@@ -745,6 +864,90 @@ export class IndexedDbStorageAdapter {
     if (library) await this.addDocumentToLibraryContext(library, document);
     return document;
   }
+}
+
+function normalizeCurrentLibraryContext(context) {
+  if (!context) return null;
+  const folders = normalizeLibraryFoldersForStorage(context.folders || []);
+  const folderIds = new Set(folders.map((folder) => folder.id));
+  const entries = (context.entries || []).map((entry, index) => {
+    const folderId = folderIds.has(entry.folderId) ? entry.folderId : null;
+    return {
+      ...entry,
+      id: String(entry.id || entry.docId || `entry-${index + 1}`),
+      docId: String(entry.docId || entry.id || ''),
+      title: entry.title || entry.docId || entry.id || `Bundle ${index + 1}`,
+      folderId,
+      order: Number.isFinite(Number(entry.order)) ? Number(entry.order) : index,
+      lastOpenedAt: entry.lastOpenedAt || ''
+    };
+  });
+  const entryIds = new Set(entries.map((entry) => entry.id));
+  return {
+    ...context,
+    folders,
+    entries,
+    activeEntryId: entryIds.has(context.activeEntryId) ? context.activeEntryId : entries[0]?.id || null
+  };
+}
+
+function normalizeLibraryFoldersForStorage(rawFolders = []) {
+  const prepared = [];
+  const aliases = new Map();
+  for (const [index, folder] of rawFolders.entries()) {
+    const rawId = String(folder?.id || folder?.title || `folder-${index + 1}`);
+    const id = uniqueLibraryFolderId(rawId, prepared);
+    aliases.set(rawId, id);
+    prepared.push({
+      id,
+      title: String(folder?.title || rawId || id).trim() || id,
+      parentId: folder?.parentId ? String(folder.parentId) : null,
+      order: Number.isFinite(Number(folder?.order)) ? Number(folder.order) : index
+    });
+  }
+  const foldersById = new Map(prepared.map((folder) => [folder.id, folder]));
+  return prepared.map((folder) => {
+    const parentId = aliases.get(folder.parentId) || folder.parentId;
+    return {
+      ...folder,
+      parentId: parentId && foldersById.has(parentId) && !libraryFolderHasAncestor(prepared, parentId, folder.id)
+        ? parentId
+        : null
+    };
+  });
+}
+
+function libraryFolderHasAncestor(folders, folderId, ancestorId) {
+  let current = folderId || null;
+  const byId = new Map((folders || []).map((folder) => [folder.id, folder]));
+  const seen = new Set();
+  while (current) {
+    if (current === ancestorId) return true;
+    if (seen.has(current)) return true;
+    seen.add(current);
+    current = byId.get(current)?.parentId || null;
+  }
+  return false;
+}
+
+function uniqueLibraryFolderId(value, folders = []) {
+  const used = new Set((folders || []).map((folder) => folder.id));
+  const base = safeLibraryId(value || 'folder', 'folder');
+  let id = base;
+  let suffix = 2;
+  while (used.has(id)) {
+    id = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  return id;
+}
+
+function safeLibraryId(value, fallback = 'item') {
+  return String(value || fallback)
+    .trim()
+    .replace(/[^\p{L}\p{N}._-]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+    || fallback;
 }
 
 function normalizeDocumentFromBundle(document, sourceHtml, sourceBytes = null) {

@@ -45,10 +45,13 @@ const appDialogBody = document.querySelector('#appDialogBody');
 const appDialogActions = document.querySelector('#appDialogActions');
 const libraryLogEntries = [];
 const MAX_LIBRARY_LOG_ENTRIES = 200;
+const LIBRARY_VIEW_MODE_KEY = 'marginalia-library-view-mode';
 let activeDialog = null;
 let pendingReplaceSourceDocId = null;
 let availableNetworkVersion = null;
 let appUpdateCheckState = 'idle';
+let libraryViewMode = loadLibraryViewMode();
+let selectedTreeEntryId = '';
 
 init().catch((error) => {
   documentsEl.innerHTML = `<p class="small">${escapeHtml(error.message)}</p>`;
@@ -75,11 +78,41 @@ async function init() {
     if (event.target?.matches?.('[data-library-bundle-title]')) {
       renameLibraryBundleFromInput(event.target).catch(showError);
     }
+    if (event.target?.matches?.('[data-library-folder-title]')) {
+      renameLibraryFolderFromInput(event.target).catch(showError);
+    }
+    if (event.target?.matches?.('[data-library-folder-parent]')) {
+      moveLibraryFolderFromSelect(event.target).catch(showError);
+    }
+    if (event.target?.matches?.('[data-library-entry-folder]')) {
+      moveLibraryBundleFromSelect(event.target).catch(showError);
+    }
     if (event.target?.matches?.('[data-source-title]')) {
       renameSourceFromInput(event.target).catch(showError);
     }
   });
+  documentsEl?.addEventListener('submit', (event) => {
+    const form = event.target?.closest?.('[data-create-library-folder]');
+    if (!form) return;
+    event.preventDefault();
+    createLibraryFolderFromForm(form).catch(showError);
+  });
   documentsEl?.addEventListener('click', (event) => {
+    const viewButton = event.target?.closest?.('[data-library-view-mode]');
+    if (viewButton) {
+      setLibraryViewMode(viewButton.dataset.libraryViewMode);
+      return;
+    }
+    const treeBundleButton = event.target?.closest?.('[data-select-tree-bundle]');
+    if (treeBundleButton) {
+      selectLibraryTreeBundle(treeBundleButton.dataset.selectTreeBundle);
+      return;
+    }
+    const deleteFolderButton = event.target?.closest?.('[data-delete-library-folder]');
+    if (deleteFolderButton) {
+      deleteLibraryFolderFromButton(deleteFolderButton).catch(showError);
+      return;
+    }
     const replaceButton = event.target?.closest?.('[data-replace-source]');
     if (replaceButton) {
       startSourceReplacementFromButton(replaceButton).catch(showError);
@@ -101,7 +134,7 @@ async function init() {
     }
   });
   documentsEl?.addEventListener('keydown', (event) => {
-    if (!event.target?.matches?.('[data-library-title], [data-library-bundle-title], [data-source-title]')) return;
+    if (!event.target?.matches?.('[data-library-title], [data-library-bundle-title], [data-library-folder-title], [data-source-title]')) return;
     if (event.key === 'Enter') {
       event.preventDefault();
       event.target.blur();
@@ -210,6 +243,15 @@ async function loadDocuments() {
     })));
   const sourceCount = rows.length;
   const libraryTitle = library?.title || 'Annotator library';
+  const folders = library?.folders || [];
+  const folderPathById = libraryFolderPathMap(folders);
+  const displayRows = rows.map((row) => ({
+    ...row,
+    folderPath: row.entry?.folderId ? folderPathById.get(row.entry.folderId) || '' : ''
+  }));
+  const listRows = displayRows.slice().sort(compareRowsByRecentOpen);
+  if (selectedTreeEntryId && !displayRows.some((row) => row.entry?.id === selectedTreeEntryId)) selectedTreeEntryId = '';
+  const activeViewMode = library ? libraryViewMode : 'list';
   const libraryStats = summarizeLibraryStats(rows, library);
   documentsEl.innerHTML = `
     <div class="library-dashboard-shell">
@@ -244,41 +286,276 @@ async function loadDocuments() {
             <input type="text" value="${escapeAttr(libraryTitle)}" data-original-title="${escapeAttr(libraryTitle)}" data-library-title="current" ${library ? '' : 'disabled'}>
             <span class="small">${sourceCount} source${sourceCount === 1 ? '' : 's'}</span>
           </label>
+          ${library ? libraryViewToolbarMarkup(activeViewMode, folders, sourceCount) : ''}
           ${!rows.length ? '<p class="small">This local library has no bundles yet. Import a source or bundle, then save again to update the same library folder.</p>' : ''}
-          ${rows.map(({ doc, entry, stats }) => {
-      const entryTitle = entry?.title || doc.title || doc.id;
-      const sourceTitle = doc.sourcePath || (doc.sourceType === 'pdf' ? 'source.pdf' : 'source.html');
-      return `
-        <article class="home-doc">
-          <span class="home-doc-main">
-            ${entry ? `
-              <label class="library-level-field">
-                <span class="sr-only">Bundle name</span>
-                <span class="library-field-label">Bundle</span>
-                <input type="text" value="${escapeAttr(entryTitle)}" data-original-title="${escapeAttr(entryTitle)}" data-library-bundle-title="${escapeAttr(entry.id)}">
-              </label>
-            ` : ''}
-            <label class="library-level-field">
-              <span class="sr-only">Source name</span>
-              <span class="library-field-label">Source</span>
-              <input type="text" value="${escapeAttr(sourceTitle)}" data-original-title="${escapeAttr(sourceTitle)}" data-source-title="${escapeAttr(doc.id)}">
-            </label>
-            <span class="library-entry-stats">${escapeHtml(stats.summary)} · Last edit ${escapeHtml(formatDateTime(stats.lastEditAt))}</span>
-          </span>
-          <span class="home-doc-actions">
-            <button class="library-entry-replace" type="button" data-replace-source="${escapeAttr(doc.id)}">Replace</button>
-            ${entry ? `<button class="library-entry-delete" type="button" data-delete-library-bundle="${escapeAttr(entry.id)}">Delete</button>` : ''}
-            ${!entry ? `<button class="library-entry-delete" type="button" data-delete-document="${escapeAttr(doc.id)}">Delete</button>` : ''}
-            <a class="home-doc-open" href="${escapeAttr(urlWithStorage('reader.html', { doc: doc.id }, storageMode))}">Open -&gt;</a>
-          </span>
-        </article>
-      `;
-          }).join('')}
+          ${activeViewMode === 'tree'
+            ? libraryTreeMarkup(displayRows, folders)
+            : libraryListMarkup(listRows, folders, Boolean(library))}
         </section>
       </div>
       ${libraryActivityLogSectionMarkup()}
     </div>
   `;
+}
+
+function libraryViewToolbarMarkup(activeViewMode, folders, sourceCount) {
+  return `
+    <div class="library-view-toolbar" aria-label="Library view controls">
+      <div class="library-view-toggle" role="group" aria-label="Library display mode">
+        <button type="button" data-library-view-mode="list" class="${activeViewMode === 'list' ? 'is-active' : ''}" aria-pressed="${activeViewMode === 'list'}">List</button>
+        <button type="button" data-library-view-mode="tree" class="${activeViewMode === 'tree' ? 'is-active' : ''}" aria-pressed="${activeViewMode === 'tree'}">Tree</button>
+      </div>
+      <form class="library-folder-create" data-create-library-folder="current">
+        <input type="text" name="folderTitle" placeholder="New folder" aria-label="New folder name" autocomplete="off">
+        <select name="parentFolder" aria-label="Parent folder">
+          ${folderOptionsMarkup(folders, '')}
+        </select>
+        <button type="submit">Create folder</button>
+      </form>
+      <span class="small">${folders.length} folder${folders.length === 1 ? '' : 's'}, ${sourceCount} bundle${sourceCount === 1 ? '' : 's'}</span>
+    </div>
+  `;
+}
+
+function libraryListMarkup(rows, folders, canManageLibrary) {
+  if (!rows.length) return '';
+  return rows.map((row) => libraryListRowMarkup(row, folders, canManageLibrary)).join('');
+}
+
+function libraryListRowMarkup({ doc, entry, stats, folderPath }, folders, canManageLibrary) {
+  const entryTitle = entry?.title || doc.title || doc.id;
+  const sourceTitle = doc.sourcePath || (doc.sourceType === 'pdf' ? 'source.pdf' : 'source.html');
+  return `
+    <article class="home-doc">
+      <span class="home-doc-main">
+        ${entry ? `
+          <label class="library-level-field">
+            <span class="sr-only">Bundle name</span>
+            <span class="library-field-label">Bundle</span>
+            <input type="text" value="${escapeAttr(entryTitle)}" data-original-title="${escapeAttr(entryTitle)}" data-library-bundle-title="${escapeAttr(entry.id)}">
+          </label>
+        ` : ''}
+        <label class="library-level-field">
+          <span class="sr-only">Source name</span>
+          <span class="library-field-label">Source</span>
+          <input type="text" value="${escapeAttr(sourceTitle)}" data-original-title="${escapeAttr(sourceTitle)}" data-source-title="${escapeAttr(doc.id)}">
+        </label>
+        <span class="library-entry-stats">${escapeHtml(stats.summary)} · Last edit ${escapeHtml(formatDateTime(stats.lastEditAt))} · Opened ${escapeHtml(formatDateTime(entry?.lastOpenedAt))}</span>
+        ${entry && canManageLibrary ? `
+          <span class="library-folder-path">Folder ${escapeHtml(folderPath || 'Library root')}</span>
+          <label class="library-folder-select">
+            <span class="library-field-label">Move to</span>
+            <select data-library-entry-folder="${escapeAttr(entry.id)}" data-original-folder="${escapeAttr(entry.folderId || '')}">
+              ${folderOptionsMarkup(folders, entry.folderId || '')}
+            </select>
+          </label>
+        ` : ''}
+      </span>
+      <span class="home-doc-actions">
+        <button class="library-entry-replace" type="button" data-replace-source="${escapeAttr(doc.id)}" data-source-label="${escapeAttr(sourceTitle)}">Replace</button>
+        ${entry ? `<button class="library-entry-delete" type="button" data-delete-library-bundle="${escapeAttr(entry.id)}" data-entry-label="${escapeAttr(entryTitle)}">Delete</button>` : ''}
+        ${!entry ? `<button class="library-entry-delete" type="button" data-delete-document="${escapeAttr(doc.id)}" data-source-label="${escapeAttr(sourceTitle)}">Delete</button>` : ''}
+        <a class="home-doc-open" href="${escapeAttr(urlWithStorage('reader.html', { doc: doc.id }, storageMode))}">Open -&gt;</a>
+      </span>
+    </article>
+  `;
+}
+
+function libraryTreeMarkup(rows, folders) {
+  const childrenByParent = libraryFoldersByParent(folders);
+  const entriesByFolder = libraryRowsByFolder(rows);
+  const body = libraryTreeChildrenMarkup('', 0, childrenByParent, entriesByFolder, folders);
+  return `
+    <div class="library-tree" role="tree">
+      ${body || '<p class="small">No folders or bundles yet.</p>'}
+    </div>
+  `;
+}
+
+function libraryTreeChildrenMarkup(parentId, depth, childrenByParent, entriesByFolder, folders) {
+  const folderMarkup = (childrenByParent.get(parentId) || [])
+    .map((folder) => libraryTreeFolderMarkup(folder, depth, childrenByParent, entriesByFolder, folders))
+    .join('');
+  const entryMarkup = (entriesByFolder.get(parentId) || [])
+    .map((row) => libraryTreeBundleMarkup(row, depth, folders))
+    .join('');
+  return `${folderMarkup}${entryMarkup}`;
+}
+
+function libraryTreeFolderMarkup(folder, depth, childrenByParent, entriesByFolder, folders) {
+  const excluded = libraryFolderDescendantIds(folders, folder.id);
+  excluded.add(folder.id);
+  const childMarkup = libraryTreeChildrenMarkup(folder.id, depth + 1, childrenByParent, entriesByFolder, folders);
+  return `
+    <details class="library-tree-folder" style="--library-tree-depth: ${depth}" open>
+      <summary>
+        <span class="library-tree-folder-name">${escapeHtml(folder.title || folder.id)}</span>
+      </summary>
+      <div class="library-tree-folder-controls">
+        <label class="library-folder-edit">
+          <span class="library-field-label">Folder</span>
+          <input type="text" value="${escapeAttr(folder.title || folder.id)}" data-original-title="${escapeAttr(folder.title || folder.id)}" data-library-folder-title="${escapeAttr(folder.id)}">
+        </label>
+        <label class="library-folder-edit">
+          <span class="library-field-label">Parent</span>
+          <select data-library-folder-parent="${escapeAttr(folder.id)}" data-original-parent="${escapeAttr(folder.parentId || '')}">
+            ${folderOptionsMarkup(folders, folder.parentId || '', { excludeIds: excluded })}
+          </select>
+        </label>
+        <button class="library-entry-delete" type="button" data-delete-library-folder="${escapeAttr(folder.id)}" data-folder-label="${escapeAttr(folder.title || folder.id)}">Delete</button>
+      </div>
+      <div class="library-tree-children">
+        ${childMarkup || '<p class="small library-tree-empty">Empty folder.</p>'}
+      </div>
+    </details>
+  `;
+}
+
+function libraryTreeBundleMarkup({ doc, entry, stats, folderPath }, depth, folders) {
+  if (!entry) return '';
+  const entryTitle = entry.title || doc.title || doc.id;
+  const sourceTitle = doc.sourcePath || (doc.sourceType === 'pdf' ? 'source.pdf' : 'source.html');
+  const selected = selectedTreeEntryId === entry.id;
+  return `
+    <div class="library-tree-bundle-shell" style="--library-tree-depth: ${depth}">
+      <button class="library-tree-bundle ${selected ? 'is-selected' : ''}" type="button" data-select-tree-bundle="${escapeAttr(entry.id)}" role="treeitem" aria-selected="${selected}">
+        <span class="library-tree-bundle-title">${escapeHtml(entryTitle)}</span>
+        <span class="library-tree-bundle-meta">${escapeHtml(folderPath || 'Library root')} · ${escapeHtml(stats.summary)}</span>
+      </button>
+      ${selected ? `
+        <div class="library-tree-bundle-actions">
+          <label class="library-folder-select">
+            <span class="library-field-label">Move to</span>
+            <select data-library-entry-folder="${escapeAttr(entry.id)}" data-original-folder="${escapeAttr(entry.folderId || '')}">
+              ${folderOptionsMarkup(folders, entry.folderId || '')}
+            </select>
+          </label>
+          <button class="library-entry-replace" type="button" data-replace-source="${escapeAttr(doc.id)}" data-source-label="${escapeAttr(sourceTitle)}">Replace</button>
+          <button class="library-entry-delete" type="button" data-delete-library-bundle="${escapeAttr(entry.id)}" data-entry-label="${escapeAttr(entryTitle)}">Delete</button>
+          <a class="home-doc-open" href="${escapeAttr(urlWithStorage('reader.html', { doc: doc.id }, storageMode))}">Open -&gt;</a>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function folderOptionsMarkup(folders, selectedId = '', options = {}) {
+  const excluded = options.excludeIds || new Set();
+  const flattened = flattenLibraryFolders(folders).filter((item) => !excluded.has(item.folder.id));
+  return `
+    <option value="" ${selectedId ? '' : 'selected'}>Library root</option>
+    ${flattened.map(({ folder, depth, path }) => `
+      <option value="${escapeAttr(folder.id)}" ${folder.id === selectedId ? 'selected' : ''}>${escapeHtml(folderOptionLabel(path, depth))}</option>
+    `).join('')}
+  `;
+}
+
+function folderOptionLabel(path, depth) {
+  return `${'-- '.repeat(depth)}${path}`;
+}
+
+function flattenLibraryFolders(folders) {
+  const childrenByParent = libraryFoldersByParent(folders);
+  const rows = [];
+  const visit = (parentId, depth, parentPath) => {
+    for (const folder of childrenByParent.get(parentId) || []) {
+      const title = folder.title || folder.id;
+      const path = parentPath ? `${parentPath}/${title}` : title;
+      rows.push({ folder, depth, path });
+      visit(folder.id, depth + 1, path);
+    }
+  };
+  visit('', 0, '');
+  return rows;
+}
+
+function libraryFoldersByParent(folders) {
+  const childrenByParent = new Map();
+  for (const folder of folders || []) {
+    const key = folder.parentId || '';
+    if (!childrenByParent.has(key)) childrenByParent.set(key, []);
+    childrenByParent.get(key).push(folder);
+  }
+  for (const children of childrenByParent.values()) {
+    children.sort(compareLibraryFolders);
+  }
+  return childrenByParent;
+}
+
+function libraryRowsByFolder(rows) {
+  const rowsByFolder = new Map();
+  for (const row of rows || []) {
+    const key = row.entry?.folderId || '';
+    if (!rowsByFolder.has(key)) rowsByFolder.set(key, []);
+    rowsByFolder.get(key).push(row);
+  }
+  for (const folderRows of rowsByFolder.values()) {
+    folderRows.sort(compareRowsByTreeOrder);
+  }
+  return rowsByFolder;
+}
+
+function libraryFolderPathMap(folders) {
+  const paths = new Map();
+  for (const { folder, path } of flattenLibraryFolders(folders)) {
+    paths.set(folder.id, path);
+  }
+  return paths;
+}
+
+function libraryFolderDescendantIds(folders, folderId) {
+  const childrenByParent = libraryFoldersByParent(folders);
+  const ids = new Set();
+  const visit = (parentId) => {
+    for (const child of childrenByParent.get(parentId) || []) {
+      ids.add(child.id);
+      visit(child.id);
+    }
+  };
+  visit(folderId);
+  return ids;
+}
+
+function compareLibraryFolders(a, b) {
+  return Number(a.order || 0) - Number(b.order || 0)
+    || String(a.title || a.id || '').localeCompare(String(b.title || b.id || ''));
+}
+
+function compareRowsByTreeOrder(a, b) {
+  return Number(a.entry?.order || 0) - Number(b.entry?.order || 0)
+    || String(a.entry?.title || a.doc?.title || '').localeCompare(String(b.entry?.title || b.doc?.title || ''));
+}
+
+function compareRowsByRecentOpen(a, b) {
+  const opened = String(b.entry?.lastOpenedAt || '').localeCompare(String(a.entry?.lastOpenedAt || ''));
+  if (opened) return opened;
+  return compareRowsByTreeOrder(a, b);
+}
+
+function loadLibraryViewMode() {
+  try {
+    const mode = localStorage.getItem(LIBRARY_VIEW_MODE_KEY);
+    return mode === 'tree' ? 'tree' : 'list';
+  } catch {
+    return 'list';
+  }
+}
+
+function setLibraryViewMode(mode) {
+  if (mode !== 'list' && mode !== 'tree') return;
+  libraryViewMode = mode;
+  selectedTreeEntryId = '';
+  try {
+    localStorage.setItem(LIBRARY_VIEW_MODE_KEY, mode);
+  } catch {
+    // Ignore private-mode storage failures; the in-memory mode still updates.
+  }
+  loadDocuments().catch(showError);
+}
+
+function selectLibraryTreeBundle(entryId) {
+  selectedTreeEntryId = selectedTreeEntryId === entryId ? '' : entryId;
+  loadDocuments().catch(showError);
 }
 
 async function renameCurrentLibraryFromInput(input) {
@@ -328,6 +605,100 @@ async function renameLibraryBundleFromInput(input) {
   }
 }
 
+async function createLibraryFolderFromForm(form) {
+  const input = form.querySelector('input[name="folderTitle"]');
+  const select = form.querySelector('select[name="parentFolder"]');
+  const title = input?.value?.trim() || '';
+  if (!title) throw new Error('Folder name cannot be empty.');
+  const parentId = select?.value || null;
+  await storage.createLibraryFolder?.(title, parentId);
+  if (input) input.value = '';
+  await loadDocuments();
+  appendLibraryLog(`Created folder "${title}".`);
+}
+
+async function renameLibraryFolderFromInput(input) {
+  const folderId = input?.dataset?.libraryFolderTitle;
+  if (!folderId) return;
+  const previousTitle = input.dataset.originalTitle || '';
+  const nextTitle = input.value.trim();
+  if (!nextTitle) {
+    input.value = previousTitle;
+    throw new Error('Folder name cannot be empty.');
+  }
+  if (nextTitle === previousTitle) return;
+  input.disabled = true;
+  try {
+    await storage.renameLibraryFolder?.(folderId, nextTitle);
+    input.dataset.originalTitle = nextTitle;
+    input.value = nextTitle;
+    await loadDocuments();
+    appendLibraryLog(`Renamed folder to "${nextTitle}".`);
+  } catch (error) {
+    input.value = previousTitle;
+    throw error;
+  } finally {
+    input.disabled = false;
+  }
+}
+
+async function moveLibraryFolderFromSelect(select) {
+  const folderId = select?.dataset?.libraryFolderParent;
+  if (!folderId) return;
+  const previousParent = select.dataset.originalParent || '';
+  const parentId = select.value || null;
+  if ((parentId || '') === previousParent) return;
+  select.disabled = true;
+  try {
+    await storage.moveLibraryFolder?.(folderId, parentId);
+    await loadDocuments();
+    appendLibraryLog('Moved folder.');
+  } catch (error) {
+    select.value = previousParent;
+    throw error;
+  } finally {
+    select.disabled = false;
+  }
+}
+
+async function moveLibraryBundleFromSelect(select) {
+  const entryId = select?.dataset?.libraryEntryFolder;
+  if (!entryId) return;
+  const previousFolder = select.dataset.originalFolder || '';
+  const folderId = select.value || null;
+  if ((folderId || '') === previousFolder) return;
+  select.disabled = true;
+  try {
+    await storage.moveLibraryBundle?.(entryId, folderId);
+    await loadDocuments();
+    appendLibraryLog('Moved bundle.');
+  } catch (error) {
+    select.value = previousFolder;
+    throw error;
+  } finally {
+    select.disabled = false;
+  }
+}
+
+async function deleteLibraryFolderFromButton(button) {
+  const folderId = button?.dataset?.deleteLibraryFolder;
+  if (!folderId) return;
+  const label = button.dataset.folderLabel || 'this folder';
+  const confirmed = await showAppDialog({
+    title: 'Delete folder?',
+    body: `Delete "${label}" from the current local library. The folder must be empty; saved package folders on your computer are not touched until you save again.`,
+    actions: [
+      { value: true, label: 'Delete folder', className: 'danger' },
+      { value: false, label: 'Cancel' }
+    ],
+    cancelValue: false
+  });
+  if (!confirmed) return;
+  await storage.deleteLibraryFolder?.(folderId);
+  await loadDocuments();
+  appendLibraryLog(`Deleted folder "${label}". Save the library to update the local package folder.`);
+}
+
 async function renameSourceFromInput(input) {
   const docId = input?.dataset?.sourceTitle;
   if (!docId) return;
@@ -355,7 +726,9 @@ async function renameSourceFromInput(input) {
 async function deleteLibraryBundleFromButton(button) {
   const entryId = button?.dataset?.deleteLibraryBundle;
   if (!entryId) return;
-  const label = button.closest('.home-doc')?.querySelector('[data-library-bundle-title]')?.value || 'this bundle';
+  const label = button.dataset.entryLabel
+    || button.closest('.home-doc')?.querySelector('[data-library-bundle-title]')?.value
+    || 'this bundle';
   const confirmed = await showAppDialog({
     title: 'Delete bundle?',
     body: `Delete "${label}" from the current local library. This removes its source and notes from browser-local storage; saved package folders on your computer are not touched until you save again.`,
@@ -374,7 +747,9 @@ async function deleteLibraryBundleFromButton(button) {
 async function startSourceReplacementFromButton(button) {
   const docId = button?.dataset?.replaceSource;
   if (!docId) return;
-  const label = button.closest('.home-doc')?.querySelector('[data-source-title]')?.value || 'this source';
+  const label = button.dataset.sourceLabel
+    || button.closest('.home-doc')?.querySelector('[data-source-title]')?.value
+    || 'this source';
   const confirmed = await showAppDialog({
     title: 'Replace source?',
     body: `Choose an updated source file for "${label}". Existing notes and highlights stay in this library entry, so use a file that keeps the same stable anchors.`,
@@ -407,7 +782,9 @@ async function importSelectedReplacementSource() {
 async function deleteStandaloneDocumentFromButton(button) {
   const docId = button?.dataset?.deleteDocument;
   if (!docId) return;
-  const label = button.closest('.home-doc')?.querySelector('[data-source-title]')?.value || 'this source';
+  const label = button.dataset.sourceLabel
+    || button.closest('.home-doc')?.querySelector('[data-source-title]')?.value
+    || 'this source';
   const confirmed = await showAppDialog({
     title: 'Delete source?',
     body: `Delete "${label}" from browser-local storage. Saved package folders or zip files on your computer are not touched.`,

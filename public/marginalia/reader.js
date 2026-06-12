@@ -606,6 +606,7 @@ async function finishLibrarySourceChoice(docId) {
   state.libraryChooser = null;
   if (els.libraryChooserPanel) els.libraryChooserPanel.hidden = true;
   const selectedDocId = docId || chooser.defaultDocument?.id || chooser.library?.entries?.[0]?.docId || null;
+  if (selectedDocId) await storage.rememberDocumentOpen?.(selectedDocId);
   const document = selectedDocId ? await storage.getDocument(selectedDocId) : chooser.defaultDocument;
   chooser.resolve(document || chooser.defaultDocument || null);
 }

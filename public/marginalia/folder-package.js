@@ -33,18 +33,21 @@ export async function bundleFolderFilesFromArchiveBytes(bytes) {
 
 export async function libraryFolderFilesFromArchiveBytes(bytes) {
   const library = await readAnnotatorLibraryArchive(bytes);
+  const folders = Array.isArray(library.manifest.folders) ? library.manifest.folders : [];
   const entries = [];
   const files = [];
   for (const [index, entry] of library.entries.entries()) {
     const id = safeName(entry.id || `bundle-${index + 1}`);
-    const folderName = safeBundleFolderName(entry.filename || entry.title || id);
-    const filename = `bundles/${folderName}`;
-    entries.push({
+    const filename = libraryFolderEntryPath(entry, id);
+    const manifestEntry = {
       id,
       title: entry.title || id,
       filename,
       order: Number.isFinite(Number(entry.order)) ? Number(entry.order) : index
-    });
+    };
+    if (entry.folderId) manifestEntry.folderId = entry.folderId;
+    if (entry.lastOpenedAt) manifestEntry.lastOpenedAt = String(entry.lastOpenedAt);
+    entries.push(manifestEntry);
     const bundleFiles = await bundleFolderFilesFromArchiveBytes(entry.data);
     for (const file of bundleFiles) {
       files.push({
@@ -56,6 +59,7 @@ export async function libraryFolderFilesFromArchiveBytes(bytes) {
   }
   const manifest = {
     ...library.manifest,
+    folders,
     entries,
     activeEntryId: library.manifest.activeEntryId || entries[0]?.id || null,
     updatedAt: new Date().toISOString()
@@ -82,12 +86,18 @@ export async function libraryArchiveBytesFromFolderFiles(files) {
     throw new Error('Unsupported annotator library folder format.');
   }
   const groups = groupBundleDirectories(packageFiles);
+  const folders = foldersWithBundleDirectories(
+    normalizeLibraryFolders(manifest.folders || []),
+    [...groups.keys()]
+  );
+  const folderIds = new Set(folders.map((folder) => folder.id));
+  const folderIdByPath = invertMap(libraryFolderPathMap(folders));
   const manifestEntries = Array.isArray(manifest.entries) ? manifest.entries : [];
   const orderedDirectories = [];
   const seenDirectories = new Set();
   for (const entry of manifestEntries) {
-    const directory = normalizePackagePath(entry.filename || '');
-    if (!directory.startsWith('bundles/') || !directory.endsWith(BUNDLE_FOLDER_SUFFIX)) {
+    const directory = normalizeLibraryBundleDirectory(entry.filename || '');
+    if (!directory) {
       throw new Error(`Library entry points to an unsupported bundle folder: ${entry.filename || ''}`);
     }
     if (!groups.has(directory)) throw new Error(`Library folder is missing ${directory}.`);
@@ -102,18 +112,25 @@ export async function libraryArchiveBytesFromFolderFiles(files) {
     const bundleBytes = await bundleArchiveBytesFromFolderFiles(groups.get(item.directory));
     const bundle = await readAnnotatorBundleArchive(bundleBytes);
     const id = safeName(item.entry?.id || bundle.document?.id || item.directory.split('/').pop()?.replace(new RegExp(`${escapeRegExp(BUNDLE_FOLDER_SUFFIX)}$`), '') || `bundle-${index + 1}`);
-    entries.push({
+    const folderId = folderIds.has(item.entry?.folderId)
+      ? item.entry.folderId
+      : folderIdByPath.get(folderPathFromBundleDirectory(item.directory)) || null;
+    const manifestEntry = {
       id,
       title: item.entry?.title || bundle.document?.title || id,
       order: Number.isFinite(Number(item.entry?.order)) ? Number(item.entry.order) : index,
       data: bundleBytes
-    });
+    };
+    if (folderId) manifestEntry.folderId = folderId;
+    if (item.entry?.lastOpenedAt) manifestEntry.lastOpenedAt = String(item.entry.lastOpenedAt);
+    entries.push(manifestEntry);
   }
   return createAnnotatorLibraryArchive({
     id: manifest.id || 'library',
     title: manifest.title || 'Annotator library',
     activeEntryId: entries.some((entry) => entry.id === manifest.activeEntryId) ? manifest.activeEntryId : entries[0]?.id,
     createdAt: manifest.createdAt,
+    folders,
     entries
   });
 }
@@ -142,10 +159,14 @@ function groupBundleDirectories(files) {
   const groups = new Map();
   for (const file of files) {
     if (file.path === 'library.json') continue;
-    const match = file.path.match(/^bundles\/([^/]+\.annotator-bundle)\/(.+)$/);
-    if (!match) throw new Error(`Library folder contains unsupported file: ${file.path}`);
-    const directory = `bundles/${match[1]}`;
-    const relativePath = match[2];
+    const parts = file.path.split('/');
+    if (parts[0] !== 'bundles') throw new Error(`Library folder contains unsupported file: ${file.path}`);
+    const bundleIndex = parts.findIndex((part, index) => index > 0 && part.endsWith(BUNDLE_FOLDER_SUFFIX));
+    if (bundleIndex < 1 || bundleIndex >= parts.length - 1) {
+      throw new Error(`Library folder contains unsupported file: ${file.path}`);
+    }
+    const directory = parts.slice(0, bundleIndex + 1).join('/');
+    const relativePath = parts.slice(bundleIndex + 1).join('/');
     if (!groups.has(directory)) groups.set(directory, []);
     groups.get(directory).push({
       ...file,
@@ -237,12 +258,134 @@ function safeBundleFolderName(value) {
   return `${safeName(basename)}${BUNDLE_FOLDER_SUFFIX}`;
 }
 
+function libraryFolderEntryPath(entry, fallbackId) {
+  const filename = normalizeLibraryBundleDirectory(entry?.filename || '');
+  if (filename) return filename;
+  return `bundles/${safeBundleFolderName(entry?.title || fallbackId || 'bundle')}`;
+}
+
+function normalizeLibraryBundleDirectory(value) {
+  const path = normalizePackagePath(String(value || '').replace(/\.annotator\.zip$/i, BUNDLE_FOLDER_SUFFIX));
+  if (!path.startsWith('bundles/') || !path.endsWith(BUNDLE_FOLDER_SUFFIX)) return '';
+  return path;
+}
+
+function normalizeLibraryFolders(rawFolders = []) {
+  const folders = [];
+  const usedIds = new Set();
+  const aliases = new Map();
+  for (const [index, folder] of rawFolders.entries()) {
+    const rawId = String(folder?.id || folder?.title || `folder-${index + 1}`);
+    const id = uniqueSafeName(rawId, usedIds, 'folder');
+    aliases.set(rawId, id);
+    folders.push({
+      id,
+      title: String(folder?.title || rawId || id).trim() || id,
+      parentId: folder?.parentId ? String(folder.parentId) : null,
+      order: Number.isFinite(Number(folder?.order)) ? Number(folder.order) : index
+    });
+  }
+  const ids = new Set(folders.map((folder) => folder.id));
+  return folders.map((folder) => {
+    const parentId = aliases.get(folder.parentId) || folder.parentId;
+    return {
+      ...folder,
+      parentId: parentId && ids.has(parentId) && parentId !== folder.id ? parentId : null
+    };
+  });
+}
+
+function foldersWithBundleDirectories(baseFolders, directories) {
+  const folders = [...baseFolders];
+  const usedIds = new Set(folders.map((folder) => folder.id));
+  const folderByPath = invertMap(libraryFolderPathMap(folders));
+  for (const directory of directories.sort()) {
+    const parts = folderPathFromBundleDirectory(directory).split('/').filter(Boolean);
+    let parentId = null;
+    let path = '';
+    for (const part of parts) {
+      path = path ? `${path}/${part}` : part;
+      if (!folderByPath.has(path)) {
+        const id = uniqueSafeName(`folder-${path}`, usedIds, 'folder');
+        folderByPath.set(path, id);
+        folders.push({
+          id,
+          title: part,
+          parentId,
+          order: folders.filter((folder) => (folder.parentId || '') === (parentId || '')).length
+        });
+      }
+      parentId = folderByPath.get(path);
+    }
+  }
+  return folders;
+}
+
+function libraryFolderPathMap(folders = []) {
+  const childrenByParent = new Map();
+  for (const folder of folders) {
+    const key = folder.parentId || '';
+    if (!childrenByParent.has(key)) childrenByParent.set(key, []);
+    childrenByParent.get(key).push(folder);
+  }
+  for (const children of childrenByParent.values()) {
+    children.sort((a, b) => Number(a.order || 0) - Number(b.order || 0)
+      || String(a.title || a.id || '').localeCompare(String(b.title || b.id || '')));
+  }
+  const paths = new Map();
+  const assignChildren = (parentId, parentPath) => {
+    const usedSegments = new Set();
+    for (const folder of childrenByParent.get(parentId || '') || []) {
+      const segment = uniquePathSegment(folder.title || folder.id, usedSegments);
+      const path = parentPath ? `${parentPath}/${segment}` : segment;
+      paths.set(folder.id, path);
+      assignChildren(folder.id, path);
+    }
+  };
+  assignChildren(null, '');
+  return paths;
+}
+
+function folderPathFromBundleDirectory(directory) {
+  const parts = normalizePackagePath(directory).split('/');
+  if (parts[0] !== 'bundles' || parts.length <= 2) return '';
+  return parts.slice(1, -1).join('/');
+}
+
 function safeName(value) {
   return String(value || 'package')
     .trim()
     .replace(/[^\p{L}\p{N}._-]+/gu, '-')
     .replace(/^-+|-+$/g, '')
     || 'package';
+}
+
+function uniqueSafeName(value, used, fallback) {
+  const base = safeName(value || fallback);
+  let candidate = base;
+  let suffix = 2;
+  while (used.has(candidate)) {
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  used.add(candidate);
+  return candidate;
+}
+
+function uniquePathSegment(value, used) {
+  const base = safeName(value || 'folder');
+  let candidate = base;
+  let suffix = 2;
+  while (used.has(candidate)) {
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  used.add(candidate);
+  return candidate;
+}
+
+function invertMap(map) {
+  return new Map([...map.entries()].map(([key, value]) => [value, key]));
 }
 
 function escapeRegExp(value) {
