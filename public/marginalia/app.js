@@ -46,12 +46,16 @@ const appDialogActions = document.querySelector('#appDialogActions');
 const libraryLogEntries = [];
 const MAX_LIBRARY_LOG_ENTRIES = 200;
 const LIBRARY_VIEW_MODE_KEY = 'marginalia-library-view-mode';
+const LIBRARY_COLLAPSED_FOLDERS_KEY = 'marginalia-library-collapsed-folders';
 const LIBRARY_DRAG_MIME = 'application/x-marginalia-library-item';
+const LIBRARY_SORT_ANIMATION_MS = 220;
 let activeDialog = null;
 let pendingReplaceSourceDocId = null;
 let availableNetworkVersion = null;
 let appUpdateCheckState = 'idle';
 let libraryViewMode = loadLibraryViewMode();
+let libraryCollapsedFolderIds = loadLibraryCollapsedFolderIds();
+let libraryRenderModel = null;
 let selectedTreeEntryId = '';
 
 init().catch((error) => {
@@ -98,10 +102,18 @@ async function init() {
       setLibraryViewMode(viewButton.dataset.libraryViewMode);
       return;
     }
+    const folderToggle = event.target?.closest?.('[data-toggle-library-folder]');
+    if (folderToggle) {
+      toggleLibraryFolder(folderToggle.dataset.toggleLibraryFolder);
+      return;
+    }
     const treeBundleButton = event.target?.closest?.('[data-select-tree-bundle]');
     if (treeBundleButton) {
       selectLibraryTreeBundle(treeBundleButton.dataset.selectTreeBundle);
       return;
+    }
+    if (selectedTreeEntryId && !event.target?.closest?.('.library-bundle-popover')) {
+      selectLibraryTreeBundle('');
     }
     const deleteFolderButton = event.target?.closest?.('[data-delete-library-folder]');
     if (deleteFolderButton) {
@@ -191,8 +203,16 @@ function syncAppUpdateUi() {
   }
 }
 
-async function loadDocuments() {
-  documentsEl.innerHTML = '<p class="small">Loading documents...</p>';
+async function loadDocuments(options = {}) {
+  if (options.showLoading !== false) {
+    documentsEl.innerHTML = '<p class="small">Loading documents...</p>';
+  }
+  const model = await buildLibraryRenderModel();
+  libraryRenderModel = model;
+  documentsEl.innerHTML = libraryDashboardMarkup(model);
+}
+
+async function buildLibraryRenderModel() {
   const [documents, library, profile] = await Promise.all([
     storage.listDocuments(),
     storage.getCurrentLibraryContext?.(),
@@ -201,23 +221,21 @@ async function loadDocuments() {
   const handleStatus = await currentLibraryHandleStatus(library);
   if (saveLibraryBtn) saveLibraryBtn.disabled = false;
   if (!documents.length && !library) {
-    documentsEl.innerHTML = storageMode === 'indexeddb'
-      ? `
-        <div class="library-dashboard-shell">
-          <div class="library-dashboard">
-            <aside class="library-history" aria-label="Local profile">
-              <h2>Local profile</h2>
-              ${localProfileStatusMarkup(profile, handleStatus)}
-            </aside>
-            <section class="library-main">
-              <p class="small">No browser-local sources yet. Save library can initialize an empty local library folder, or import a source, bundle, or library package to begin.</p>
-            </section>
-          </div>
-          ${libraryActivityLogSectionMarkup()}
-        </div>
-      `
-      : '<p class="small">No documents in the local library yet.</p>';
-    return;
+    return {
+      documents,
+      library,
+      profile,
+      handleStatus,
+      empty: true,
+      activeViewMode: 'list',
+      rows: [],
+      displayRows: [],
+      listRows: [],
+      folders: [],
+      sourceCount: 0,
+      libraryStats: summarizeLibraryStats([], library),
+      libraryTitle: 'Annotator library'
+    };
   }
   const orderedItems = library?.entries?.length
     ? library.entries
@@ -255,7 +273,56 @@ async function loadDocuments() {
   if (selectedTreeEntryId && !displayRows.some((row) => row.entry?.id === selectedTreeEntryId)) selectedTreeEntryId = '';
   const activeViewMode = library ? libraryViewMode : 'list';
   const libraryStats = summarizeLibraryStats(rows, library);
-  documentsEl.innerHTML = `
+  return {
+    documents,
+    library,
+    profile,
+    handleStatus,
+    empty: false,
+    orderedItems,
+    rows,
+    displayRows,
+    listRows,
+    folders,
+    sourceCount,
+    libraryTitle,
+    activeViewMode,
+    libraryStats
+  };
+}
+
+function libraryDashboardMarkup(model) {
+  const {
+    library,
+    profile,
+    handleStatus,
+    empty,
+    rows,
+    folders,
+    sourceCount,
+    libraryTitle,
+    activeViewMode,
+    libraryStats
+  } = model;
+  if (empty) {
+    return storageMode === 'indexeddb'
+      ? `
+        <div class="library-dashboard-shell">
+          <div class="library-dashboard">
+            <aside class="library-history" aria-label="Local profile">
+              <h2>Local profile</h2>
+              ${localProfileStatusMarkup(profile, handleStatus)}
+            </aside>
+            <section class="library-main">
+              <p class="small">No browser-local sources yet. Save library can initialize an empty local library folder, or import a source, bundle, or library package to begin.</p>
+            </section>
+          </div>
+          ${libraryActivityLogSectionMarkup()}
+        </div>
+      `
+      : '<p class="small">No documents in the local library yet.</p>';
+  }
+  return `
     <div class="library-dashboard-shell">
       <div class="library-dashboard">
         <aside class="library-history" aria-label="Library profile">
@@ -286,13 +353,12 @@ async function loadDocuments() {
           <label class="library-title-field">
             <span class="library-field-label">Library</span>
             <input type="text" value="${escapeAttr(libraryTitle)}" data-original-title="${escapeAttr(libraryTitle)}" data-library-title="current" ${library ? '' : 'disabled'}>
-            <span class="small">${sourceCount} source${sourceCount === 1 ? '' : 's'}</span>
+            <span class="small" data-library-source-count>${sourceCount} source${sourceCount === 1 ? '' : 's'}</span>
           </label>
           ${library ? libraryViewToolbarMarkup(activeViewMode, folders, sourceCount) : ''}
-          ${!rows.length ? '<p class="small">This local library has no bundles yet. Import a source or bundle, then save again to update the same library folder.</p>' : ''}
-          ${activeViewMode === 'tree'
-            ? libraryTreeMarkup(displayRows, folders)
-            : libraryListMarkup(listRows)}
+          <div class="library-view-region" data-library-view-region>
+            ${libraryViewMarkup(model)}
+          </div>
         </section>
       </div>
       ${libraryActivityLogSectionMarkup()}
@@ -300,9 +366,59 @@ async function loadDocuments() {
   `;
 }
 
+function libraryViewMarkup(model) {
+  const viewMode = model.activeViewMode || (model.library ? libraryViewMode : 'list');
+  return `
+    ${!model.rows.length ? '<p class="small">This local library has no bundles yet. Import a source or bundle, then save again to update the same library folder.</p>' : ''}
+    ${viewMode === 'tree'
+      ? libraryTreeMarkup(model.displayRows, model.folders)
+      : libraryListMarkup(model.listRows)}
+  `;
+}
+
+async function refreshLibraryViewFromStorage(options = {}) {
+  const model = await buildLibraryRenderModel();
+  libraryRenderModel = model;
+  if (!documentsEl.querySelector('[data-library-view-region]') || model.empty) {
+    documentsEl.innerHTML = libraryDashboardMarkup(model);
+    return model;
+  }
+  syncLibraryShellFromModel(model);
+  renderLibraryViewRegion(model, options);
+  return model;
+}
+
+function syncLibraryShellFromModel(model) {
+  const sourceCountEl = documentsEl.querySelector('[data-library-source-count]');
+  if (sourceCountEl) {
+    sourceCountEl.textContent = `${model.sourceCount} source${model.sourceCount === 1 ? '' : 's'}`;
+  }
+  const toolbar = documentsEl.querySelector('[data-library-view-toolbar]');
+  if (toolbar && model.library) {
+    toolbar.outerHTML = libraryViewToolbarMarkup(model.activeViewMode, model.folders, model.sourceCount);
+  }
+}
+
+function renderLibraryViewRegion(model, options = {}) {
+  const region = documentsEl.querySelector('[data-library-view-region]');
+  if (!region) return;
+  if (options.animateTree && model.activeViewMode === 'tree') {
+    renderLibraryViewRegionWithAnimation(region, model);
+    return;
+  }
+  region.innerHTML = libraryViewMarkup(model);
+}
+
+function renderLibraryViewRegionWithAnimation(region, model) {
+  const firstPositions = measureLibraryTreeItems(region);
+  region.innerHTML = libraryViewMarkup(model);
+  const lastPositions = measureLibraryTreeItems(region);
+  animateLibraryTreeItems(region, firstPositions, lastPositions);
+}
+
 function libraryViewToolbarMarkup(activeViewMode, folders, sourceCount) {
   return `
-    <div class="library-view-toolbar" aria-label="Library view controls">
+    <div class="library-view-toolbar" data-library-view-toolbar aria-label="Library view controls">
       <div class="library-view-toggle" role="group" aria-label="Library display mode">
         <button type="button" data-library-view-mode="list" class="${activeViewMode === 'list' ? 'is-active' : ''}" aria-pressed="${activeViewMode === 'list'}">List</button>
         <button type="button" data-library-view-mode="tree" class="${activeViewMode === 'tree' ? 'is-active' : ''}" aria-pressed="${activeViewMode === 'tree'}">Tree</button>
@@ -363,13 +479,18 @@ function libraryTreeMarkup(rows, folders) {
   const body = libraryTreeChildrenMarkup('', 0, childrenByParent, entriesByFolder, folders);
   return `
     <div class="library-tree library-finder" role="tree" aria-label="Library folder tree">
-      <div class="library-finder-row library-finder-root" role="treeitem" data-library-drop-folder="" style="--library-tree-depth: 0">
-        <span class="library-finder-indent" aria-hidden="true"></span>
-        <span class="library-finder-icon library-finder-icon-root" aria-hidden="true"></span>
-        <span class="library-finder-name">Library root</span>
-        <span class="library-finder-meta">${rows.length} bundle${rows.length === 1 ? '' : 's'}</span>
+      <div class="library-finder-root-shell" data-library-node-kind="root" data-library-node-id="" data-library-node-key="root">
+        <div class="library-finder-row library-finder-root" role="treeitem" data-library-drop-folder="" style="--library-tree-depth: 0">
+          <span class="library-finder-indent" aria-hidden="true"></span>
+          <span class="library-folder-disclosure-spacer" aria-hidden="true"></span>
+          <span class="library-finder-icon library-finder-icon-root" aria-hidden="true"></span>
+          <span class="library-finder-name">Library root</span>
+          <span class="library-finder-meta">${rows.length} bundle${rows.length === 1 ? '' : 's'}</span>
+        </div>
+        <div class="library-finder-children" data-library-children-for="">
+          ${body || '<p class="small library-tree-empty">No folders or bundles yet.</p>'}
+        </div>
       </div>
-      ${body || '<p class="small library-tree-empty">No folders or bundles yet.</p>'}
     </div>
   `;
 }
@@ -386,11 +507,14 @@ function libraryTreeChildrenMarkup(parentId, depth, childrenByParent, entriesByF
 
 function libraryTreeFolderMarkup(folder, depth, childrenByParent, entriesByFolder, folders) {
   const childMarkup = libraryTreeChildrenMarkup(folder.id, depth + 1, childrenByParent, entriesByFolder, folders);
+  const title = folder.title || folder.id;
+  const collapsed = libraryCollapsedFolderIds.has(folder.id);
   return `
-    <div class="library-finder-folder">
+    <div class="library-finder-folder ${collapsed ? 'is-collapsed' : ''}" data-library-node-kind="folder" data-library-node-id="${escapeAttr(folder.id)}" data-library-node-key="folder:${escapeAttr(folder.id)}">
       <div
         class="library-finder-row library-finder-folder-row"
         role="treeitem"
+        aria-expanded="${!collapsed}"
         draggable="true"
         data-library-drag-kind="folder"
         data-library-drag-id="${escapeAttr(folder.id)}"
@@ -398,11 +522,22 @@ function libraryTreeFolderMarkup(folder, depth, childrenByParent, entriesByFolde
         style="--library-tree-depth: ${depth + 1}"
       >
         <span class="library-finder-indent" aria-hidden="true"></span>
+        <button
+          class="library-folder-disclosure"
+          type="button"
+          data-toggle-library-folder="${escapeAttr(folder.id)}"
+          aria-label="${collapsed ? 'Expand' : 'Collapse'} ${escapeAttr(title)}"
+          aria-expanded="${!collapsed}"
+        >
+          <span aria-hidden="true"></span>
+        </button>
         <span class="library-finder-icon library-finder-icon-folder" aria-hidden="true"></span>
-        <input class="library-finder-name-input" type="text" value="${escapeAttr(folder.title || folder.id)}" data-original-title="${escapeAttr(folder.title || folder.id)}" data-library-folder-title="${escapeAttr(folder.id)}" aria-label="Folder name">
-        <button class="library-folder-delete" type="button" data-delete-library-folder="${escapeAttr(folder.id)}" data-folder-label="${escapeAttr(folder.title || folder.id)}" title="Delete folder">Delete</button>
+        <input class="library-finder-name-input" type="text" value="${escapeAttr(title)}" data-original-title="${escapeAttr(title)}" data-library-folder-title="${escapeAttr(folder.id)}" aria-label="Folder name">
+        <button class="library-folder-delete" type="button" data-delete-library-folder="${escapeAttr(folder.id)}" data-folder-label="${escapeAttr(title)}" title="Delete folder">Delete</button>
       </div>
-      ${childMarkup || ''}
+      <div class="library-finder-children" data-library-children-for="${escapeAttr(folder.id)}" ${collapsed ? 'hidden' : ''}>
+        ${childMarkup || ''}
+      </div>
     </div>
   `;
 }
@@ -413,7 +548,16 @@ function libraryTreeBundleMarkup({ doc, entry, stats, folderPath }, depth) {
   const sourceTitle = doc.sourcePath || (doc.sourceType === 'pdf' ? 'source.pdf' : 'source.html');
   const selected = selectedTreeEntryId === entry.id;
   return `
-    <div class="library-tree-bundle-shell" style="--library-tree-depth: ${depth + 1}">
+    <div
+      class="library-tree-bundle-shell ${selected ? 'is-selected' : ''}"
+      style="--library-tree-depth: ${depth + 1}"
+      data-library-node-kind="bundle"
+      data-library-node-id="${escapeAttr(entry.id)}"
+      data-library-node-key="bundle:${escapeAttr(entry.id)}"
+      data-library-doc-id="${escapeAttr(doc.id)}"
+      data-library-entry-title="${escapeAttr(entryTitle)}"
+      data-library-source-title="${escapeAttr(sourceTitle)}"
+    >
       <button
         class="library-finder-row library-finder-bundle ${selected ? 'is-selected' : ''}"
         type="button"
@@ -425,19 +569,29 @@ function libraryTreeBundleMarkup({ doc, entry, stats, folderPath }, depth) {
         aria-selected="${selected}"
       >
         <span class="library-finder-indent" aria-hidden="true"></span>
+        <span class="library-folder-disclosure-spacer" aria-hidden="true"></span>
         <span class="library-finder-icon library-finder-icon-bundle" aria-hidden="true"></span>
         <span class="library-tree-bundle-title">${escapeHtml(entryTitle)}</span>
         <span class="library-tree-bundle-meta">${escapeHtml(folderPath || 'Library root')} · ${escapeHtml(stats.summary)}</span>
       </button>
-      ${selected ? `
-        <div class="library-bundle-popover" role="dialog" aria-label="Bundle actions">
-          <strong>${escapeHtml(entryTitle)}</strong>
-          <span>${escapeHtml(sourceTitle)}</span>
-          <a class="home-doc-open" href="${escapeAttr(urlWithStorage('reader.html', { doc: doc.id }, storageMode))}">Open -&gt;</a>
-          <button class="library-entry-replace" type="button" data-replace-source="${escapeAttr(doc.id)}" data-source-label="${escapeAttr(sourceTitle)}">Replace</button>
-          <button class="library-entry-delete" type="button" data-delete-library-bundle="${escapeAttr(entry.id)}" data-entry-label="${escapeAttr(entryTitle)}">Delete</button>
-        </div>
-      ` : ''}
+      ${selected ? libraryBundlePopoverMarkup({ doc, entry, entryTitle, sourceTitle }) : ''}
+    </div>
+  `;
+}
+
+function libraryBundlePopoverMarkup({ doc, entry, entryTitle, sourceTitle }) {
+  return `
+    <div class="library-bundle-popover" role="dialog" aria-label="Bundle actions">
+      <label class="library-popover-field">
+        <span class="library-field-label">Bundle</span>
+        <input type="text" value="${escapeAttr(entryTitle)}" data-original-title="${escapeAttr(entryTitle)}" data-library-bundle-title="${escapeAttr(entry.id)}" aria-label="Bundle name">
+      </label>
+      <span>${escapeHtml(sourceTitle)}</span>
+      <div class="library-popover-actions">
+        <a class="home-doc-open" href="${escapeAttr(urlWithStorage('reader.html', { doc: doc.id }, storageMode))}">Open -&gt;</a>
+        <button class="library-entry-replace" type="button" data-replace-source="${escapeAttr(doc.id)}" data-source-label="${escapeAttr(sourceTitle)}">Replace</button>
+        <button class="library-entry-delete" type="button" data-delete-library-bundle="${escapeAttr(entry.id)}" data-entry-label="${escapeAttr(entryTitle)}">Delete</button>
+      </div>
     </div>
   `;
 }
@@ -539,12 +693,102 @@ function setLibraryViewMode(mode) {
   } catch {
     // Ignore private-mode storage failures; the in-memory mode still updates.
   }
-  loadDocuments().catch(showError);
+  if (libraryRenderModel?.library && documentsEl.querySelector('[data-library-view-region]')) {
+    libraryRenderModel = {
+      ...libraryRenderModel,
+      activeViewMode: mode
+    };
+    syncLibraryShellFromModel(libraryRenderModel);
+    renderLibraryViewRegion(libraryRenderModel);
+    return;
+  }
+  loadDocuments({ showLoading: false }).catch(showError);
 }
 
 function selectLibraryTreeBundle(entryId) {
-  selectedTreeEntryId = selectedTreeEntryId === entryId ? '' : entryId;
-  loadDocuments().catch(showError);
+  const nextEntryId = selectedTreeEntryId === entryId ? '' : entryId;
+  clearLibraryBundleSelection();
+  selectedTreeEntryId = nextEntryId;
+  if (!selectedTreeEntryId) return;
+  const shell = findLibraryNode('bundle', selectedTreeEntryId);
+  const button = shell?.querySelector('[data-select-tree-bundle]');
+  if (!shell || !button) {
+    selectedTreeEntryId = '';
+    return;
+  }
+  shell.classList.add('is-selected');
+  button.classList.add('is-selected');
+  button.setAttribute('aria-selected', 'true');
+  shell.insertAdjacentHTML('beforeend', libraryBundlePopoverMarkup(libraryBundleDataFromShell(shell)));
+}
+
+function clearLibraryBundleSelection() {
+  documentsEl?.querySelectorAll?.('.library-tree-bundle-shell.is-selected').forEach((shell) => {
+    shell.classList.remove('is-selected');
+    shell.querySelector('.library-bundle-popover')?.remove();
+  });
+  documentsEl?.querySelectorAll?.('[data-select-tree-bundle].is-selected').forEach((button) => {
+    button.classList.remove('is-selected');
+    button.setAttribute('aria-selected', 'false');
+  });
+}
+
+function libraryBundleDataFromShell(shell) {
+  const entryId = shell?.dataset?.libraryNodeId || '';
+  const docId = shell?.dataset?.libraryDocId || '';
+  const entryTitle = shell?.dataset?.libraryEntryTitle || 'Untitled bundle';
+  const sourceTitle = shell?.dataset?.librarySourceTitle || 'source.html';
+  return {
+    doc: { id: docId },
+    entry: { id: entryId },
+    entryTitle,
+    sourceTitle
+  };
+}
+
+function loadLibraryCollapsedFolderIds() {
+  try {
+    const raw = localStorage.getItem(LIBRARY_COLLAPSED_FOLDERS_KEY);
+    const ids = JSON.parse(raw || '[]');
+    return new Set(Array.isArray(ids) ? ids.filter(Boolean).map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveLibraryCollapsedFolderIds() {
+  try {
+    localStorage.setItem(LIBRARY_COLLAPSED_FOLDERS_KEY, JSON.stringify([...libraryCollapsedFolderIds]));
+  } catch {
+    // Ignore private-mode storage failures; the in-memory folded state still works.
+  }
+}
+
+function toggleLibraryFolder(folderId) {
+  if (!folderId) return;
+  setLibraryFolderCollapsed(folderId, !libraryCollapsedFolderIds.has(folderId));
+}
+
+function setLibraryFolderCollapsed(folderId, collapsed) {
+  if (!folderId) return;
+  if (collapsed) {
+    libraryCollapsedFolderIds.add(folderId);
+  } else {
+    libraryCollapsedFolderIds.delete(folderId);
+  }
+  saveLibraryCollapsedFolderIds();
+  const folder = findLibraryNode('folder', folderId);
+  const row = folder?.querySelector('.library-finder-folder-row');
+  const toggle = folder?.querySelector('[data-toggle-library-folder]');
+  const children = findLibraryChildrenContainer(folderId);
+  folder?.classList.toggle('is-collapsed', collapsed);
+  row?.setAttribute('aria-expanded', String(!collapsed));
+  toggle?.setAttribute('aria-expanded', String(!collapsed));
+  if (toggle) {
+    const title = row?.querySelector('[data-library-folder-title]')?.value || 'folder';
+    toggle.setAttribute('aria-label', `${collapsed ? 'Expand' : 'Collapse'} ${title}`);
+  }
+  if (children) children.hidden = collapsed;
 }
 
 function handleLibraryDragStart(event) {
@@ -556,6 +800,7 @@ function handleLibraryDragStart(event) {
   };
   if (!payload.id || (payload.kind !== 'folder' && payload.kind !== 'bundle')) return;
   selectedTreeEntryId = '';
+  clearLibraryBundleSelection();
   const serialized = JSON.stringify(payload);
   event.dataTransfer.effectAllowed = 'move';
   event.dataTransfer.setData(LIBRARY_DRAG_MIME, serialized);
@@ -586,14 +831,20 @@ async function handleLibraryDrop(event) {
   clearLibraryDragState();
   if (!payload?.id) return;
   const folderId = target.dataset.libraryDropFolder || null;
-  if (payload.kind === 'folder') {
-    await storage.moveLibraryFolder?.(payload.id, folderId);
-    appendLibraryLog('Moved folder.');
-  } else if (payload.kind === 'bundle') {
-    await storage.moveLibraryBundle?.(payload.id, folderId);
-    appendLibraryLog('Moved bundle.');
+  const previewed = previewLibraryDrop(payload, target, folderId);
+  try {
+    if (payload.kind === 'folder') {
+      await storage.moveLibraryFolder?.(payload.id, folderId);
+      appendLibraryLog('Moved folder.');
+    } else if (payload.kind === 'bundle') {
+      await storage.moveLibraryBundle?.(payload.id, folderId);
+      appendLibraryLog('Moved bundle.');
+    }
+  } catch (error) {
+    if (previewed) await refreshLibraryViewFromStorage();
+    throw error;
   }
-  await loadDocuments();
+  await refreshLibraryViewFromStorage({ animateTree: previewed });
 }
 
 function libraryDragPayload(event) {
@@ -617,6 +868,94 @@ function clearLibraryDropTargets() {
 function clearLibraryDragState() {
   clearLibraryDropTargets();
   documentsEl?.querySelectorAll?.('.is-dragging').forEach((item) => item.classList.remove('is-dragging'));
+  documentsEl?.querySelectorAll?.('.is-dropped-preview').forEach((item) => item.classList.remove('is-dropped-preview'));
+}
+
+function previewLibraryDrop(payload, target, folderId) {
+  if (!payload?.id || libraryViewMode !== 'tree') return false;
+  const node = findLibraryNode(payload.kind, payload.id);
+  const targetFolderId = folderId || '';
+  const targetChildren = findLibraryChildrenContainer(targetFolderId);
+  if (!node || !targetChildren) return false;
+  if (payload.kind === 'folder' && (targetFolderId === payload.id || node.contains(targetChildren))) return false;
+  if (targetFolderId) setLibraryFolderCollapsed(targetFolderId, false);
+  targetChildren.prepend(node);
+  const targetDepth = libraryTreeDepthFromElement(target);
+  updateLibraryNodeDepth(node, targetDepth + 1);
+  node.classList.add('is-dropped-preview');
+  return true;
+}
+
+function findLibraryNode(kind, id) {
+  for (const node of documentsEl?.querySelectorAll?.('[data-library-node-kind][data-library-node-id]') || []) {
+    if (node.dataset.libraryNodeKind === kind && node.dataset.libraryNodeId === String(id || '')) return node;
+  }
+  return null;
+}
+
+function findLibraryChildrenContainer(folderId) {
+  const targetId = String(folderId || '');
+  for (const container of documentsEl?.querySelectorAll?.('[data-library-children-for]') || []) {
+    if ((container.dataset.libraryChildrenFor || '') === targetId) return container;
+  }
+  return null;
+}
+
+function libraryTreeDepthFromElement(element) {
+  const raw = element?.style?.getPropertyValue('--library-tree-depth') || element?.closest?.('[style*="--library-tree-depth"]')?.style?.getPropertyValue('--library-tree-depth');
+  const depth = Number.parseInt(raw, 10);
+  return Number.isFinite(depth) ? depth : 0;
+}
+
+function updateLibraryNodeDepth(node, depth) {
+  if (!node) return;
+  node.style?.setProperty?.('--library-tree-depth', String(depth));
+  const row = node.matches?.('.library-finder-folder')
+    ? node.querySelector('.library-finder-folder-row')
+    : node.querySelector('.library-finder-row');
+  row?.style?.setProperty?.('--library-tree-depth', String(depth));
+  if (!node.matches?.('.library-finder-folder')) return;
+  const childNodes = node.querySelectorAll(':scope > .library-finder-children > [data-library-node-kind]');
+  childNodes.forEach((child) => updateLibraryNodeDepth(child, depth + 1));
+}
+
+function measureLibraryTreeItems(container) {
+  const positions = new Map();
+  container.querySelectorAll('[data-library-node-key]').forEach((node) => {
+    const rect = node.getBoundingClientRect();
+    positions.set(node.dataset.libraryNodeKey, { top: rect.top, left: rect.left });
+  });
+  return positions;
+}
+
+function animateLibraryTreeItems(container, firstPositions, lastPositions) {
+  const animated = [];
+  container.querySelectorAll('[data-library-node-key]').forEach((node) => {
+    const first = firstPositions.get(node.dataset.libraryNodeKey);
+    const last = lastPositions.get(node.dataset.libraryNodeKey);
+    if (!first || !last) return;
+    const dx = first.left - last.left;
+    const dy = first.top - last.top;
+    if (!dx && !dy) return;
+    node.style.transform = `translate(${dx}px, ${dy}px)`;
+    node.style.transition = 'transform 0s';
+    animated.push(node);
+  });
+  if (!animated.length) return;
+  requestAnimationFrame(() => {
+    animated.forEach((node) => {
+      node.classList.add('is-sorting');
+      node.style.transition = `transform ${LIBRARY_SORT_ANIMATION_MS}ms ease`;
+      node.style.transform = '';
+    });
+  });
+  window.setTimeout(() => {
+    animated.forEach((node) => {
+      node.classList.remove('is-sorting');
+      node.style.transition = '';
+      node.style.transform = '';
+    });
+  }, LIBRARY_SORT_ANIMATION_MS + 40);
 }
 
 async function renameCurrentLibraryFromInput(input) {
@@ -657,6 +996,8 @@ async function renameLibraryBundleFromInput(input) {
     await renameBundle?.call(storage, entryId, nextTitle);
     input.dataset.originalTitle = nextTitle;
     input.value = nextTitle;
+    syncLibraryBundleTitleInDom(entryId, nextTitle);
+    syncLibraryBundleTitleInModel(entryId, nextTitle);
     appendLibraryLog(`Renamed bundle to "${nextTitle}".`);
   } catch (error) {
     input.value = previousTitle;
@@ -664,6 +1005,47 @@ async function renameLibraryBundleFromInput(input) {
   } finally {
     input.disabled = false;
   }
+}
+
+function syncLibraryBundleTitleInDom(entryId, title) {
+  for (const input of documentsEl?.querySelectorAll?.('[data-library-bundle-title]') || []) {
+    if (input.dataset.libraryBundleTitle === entryId) {
+      input.dataset.originalTitle = title;
+      input.value = title;
+    }
+  }
+  const shell = findLibraryNode('bundle', entryId);
+  if (!shell) return;
+  shell.dataset.libraryEntryTitle = title;
+  const titleEl = shell.querySelector('.library-tree-bundle-title');
+  if (titleEl) titleEl.textContent = title;
+  const deleteButton = shell.querySelector('[data-delete-library-bundle]');
+  if (deleteButton) {
+    deleteButton.dataset.entryLabel = title;
+  }
+}
+
+function syncLibraryBundleTitleInModel(entryId, title) {
+  if (!libraryRenderModel?.library?.entries) return;
+  const updateRow = (row) => row.entry?.id === entryId
+    ? { ...row, entry: { ...row.entry, title } }
+    : row;
+  const library = {
+    ...libraryRenderModel.library,
+    entries: libraryRenderModel.library.entries.map((entry) => entry.id === entryId
+      ? { ...entry, title }
+      : entry)
+  };
+  const rows = libraryRenderModel.rows.map(updateRow);
+  const displayRows = libraryRenderModel.displayRows.map(updateRow);
+  const listRows = libraryRenderModel.listRows.map(updateRow).sort(compareRowsByRecentOpen);
+  libraryRenderModel = {
+    ...libraryRenderModel,
+    library,
+    rows,
+    displayRows,
+    listRows
+  };
 }
 
 async function createLibraryFolderFromForm(form) {
@@ -674,7 +1056,7 @@ async function createLibraryFolderFromForm(form) {
   const parentId = select?.value || null;
   await storage.createLibraryFolder?.(title, parentId);
   if (input) input.value = '';
-  await loadDocuments();
+  await refreshLibraryViewFromStorage();
   appendLibraryLog(`Created folder "${title}".`);
 }
 
@@ -693,7 +1075,7 @@ async function renameLibraryFolderFromInput(input) {
     await storage.renameLibraryFolder?.(folderId, nextTitle);
     input.dataset.originalTitle = nextTitle;
     input.value = nextTitle;
-    await loadDocuments();
+    await refreshLibraryViewFromStorage({ animateTree: libraryViewMode === 'tree' });
     appendLibraryLog(`Renamed folder to "${nextTitle}".`);
   } catch (error) {
     input.value = previousTitle;
@@ -718,7 +1100,7 @@ async function deleteLibraryFolderFromButton(button) {
   });
   if (!confirmed) return;
   await storage.deleteLibraryFolder?.(folderId);
-  await loadDocuments();
+  await refreshLibraryViewFromStorage({ animateTree: libraryViewMode === 'tree' });
   appendLibraryLog(`Deleted folder "${label}". Save the library to update the local package folder.`);
 }
 
@@ -763,7 +1145,7 @@ async function deleteLibraryBundleFromButton(button) {
   });
   if (!confirmed) return;
   await storage.deleteLibraryBundle?.(entryId);
-  await loadDocuments();
+  await refreshLibraryViewFromStorage({ animateTree: libraryViewMode === 'tree' });
   appendLibraryLog(`Deleted "${label}". Save the library to update the local package folder.`);
 }
 
@@ -837,7 +1219,7 @@ async function forgetCurrentLibraryHandle() {
   });
   if (!confirmed) return;
   await storage.clearCurrentLibraryFileHandle?.();
-  await loadDocuments();
+  await refreshLibraryViewFromStorage();
   appendLibraryLog('Forgot the remembered local package handle. Save will ask for a location next time.');
 }
 
