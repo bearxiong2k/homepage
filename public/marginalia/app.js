@@ -47,6 +47,7 @@ const libraryLogEntries = [];
 const MAX_LIBRARY_LOG_ENTRIES = 200;
 let activeDialog = null;
 let pendingReplaceSourceDocId = null;
+let availableNetworkVersion = null;
 
 init().catch((error) => {
   documentsEl.innerHTML = `<p class="small">${escapeHtml(error.message)}</p>`;
@@ -66,6 +67,7 @@ async function init() {
   updateAppBtn?.addEventListener('click', () => updateInstalledApp().catch(showError));
   clearLibraryBtn?.addEventListener('click', () => clearBrowserLibrary().catch(showError));
   installFileDropImport();
+  checkForAvailableAppUpdate().catch(() => {});
   documentsEl?.addEventListener('change', (event) => {
     if (event.target?.matches?.('[data-library-title]')) {
       renameCurrentLibraryFromInput(event.target).catch(showError);
@@ -404,7 +406,13 @@ async function updateInstalledApp() {
   updateAppBtn.disabled = true;
   appendLibraryLog(`Checking homepage for the latest Marginalia app. Current ${APP_VERSION_LABEL}.`);
   try {
-    const networkVersion = await fetchNetworkAppVersion();
+    const networkVersion = availableNetworkVersion || await fetchNetworkAppVersion();
+    if (networkVersion?.isCurrent) {
+      availableNetworkVersion = null;
+      syncAppUpdateUi(networkVersion);
+      appendLibraryLog(successMessage('Update', `Marginalia is already using ${networkVersion.label || APP_VERSION_LABEL}.`));
+      return;
+    }
     const result = await updateAppFromNetwork();
     if (result.updated) {
       appendLibraryLog(successMessage('Update', `Updated Marginalia${networkVersion?.label ? ` to ${networkVersion.label}` : ''}. Reloading the app...`));
@@ -416,6 +424,25 @@ async function updateInstalledApp() {
   } finally {
     updateAppBtn.disabled = false;
   }
+}
+
+async function checkForAvailableAppUpdate() {
+  const networkVersion = await fetchNetworkAppVersion();
+  syncAppUpdateUi(networkVersion);
+}
+
+function syncAppUpdateUi(networkVersion) {
+  availableNetworkVersion = networkVersion && !networkVersion.isCurrent ? networkVersion : null;
+  if (appVersionEl) {
+    appVersionEl.textContent = availableNetworkVersion
+      ? `${APP_VERSION_LABEL} - Update available: ${availableNetworkVersion.label}`
+      : APP_VERSION_LABEL;
+  }
+  if (!updateAppBtn) return;
+  updateAppBtn.textContent = availableNetworkVersion ? 'Update available' : 'Check for updates';
+  updateAppBtn.title = availableNetworkVersion
+    ? `Update to ${availableNetworkVersion.label}`
+    : 'Check for a newer Marginalia app version';
 }
 
 function localProfileStatusMarkup(profile, handleStatus) {

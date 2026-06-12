@@ -54,6 +54,8 @@ const state = {
   layoutWidths: null,
   notesPanelWidth: null,
   notesPanelResizeSession: null,
+  notesTabDragSession: null,
+  suppressNotesTabClick: false,
   readingMode: false,
   readingShowHighlights: true,
   pinnedAnnotationId: null,
@@ -163,6 +165,7 @@ const PDF_READY_TIMEOUT_MS = 120000;
 const SAVE_SUCCESS_VISIBLE_MS = 3600;
 const INK_CANVAS_HEIGHT = { min: 96, default: 420, max: 1800, padding: 18 };
 const NOTES_PANEL_WIDTH = { min: 260, default: 360 };
+const NOTES_TAB_TOP = { min: 8, default: 10 };
 const NOTE_JUMP_VIEWPORT_OFFSET_RATIO = 0.2;
 const MATH_DELIMITERS = [
   { open: '\\[', close: '\\]', displayMode: true },
@@ -213,7 +216,8 @@ function bindChromeEvents() {
   els.undoBtn.addEventListener('click', () => undoHistoryCommand().catch((error) => setStatus(error.message, true)));
   els.redoBtn.addEventListener('click', () => redoHistoryCommand().catch((error) => setStatus(error.message, true)));
   els.clipToolBtn.addEventListener('pointerdown', startQuickMarkToolDrag);
-  els.toggleNotesBtn.addEventListener('click', toggleNotesPanel);
+  els.toggleNotesBtn.addEventListener('pointerdown', onNotesTabPointerDown);
+  els.toggleNotesBtn.addEventListener('click', onNotesTabClick);
   els.notesPanelResizer?.addEventListener('pointerdown', onNotesPanelResizerPointerDown);
   els.expandAllNotesBtn?.addEventListener('click', toggleExpandAllNotes);
   els.importSourceBtn?.addEventListener('click', () => startSourceImport().catch((error) => setStatus(error.message, true)));
@@ -232,9 +236,11 @@ function bindChromeEvents() {
   installFileDropImport();
   installTooltipController(document);
   installNoteDrawerResizeObserver();
+  applyNotesTabTop(loadNotesTabTop());
   syncNotesPanelControls();
   syncHistoryControls();
   syncReadingModeControls();
+  window.addEventListener('resize', () => applyNotesTabTop(currentNotesTabTop()));
   window.addEventListener('message', (event) => {
     if (event.source !== els.frame?.contentWindow) return;
     if (event.data?.type === 'annotation-saved') {
@@ -1159,6 +1165,7 @@ function schedulePdfFrameRefresh(doc = getFrameDoc()) {
 }
 
 function onFrameMouseUp(event) {
+  if (isSideNoteEditableTarget(event?.target)) return;
   if (state.currentDocument?.sourceType === 'pdf') {
     scheduleFrameSelectionCapture(event);
     return;
@@ -1356,6 +1363,7 @@ function handleInkToolHotkey(event) {
 }
 
 function onFrameKeyUp(event) {
+  if (isSideNoteEditableTarget(event?.target)) return;
   if (state.readingMode) return;
   if (!['select', 'attach-highlight'].includes(state.mode)) return;
   if (!compatibilityFeatureEnabled('singleBlockTextHighlights')) return;
@@ -1369,6 +1377,20 @@ function onFrameKeyUp(event) {
   }
   state.currentTarget = target;
   showSelectionHighlightButton(target.clientRect);
+}
+
+function isSideNoteEditableTarget(target) {
+  return Boolean(target?.closest?.('.reader-side-note-title, .reader-side-note-body'));
+}
+
+function editableSelectionActive(element) {
+  if (!element) return false;
+  const selection = element.ownerDocument?.getSelection?.();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return false;
+  const range = selection.getRangeAt(0);
+  return element.contains(range.commonAncestorContainer)
+    || element.contains(range.startContainer)
+    || element.contains(range.endContainer);
 }
 
 function onFrameClick(event) {
@@ -1402,10 +1424,17 @@ function onFrameClick(event) {
   }
   const sideNote = event.target?.closest?.('.reader-side-note');
   if (sideNote) {
-    hideSelectionHighlightButton();
-    frameDoc.getSelection()?.removeAllRanges();
     const annotationId = sideNote.dataset.annotationId;
     const action = event.target?.closest?.('[data-side-note-action]')?.dataset.sideNoteAction;
+    const editableTarget = event.target?.closest?.('.reader-side-note-title, .reader-side-note-body');
+    if (annotationId === state.activeAnnotationId && editableTarget && !action) {
+      hideSelectionHighlightButton();
+      event.stopPropagation();
+      beginInlineTextEdit(annotationId, sideNote, editableTarget.classList.contains('reader-side-note-title') ? 'title' : 'body', event);
+      return;
+    }
+    hideSelectionHighlightButton();
+    frameDoc.getSelection()?.removeAllRanges();
     if (!['ink-color', 'ink-width', 'ink-pressure'].includes(action)) event.preventDefault();
     event.stopPropagation();
     if (action === 'pin') {
@@ -1443,11 +1472,6 @@ function onFrameClick(event) {
     const blankTarget = event.target?.closest?.('.reader-side-note-blank');
     if (blankTarget) {
       convertBlankBlockToText(annotationId, Number(blankTarget.dataset.blockIndex), event).catch((error) => setStatus(error.message, true));
-      return;
-    }
-    const editableTarget = event.target?.closest?.('.reader-side-note-title, .reader-side-note-body');
-    if (annotationId === state.activeAnnotationId && editableTarget) {
-      beginInlineTextEdit(annotationId, sideNote, editableTarget.classList.contains('reader-side-note-title') ? 'title' : 'body', event);
       return;
     }
     activateAnnotation(annotationId, false);
@@ -1717,6 +1741,59 @@ function syncNotesPanelControls() {
   els.toggleNotesBtn.title = collapsed ? 'Open notes panel' : 'Close notes panel';
   const arrow = els.toggleNotesBtn.querySelector('.notes-tab-arrow');
   if (arrow) arrow.textContent = collapsed ? '‹' : '›';
+}
+
+function onNotesTabClick(event) {
+  if (state.suppressNotesTabClick) {
+    state.suppressNotesTabClick = false;
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  toggleNotesPanel();
+}
+
+function onNotesTabPointerDown(event) {
+  if (event.button != null && event.button !== 0) return;
+  if (state.readingMode) return;
+  state.notesTabDragSession = {
+    pointerId: event.pointerId,
+    startY: event.clientY,
+    startTop: currentNotesTabTop(),
+    moved: false
+  };
+  try {
+    els.toggleNotesBtn.setPointerCapture?.(event.pointerId);
+  } catch {
+    // Pointer capture is best effort for synthetic events and older browsers.
+  }
+  document.addEventListener('pointermove', onNotesTabPointerMove);
+  document.addEventListener('pointerup', finishNotesTabDrag);
+  document.addEventListener('pointercancel', finishNotesTabDrag);
+}
+
+function onNotesTabPointerMove(event) {
+  const session = state.notesTabDragSession;
+  if (!session || event.pointerId !== session.pointerId) return;
+  const delta = event.clientY - session.startY;
+  if (!session.moved && Math.abs(delta) < 4) return;
+  session.moved = true;
+  event.preventDefault();
+  applyNotesTabTop(session.startTop + delta);
+}
+
+function finishNotesTabDrag(event) {
+  const session = state.notesTabDragSession;
+  if (!session || event?.pointerId !== session.pointerId) return;
+  state.notesTabDragSession = null;
+  document.removeEventListener('pointermove', onNotesTabPointerMove);
+  document.removeEventListener('pointerup', finishNotesTabDrag);
+  document.removeEventListener('pointercancel', finishNotesTabDrag);
+  if (!session.moved) return;
+  event.preventDefault();
+  event.stopPropagation();
+  state.suppressNotesTabClick = true;
+  saveNotesTabTop(currentNotesTabTop());
 }
 
 function onNotesPanelResizerPointerDown(event) {
@@ -2304,10 +2381,14 @@ function onQuickMarkDragEnd(event) {
       return;
     }
     if (!session.moved) jumpToQuickMark(session.markId);
-    if (session.source === 'inline' && session.moved) {
+    if (session.moved) {
       state.suppressQuickMarkClickId = session.markId;
       const target = quickMarkTargetFromPoint(dropX, dropY);
-      if (target) moveQuickMark(session.markId, target);
+      if (target) {
+        moveQuickMark(session.markId, target);
+      } else {
+        setStatus('Drop the clip on the source text to move the quick mark.', true);
+      }
     }
     return;
   }
@@ -2524,7 +2605,15 @@ function renderQuickMarkStack(doc = state.iframeLoaded ? getFrameDoc() : null) {
     button.dataset.quickMarkId = item.mark.id;
     button.title = label;
     button.setAttribute('aria-label', label);
-    button.addEventListener('click', () => jumpToQuickMark(item.mark.id));
+    button.addEventListener('click', (event) => {
+      if (state.suppressQuickMarkClickId === item.mark.id) {
+        state.suppressQuickMarkClickId = null;
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      jumpToQuickMark(item.mark.id);
+    });
     button.addEventListener('pointerdown', (event) => startQuickMarkRailDrag(event, item.mark.id));
     els.quickMarkStack.append(button);
   }
@@ -4194,6 +4283,37 @@ function normalizeNotesPanelWidth(value) {
   return clampNumber(value, NOTES_PANEL_WIDTH.min, max, Math.min(NOTES_PANEL_WIDTH.default, max));
 }
 
+function notesTabTopStorageKey() {
+  return 'reader-notes-tab-top';
+}
+
+function loadNotesTabTop() {
+  try {
+    return normalizeNotesTabTop(JSON.parse(localStorage.getItem(notesTabTopStorageKey()) || 'null'));
+  } catch {
+    return NOTES_TAB_TOP.default;
+  }
+}
+
+function saveNotesTabTop(value) {
+  localStorage.setItem(notesTabTopStorageKey(), JSON.stringify(normalizeNotesTabTop(value)));
+}
+
+function currentNotesTabTop() {
+  const rect = els.toggleNotesBtn?.getBoundingClientRect?.();
+  return normalizeNotesTabTop(Number.isFinite(rect?.top) ? rect.top : loadNotesTabTop());
+}
+
+function applyNotesTabTop(value) {
+  els.toggleNotesBtn?.style?.setProperty('top', `${Math.round(normalizeNotesTabTop(value))}px`);
+}
+
+function normalizeNotesTabTop(value) {
+  const tabHeight = els.toggleNotesBtn?.getBoundingClientRect?.().height || 92;
+  const max = Math.max(NOTES_TAB_TOP.min, window.innerHeight - tabHeight - 8);
+  return clampNumber(value, NOTES_TAB_TOP.min, max, Math.min(NOTES_TAB_TOP.default, max));
+}
+
 function normalizeSaveSuccessMessage(message) {
   const text = String(message || 'Saved.').trim();
   if (/^save success\b/i.test(text)) return text;
@@ -5012,7 +5132,7 @@ function beginInlineTextEdit(annotationId, note, focusField = 'body', pointerEve
   if (note.classList.contains('is-editing')) {
     const activeField = focusField === 'title' && title ? title : body || title;
     activeField.focus({ preventScroll: true });
-    placeCaretFromPoint(activeField, pointerEvent);
+    if (!editableSelectionActive(activeField)) placeCaretFromPoint(activeField, pointerEvent);
     return;
   }
   note.classList.add('is-editing');
@@ -5370,10 +5490,18 @@ function annotationTitle(annotation) {
 }
 
 function annotationSectionLabel(annotation) {
+  if (state.currentDocument?.sourceType === 'pdf') return pdfAnnotationLocationLabel(annotation);
   const doc = state.iframeLoaded ? getFrameDoc() : null;
   if (!doc) return 'Document';
   const sourceElement = annotationSourceElement(doc, annotation);
   return documentLocationLabel(sourceElement || doc.body);
+}
+
+function pdfAnnotationLocationLabel(annotation) {
+  const target = primaryAnnotationTarget(annotation);
+  const pageLabel = target?.pageLabel
+    || (Number.isFinite(Number(target?.pageIndex)) ? String(Number(target.pageIndex) + 1) : '');
+  return pageLabel ? `Page ${pageLabel}` : 'PDF';
 }
 
 function unresolvedAnnotationLabel(annotation) {
@@ -5542,7 +5670,7 @@ function activateAnnotation(annotationId, scrollIntoView) {
   if (scrollIntoView) {
     jumpToAnnotation(annotationId);
   }
-  renderNoteList();
+  renderNoteList({ anchorAnnotationId: annotationId });
   syncJumpToNoteButton(doc);
 }
 
