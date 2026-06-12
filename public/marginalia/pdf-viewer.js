@@ -18,6 +18,9 @@ const zoomOutBtn = document.querySelector('#zoomOutBtn');
 const zoomInBtn = document.querySelector('#zoomInBtn');
 const zoomInput = document.querySelector('#zoomInput');
 const fitWidthBtn = document.querySelector('#fitWidthBtn');
+const pageNumberInput = document.querySelector('#pageNumberInput');
+const pageTotalLabel = document.querySelector('#pageTotalLabel');
+const pageIndicator = document.querySelector('#pageIndicator');
 const horizontalPanLockBtn = document.querySelector('#horizontalPanLockBtn');
 const toolbar = document.querySelector('#pdfToolbar');
 const toolbarToggleBtn = document.querySelector('#toolbarToggleBtn');
@@ -40,6 +43,7 @@ let textSelectionDrag = null;
 let horizontalPanLocked = false;
 let lastHorizontalScroll = pdfViewport?.scrollLeft || 0;
 let lastNonReadingViewportWidth = 0;
+let currentPageNumber = 1;
 
 if (params.get('embedded') === 'reader') {
   document.documentElement.classList.add('reader-embedded');
@@ -56,6 +60,12 @@ zoomInput?.addEventListener('keydown', (event) => {
   event.preventDefault();
   zoomInput.blur();
 });
+pageNumberInput?.addEventListener('change', commitPageNumberInput);
+pageNumberInput?.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  pageNumberInput.blur();
+});
 document.addEventListener('wheel', handlePdfWheel, { passive: false });
 document.addEventListener('selectionchange', scheduleSelectionOverlayUpdate);
 document.addEventListener('pointerdown', beginTextSelectionDrag, true);
@@ -65,6 +75,7 @@ document.addEventListener('pointercancel', finishTextSelectionDrag, true);
 document.addEventListener('reader-reading-mode-change', scheduleZoomRefresh);
 document.addEventListener('reader-side-note-layout-change', scheduleZoomRefresh);
 window.addEventListener('resize', scheduleZoomRefresh);
+window.addEventListener('scroll', syncPageControls, { passive: true });
 pdfViewport?.addEventListener('scroll', handlePdfViewportScroll, { passive: true });
 
 syncHorizontalPanLock();
@@ -80,8 +91,10 @@ async function renderPdf() {
   const loadingTask = pdfjsLib.getDocument({ url: fileUrl, ...PDFJS_ASSETS });
   pdfDocument = await loadingTask.promise;
   document.documentElement.dataset.pdfPageCount = String(pdfDocument.numPages);
+  if (pageTotalLabel) pageTotalLabel.textContent = `/ ${pdfDocument.numPages}`;
   status(`Preparing ${pdfDocument.numPages} pages...`);
   syncZoomControls();
+  syncPageControls();
 
   observer = new IntersectionObserver(handlePageIntersections, {
     root: null,
@@ -802,6 +815,63 @@ function handlePdfViewportScroll() {
   if (Math.round(pdfViewport.scrollLeft) === Math.round(lastHorizontalScroll)) return;
   lastHorizontalScroll = pdfViewport.scrollLeft;
   scheduleSelectionOverlayUpdate();
+  syncPageControls();
+}
+
+function commitPageNumberInput() {
+  const pageNumber = Number.parseInt(String(pageNumberInput?.value || '').trim(), 10);
+  if (!Number.isFinite(pageNumber) || !pdfDocument) {
+    syncPageControls();
+    return;
+  }
+  scrollToPageNumber(clamp(pageNumber, 1, pdfDocument.numPages));
+}
+
+function scrollToPageNumber(pageNumber) {
+  const record = pageRecords.get(pageNumber);
+  if (!record) return;
+  const rect = record.pageEl.getBoundingClientRect();
+  window.scrollTo({
+    left: window.scrollX,
+    top: Math.max(0, window.scrollY + rect.top - 12),
+    behavior: 'auto'
+  });
+  currentPageNumber = pageNumber;
+  syncPageControls();
+  queuePageRender(pageNumber);
+  drainRenderQueue();
+}
+
+function syncPageControls() {
+  if (!pdfDocument) return;
+  const pageNumber = visiblePageNumber() || currentPageNumber || 1;
+  currentPageNumber = clamp(pageNumber, 1, pdfDocument.numPages);
+  document.documentElement.dataset.pdfCurrentPage = String(currentPageNumber);
+  if (pageNumberInput && document.activeElement !== pageNumberInput) pageNumberInput.value = String(currentPageNumber);
+  if (pageTotalLabel) pageTotalLabel.textContent = `/ ${pdfDocument.numPages}`;
+  if (pageIndicator) pageIndicator.textContent = `Page ${currentPageNumber} / ${pdfDocument.numPages}`;
+}
+
+function visiblePageNumber() {
+  const probeY = window.innerHeight * 0.38;
+  let best = null;
+  let bestDistance = Infinity;
+  for (const [pageNumber, record] of pageRecords) {
+    const rect = record.pageEl.getBoundingClientRect();
+    if (rect.bottom < 0) continue;
+    if (rect.top > window.innerHeight) {
+      if (best) break;
+      return pageNumber;
+    }
+    const distance = rect.top <= probeY && rect.bottom >= probeY
+      ? 0
+      : Math.min(Math.abs(rect.top - probeY), Math.abs(rect.bottom - probeY));
+    if (distance < bestDistance) {
+      best = pageNumber;
+      bestDistance = distance;
+    }
+  }
+  return best;
 }
 
 function toggleHorizontalPanLock() {

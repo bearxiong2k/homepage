@@ -447,6 +447,12 @@ async function updateInstalledApp() {
   appendLibraryLog(`Checking homepage for the latest Marginalia app. Current ${APP_VERSION_LABEL}.`);
   try {
     const networkVersion = availableNetworkVersion || await checkForAvailableAppUpdate();
+    if (networkVersion?.isCurrent) {
+      availableNetworkVersion = null;
+      syncAppUpdateUi();
+      appendLibraryLog(successMessage('Update', `Marginalia is already using ${networkVersion.label || APP_VERSION_LABEL}.`));
+      return;
+    }
     const result = await updateAppFromNetwork();
     if (result.updated) {
       appendLibraryLog(successMessage('Update', `Updated Marginalia${networkVersion?.label ? ` to ${networkVersion.label}` : ''}. Reloading the app...`));
