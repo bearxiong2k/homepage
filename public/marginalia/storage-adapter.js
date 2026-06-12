@@ -952,13 +952,10 @@ async function normalizeHtmlForBrowserImport(sourceHtml, options = {}) {
     doc.head.append(titleEl);
   }
   const scriptCount = doc.querySelectorAll('script').length;
-  doc.querySelectorAll('script').forEach((node) => node.remove());
-  if (scriptCount) warnings.push(`Scripts were stripped during import (${scriptCount}).`);
   let handlerCount = 0;
   doc.querySelectorAll('*').forEach((element) => {
     for (const attr of Array.from(element.attributes)) {
       if (/^on/i.test(attr.name)) {
-        element.removeAttribute(attr.name);
         handlerCount += 1;
       } else if ((attr.name === 'href' || attr.name === 'src') && /^\s*javascript:/i.test(attr.value)) {
         element.setAttribute(attr.name, '#');
@@ -968,14 +965,15 @@ async function normalizeHtmlForBrowserImport(sourceHtml, options = {}) {
       }
     }
   });
-  if (handlerCount) warnings.push(`Inline event handlers were removed during import (${handlerCount}).`);
   const anchorReport = ensureBrowserAnchors(doc, baseId);
   warnings.push(...anchorReport.warnings);
   return {
     id: baseId,
     title,
     sourceHtml: `<!doctype html>\n${doc.documentElement.outerHTML}\n`,
-    compatibility: browserCompatibilityReport(anchorReport, warnings)
+    compatibility: browserCompatibilityReport(anchorReport, warnings, {
+      interactiveSource: scriptCount > 0 || handlerCount > 0
+    })
   };
 }
 
@@ -1033,7 +1031,7 @@ function ensureBrowserAnchors(doc, baseId) {
   return { anchorCount, textAnchorCount, warnings };
 }
 
-function browserCompatibilityReport(anchorReport, warnings) {
+function browserCompatibilityReport(anchorReport, warnings, options = {}) {
   const hasBlocks = anchorReport.anchorCount > 0;
   const hasText = anchorReport.textAnchorCount > 0;
   return {
@@ -1049,7 +1047,7 @@ function browserCompatibilityReport(anchorReport, warnings) {
       sourceNavigation: true,
       latexMath: true,
       inlineMedia: true,
-      interactiveSource: false
+      interactiveSource: Boolean(options.interactiveSource)
     },
     warnings: [...new Set(warnings)]
   };
