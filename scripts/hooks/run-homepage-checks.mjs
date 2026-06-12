@@ -5,25 +5,28 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const mode = process.argv[2] || 'codex';
+const node = process.execPath;
+const astro = resolve(repoRoot, 'node_modules', 'astro', 'bin', 'astro.mjs');
 
 const workflows = {
   precommit: [
-    ['npm', ['run', 'qa']],
-    ['npm', ['run', 'validate']],
-    ['npm', ['run', 'export:atlas:check']],
-    ['npm', ['run', 'contract:website']],
-    ['npm', ['run', 'sync:marginalia:check']],
+    [node, ['scripts/qa-library.mjs']],
+    [node, ['scripts/validate-library.mjs']],
+    [node, ['scripts/export-atlas-manifest.mjs', '--check']],
+    [node, ['scripts/check-website-contract.mjs']],
+    [node, ['scripts/hooks/check-marginalia-sync.mjs']],
     ['git', ['diff', '--check']],
     ['git', ['diff', '--cached', '--check']],
   ],
   prepush: [
-    ['npm', ['run', 'qa']],
-    ['npm', ['run', 'validate']],
-    ['npm', ['run', 'export:atlas:check']],
-    ['npm', ['run', 'contract:website']],
-    ['npm', ['run', 'sync:marginalia:check']],
-    ['npm', ['run', 'check']],
-    ['npm', ['run', 'build'], {
+    [node, ['scripts/qa-library.mjs']],
+    [node, ['scripts/validate-library.mjs']],
+    [node, ['scripts/export-atlas-manifest.mjs', '--check']],
+    [node, ['scripts/check-website-contract.mjs']],
+    [node, ['scripts/hooks/check-marginalia-sync.mjs']],
+    [node, [astro, 'check']],
+    [node, ['scripts/validate-library.mjs']],
+    [node, [astro, 'build'], {
       ASTRO_SITE: 'https://bearxiong2k.github.io',
       ASTRO_BASE: '/homepage',
     }],
@@ -48,6 +51,14 @@ function run(command, args, env = {}) {
     env: { ...process.env, ...env },
     stdio: 'inherit',
   });
+  if (result.error) {
+    console.error(`[homepage-checks] ${label} failed to start: ${result.error.message}`);
+    process.exit(1);
+  }
+  if (result.signal) {
+    console.error(`[homepage-checks] ${label} died with signal ${result.signal}`);
+    process.exit(1);
+  }
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 

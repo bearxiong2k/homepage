@@ -4,4 +4,13 @@ set -eu
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
-npm run hook:precommit
+if command -v node >/dev/null 2>&1; then
+  node_bin="$(command -v node)"
+elif [ -x "$HOME/.nvm/versions/node/v24.15.0/bin/node" ]; then
+  node_bin="$HOME/.nvm/versions/node/v24.15.0/bin/node"
+else
+  echo "pre-commit: node was not found. Open VS Code from a shell with Node on PATH, or update .githooks/pre-commit." >&2
+  exit 127
+fi
+
+"$node_bin" scripts/hooks/run-homepage-checks.mjs precommit

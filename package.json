@@ -20,8 +20,8 @@
     "smoke:website": "node scripts/website-devkit-smoke.mjs",
     "hook:precommit": "node scripts/hooks/run-homepage-checks.mjs precommit",
     "hook:prepush": "node scripts/hooks/run-homepage-checks.mjs prepush",
-    "precommit": "npm run hook:precommit",
-    "prepush": "npm run hook:prepush",
+    "precommit": "node scripts/hooks/run-homepage-checks.mjs precommit",
+    "prepush": "node scripts/hooks/run-homepage-checks.mjs prepush",
     "codex:checkpoint": "node scripts/hooks/run-homepage-checks.mjs codex",
     "hooks:install": "node scripts/hooks/install-git-hooks.mjs"
   },
