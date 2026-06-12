@@ -1,4 +1,4 @@
-import { APP_VERSION_LABEL } from './app-version.js';
+import { APP_VERSION, APP_VERSION_LABEL } from './app-version.js';
 import { currentStorageMode, fetchNetworkAppVersion, registerServiceWorker, updateAppFromNetwork, urlWithStorage } from './runtime.js';
 import { createStorageAdapter } from './storage-adapter.js';
 import { downloadBytes } from './bundle.js';
@@ -48,13 +48,14 @@ const MAX_LIBRARY_LOG_ENTRIES = 200;
 let activeDialog = null;
 let pendingReplaceSourceDocId = null;
 let availableNetworkVersion = null;
+let appUpdateCheckState = 'idle';
 
 init().catch((error) => {
   documentsEl.innerHTML = `<p class="small">${escapeHtml(error.message)}</p>`;
 });
 
 async function init() {
-  if (appVersionEl) appVersionEl.textContent = APP_VERSION_LABEL;
+  syncAppUpdateUi();
   openReaderLink.href = urlWithStorage('reader.html', {}, storageMode);
   importHtmlBtn?.addEventListener('click', () => startHtmlImport());
   htmlFileInput?.addEventListener('change', () => importSelectedHtml().catch(showError));
@@ -67,7 +68,6 @@ async function init() {
   updateAppBtn?.addEventListener('click', () => updateInstalledApp().catch(showError));
   clearLibraryBtn?.addEventListener('click', () => clearBrowserLibrary().catch(showError));
   installFileDropImport();
-  checkForAvailableAppUpdate().catch(() => {});
   documentsEl?.addEventListener('change', (event) => {
     if (event.target?.matches?.('[data-library-title]')) {
       renameCurrentLibraryFromInput(event.target).catch(showError);
@@ -112,8 +112,48 @@ async function init() {
       event.target.blur();
     }
   });
-  registerServiceWorker().catch(() => {});
+  registerServiceWorker()
+    .then(() => checkForAvailableAppUpdate())
+    .catch(() => {});
   await loadDocuments();
+}
+
+async function checkForAvailableAppUpdate(options = {}) {
+  appUpdateCheckState = 'checking';
+  syncAppUpdateUi();
+  try {
+    const networkVersion = await fetchNetworkAppVersion();
+    availableNetworkVersion = networkVersion && !networkVersion.isCurrent ? networkVersion : null;
+    if (options.log) {
+      appendLibraryLog(availableNetworkVersion
+        ? `Update available: ${availableNetworkVersion.label}.`
+        : `Marginalia is already using ${networkVersion?.label || APP_VERSION_LABEL}.`);
+    }
+    return networkVersion;
+  } finally {
+    appUpdateCheckState = 'idle';
+    syncAppUpdateUi();
+  }
+}
+
+function syncAppUpdateUi() {
+  const hasAvailableUpdate = Boolean(availableNetworkVersion);
+  if (appVersionEl) {
+    if (appUpdateCheckState === 'checking') {
+      appVersionEl.textContent = `${APP_VERSION_LABEL} · Checking for updates...`;
+    } else if (hasAvailableUpdate) {
+      appVersionEl.textContent = `${APP_VERSION_LABEL} · Update available: ${availableNetworkVersion.label}`;
+    } else {
+      appVersionEl.textContent = APP_VERSION_LABEL;
+    }
+  }
+  if (updateAppBtn) {
+    updateAppBtn.textContent = hasAvailableUpdate ? 'Update app' : 'Check for updates';
+    updateAppBtn.title = hasAvailableUpdate
+      ? `Update to ${availableNetworkVersion.label}`
+      : 'Check the hosted Marginalia app version';
+    if (appUpdateCheckState === 'checking') updateAppBtn.textContent = 'Checking...';
+  }
 }
 
 async function loadDocuments() {
@@ -406,16 +446,15 @@ async function updateInstalledApp() {
   updateAppBtn.disabled = true;
   appendLibraryLog(`Checking homepage for the latest Marginalia app. Current ${APP_VERSION_LABEL}.`);
   try {
-    const networkVersion = availableNetworkVersion || await fetchNetworkAppVersion();
-    if (networkVersion?.isCurrent) {
-      availableNetworkVersion = null;
-      syncAppUpdateUi(networkVersion);
-      appendLibraryLog(successMessage('Update', `Marginalia is already using ${networkVersion.label || APP_VERSION_LABEL}.`));
-      return;
-    }
+    const networkVersion = availableNetworkVersion || await checkForAvailableAppUpdate();
     const result = await updateAppFromNetwork();
     if (result.updated) {
       appendLibraryLog(successMessage('Update', `Updated Marginalia${networkVersion?.label ? ` to ${networkVersion.label}` : ''}. Reloading the app...`));
+      window.setTimeout(() => location.reload(), 120);
+      return;
+    }
+    if (networkVersion && networkVersion.version !== APP_VERSION) {
+      appendLibraryLog(successMessage('Update', `Homepage has ${networkVersion.label}. Reloading this tab to refresh Marginalia.`));
       window.setTimeout(() => location.reload(), 120);
       return;
     }
@@ -423,26 +462,8 @@ async function updateInstalledApp() {
     appendLibraryLog(successMessage('Update', `Marginalia is already using ${latest}.`));
   } finally {
     updateAppBtn.disabled = false;
+    syncAppUpdateUi();
   }
-}
-
-async function checkForAvailableAppUpdate() {
-  const networkVersion = await fetchNetworkAppVersion();
-  syncAppUpdateUi(networkVersion);
-}
-
-function syncAppUpdateUi(networkVersion) {
-  availableNetworkVersion = networkVersion && !networkVersion.isCurrent ? networkVersion : null;
-  if (appVersionEl) {
-    appVersionEl.textContent = availableNetworkVersion
-      ? `${APP_VERSION_LABEL} - Update available: ${availableNetworkVersion.label}`
-      : APP_VERSION_LABEL;
-  }
-  if (!updateAppBtn) return;
-  updateAppBtn.textContent = availableNetworkVersion ? 'Update available' : 'Check for updates';
-  updateAppBtn.title = availableNetworkVersion
-    ? `Update to ${availableNetworkVersion.label}`
-    : 'Check for a newer Marginalia app version';
 }
 
 function localProfileStatusMarkup(profile, handleStatus) {

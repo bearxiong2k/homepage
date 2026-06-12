@@ -1,5 +1,10 @@
 import { APP_VERSION, APP_VERSION_LABEL } from './app-version.js';
 
+const SERVICE_WORKER_OPTIONS = {
+  scope: appBasePath(),
+  updateViaCache: 'none'
+};
+
 export function currentStorageMode() {
   return 'indexeddb';
 }
@@ -22,9 +27,7 @@ export function appBasePath() {
 export async function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return false;
   try {
-    await navigator.serviceWorker.register(new URL('./service-worker.js', location.href), {
-      scope: appBasePath()
-    });
+    await navigator.serviceWorker.register(new URL('./service-worker.js', location.href), SERVICE_WORKER_OPTIONS);
     return true;
   } catch (error) {
     console.warn('Service worker registration failed.', error);
@@ -38,9 +41,7 @@ export async function updateAppFromNetwork(options = {}) {
   }
   const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : 12000;
   const registration = await navigator.serviceWorker.getRegistration(appBasePath())
-    || await navigator.serviceWorker.register(new URL('./service-worker.js', location.href), {
-      scope: appBasePath()
-    });
+    || await navigator.serviceWorker.register(new URL('./service-worker.js', location.href), SERVICE_WORKER_OPTIONS);
   const watcher = createServiceWorkerActivationWatcher(registration, timeoutMs);
   await registration.update();
   requestWaitingWorkerActivation(registration);
