@@ -750,10 +750,8 @@ textarea {
 }
 
 .note-card-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(min-content, auto);
-  gap: 8px;
-  align-items: start;
+  display: block;
+  min-width: 0;
 }
 
 .note-card-heading {
@@ -806,11 +804,13 @@ textarea {
 }
 
 .note-card-actions {
+  float: right;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 4px;
-  max-width: 100%;
+  max-width: min(100%, 12.5rem);
+  margin: 0 0 6px 10px;
 }
 
 .note-card-actions button {

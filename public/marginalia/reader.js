@@ -4190,34 +4190,8 @@ function saveNotesPanelWidth() {
 
 function normalizeNotesPanelWidth(value) {
   const viewportMax = Math.max(NOTES_PANEL_WIDTH.min, window.innerWidth - 52);
-  const sideNoteMax = currentSideNotePanelWidth();
-  const preferredMax = Number.isFinite(sideNoteMax) && sideNoteMax > 0
-    ? Math.max(sideNoteMax, NOTES_PANEL_WIDTH.default)
-    : viewportMax;
-  const max = Math.max(NOTES_PANEL_WIDTH.min, Math.min(preferredMax, viewportMax));
+  const max = Math.max(NOTES_PANEL_WIDTH.min, viewportMax);
   return clampNumber(value, NOTES_PANEL_WIDTH.min, max, Math.min(NOTES_PANEL_WIDTH.default, max));
-}
-
-function currentSideNotePanelWidth() {
-  const doc = getFrameDoc();
-  try {
-    if (doc && state.iframeLoaded) {
-      const metrics = layoutMetrics(doc);
-      if (Number.isFinite(metrics?.noteLayerWidth) && metrics.noteLayerWidth > 0) return metrics.noteLayerWidth;
-      const layerWidth = doc.querySelector('.reader-side-note-layer')?.getBoundingClientRect?.().width;
-      if (Number.isFinite(layerWidth) && layerWidth > 0) return layerWidth;
-    }
-  } catch {
-    // Fall back to CSS state while the iframe is still loading.
-  }
-  return cssPixelValue(document.documentElement, '--reader-side-note-layer-width');
-}
-
-function cssPixelValue(element, propertyName) {
-  const value = getComputedStyle(element).getPropertyValue(propertyName).trim();
-  if (!value.endsWith('px')) return null;
-  const number = Number.parseFloat(value);
-  return Number.isFinite(number) ? number : null;
 }
 
 function normalizeSaveSuccessMessage(message) {
