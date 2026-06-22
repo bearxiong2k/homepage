@@ -15,6 +15,7 @@ const DB_VERSION = 2;
 const APP_META_LAST_OPEN_DOCUMENT = 'lastOpenDocument';
 const APP_META_CURRENT_LIBRARY = 'currentLibrary';
 const APP_META_LOCAL_PROFILE = 'localProfile';
+const APP_META_READER_POSITION_PREFIX = 'readerPosition:';
 const ANCHORABLE_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'li', 'figure', 'figcaption', 'td', 'th', 'section', 'article']);
 const TEXT_ANCHOR_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'li', 'figcaption', 'td', 'th']);
 let dbPromise = null;
@@ -191,6 +192,42 @@ export class IndexedDbStorageAdapter {
           : entry)
       });
     }
+    return true;
+  }
+
+  async getReaderPosition(docId) {
+    if (!docId) return null;
+    const db = await openDb();
+    const record = await readOne(db, 'appMeta', readerPositionKey(docId));
+    return normalizeReaderPosition(record?.position);
+  }
+
+  async setReaderPosition(docId, position) {
+    if (!docId) return false;
+    const normalized = normalizeReaderPosition({ ...(position || {}), docId });
+    if (!normalized) return this.clearReaderPosition(docId);
+    const now = new Date().toISOString();
+    const db = await openDb();
+    await writeTransaction(db, ['appMeta'], (stores) => {
+      stores.appMeta.put({
+        key: readerPositionKey(docId),
+        docId,
+        position: {
+          ...normalized,
+          updatedAt: now
+        },
+        updatedAt: now
+      });
+    });
+    return true;
+  }
+
+  async clearReaderPosition(docId) {
+    if (!docId) return false;
+    const db = await openDb();
+    await writeTransaction(db, ['appMeta'], (stores) => {
+      stores.appMeta.delete(readerPositionKey(docId));
+    });
     return true;
   }
 
@@ -742,6 +779,7 @@ export class IndexedDbStorageAdapter {
       for (const body of bodies) stores.annotationBodies.delete(body.id);
       for (const asset of assets) stores.documentAssets.delete(asset.id);
       if (lastOpen?.docId === docId) stores.appMeta.delete(APP_META_LAST_OPEN_DOCUMENT);
+      stores.appMeta.delete(readerPositionKey(docId));
     });
     clearBrowserStateKeys(localStorage, [`reader-quick-marks:${docId}`, `reader-layout:${docId}`]);
     clearBrowserStateKeys(sessionStorage, [`reader-scroll:${docId}`]);
@@ -984,6 +1022,44 @@ function normalizeStoredDocument(document) {
     ...normalized,
     compatibility: normalizePdfCompatibility(normalized.compatibility, normalized.pages)
   };
+}
+
+function readerPositionKey(docId) {
+  return `${APP_META_READER_POSITION_PREFIX}${docId}`;
+}
+
+function normalizeReaderPosition(position) {
+  if (!position || typeof position !== 'object') return null;
+  const docId = position.docId ? String(position.docId) : '';
+  const sourceType = position.sourceType === 'pdf' ? 'pdf' : 'html';
+  const scrollY = Number(position.scrollY);
+  const normalized = {
+    version: 1,
+    docId,
+    sourceType,
+    scrollY: Number.isFinite(scrollY) && scrollY > 0 ? scrollY : 0,
+    updatedAt: position.updatedAt || ''
+  };
+  if (sourceType === 'pdf') {
+    const pageNumber = position.pageNumber == null ? NaN : Number(position.pageNumber);
+    const pageIndex = position.pageIndex == null ? NaN : Number(position.pageIndex);
+    const ratio = Number(position.ratio);
+    if (Number.isFinite(pageNumber) && pageNumber > 0) normalized.pageNumber = Math.round(pageNumber);
+    if (Number.isFinite(pageIndex) && pageIndex >= 0) normalized.pageIndex = Math.round(pageIndex);
+    if (Number.isFinite(ratio)) normalized.ratio = Math.max(0, Math.min(1, ratio));
+  } else {
+    if (position.anchorId) normalized.anchorId = String(position.anchorId);
+    if (position.id) normalized.id = String(position.id);
+    const offset = Number(position.offset);
+    if (Number.isFinite(offset)) normalized.offset = offset;
+  }
+  if (!normalized.docId) return null;
+  if (normalized.sourceType === 'pdf') {
+    return normalized.scrollY > 0 || Number.isFinite(normalized.pageNumber) || Number.isFinite(normalized.pageIndex)
+      ? normalized
+      : null;
+  }
+  return normalized.scrollY > 0 || normalized.anchorId || normalized.id ? normalized : null;
 }
 
 async function pdfMetadataFromBytes(bytes) {

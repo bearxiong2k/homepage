@@ -64,6 +64,7 @@ pageNumberInput?.addEventListener('change', commitPageNumberInput);
 pageNumberInput?.addEventListener('keydown', (event) => {
   if (event.key !== 'Enter') return;
   event.preventDefault();
+  commitPageNumberInput();
   pageNumberInput.blur();
 });
 document.addEventListener('wheel', handlePdfWheel, { passive: false });
@@ -468,6 +469,7 @@ function restoreScrollAnchor(anchor) {
 
 function beginTextSelectionDrag(event) {
   if (event.button !== 0 || event.pointerType === 'touch') return;
+  if (event.target?.closest?.('#pdfToolbar, input, textarea, select, button')) return;
   const highlight = event.target?.closest?.('.reader-highlight[data-annotation-id]');
   if (highlight) {
     clearNativeSelection();

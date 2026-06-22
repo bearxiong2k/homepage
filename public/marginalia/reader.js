@@ -93,6 +93,9 @@ const state = {
   tooltipTarget: null,
   saveToastTimer: 0,
   restoringScroll: false,
+  pendingReaderPosition: null,
+  lastReaderPosition: null,
+  readerPositionSaveTimer: 0,
   annotationResolution: new Map(),
   appDialog: null,
   pendingImportKind: null,
@@ -162,6 +165,8 @@ const QUICK_MARK_COLOR_VALUES = ['#f2d48d', '#b7d8ff', '#b9e4c4', '#ffc2c7', '#d
 const QUICK_MARK_ASSET_URLS = QUICK_MARK_COLORS.map((_, index) => new URL(`assets/binder-clip-${index}.png`, location.href).href);
 const MAX_QUICK_MARKS = 8;
 const PDF_READY_TIMEOUT_MS = 120000;
+const PDF_POSITION_READY_TIMEOUT_MS = 12000;
+const READER_POSITION_SAVE_DELAY_MS = 350;
 const SAVE_SUCCESS_VISIBLE_MS = 3600;
 const INK_CANVAS_HEIGHT = { min: 96, default: 420, max: 1800, padding: 18 };
 const NOTES_PANEL_WIDTH = { min: 260, default: 360 };
@@ -252,7 +257,13 @@ function bindChromeEvents() {
     }
   });
   window.addEventListener('beforeunload', () => {
-    if (state.iframeLoaded) saveReaderScrollPosition(getFrameDoc());
+    flushReaderScrollPosition();
+  });
+  window.addEventListener('pagehide', () => {
+    flushReaderScrollPosition();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushReaderScrollPosition();
   });
   document.addEventListener('keydown', handleDocumentKeyDown);
 }
@@ -943,6 +954,9 @@ function readerUrlForDoc(docId) {
 
 async function loadDocument(docId) {
   if (!docId) return;
+  if (state.iframeLoaded && state.docId) {
+    await flushReaderScrollPosition();
+  }
   state.docId = docId;
   const currentDocument = state.documents.find((item) => item.id === docId) || await storage.getDocument(docId);
   state.currentDocument = currentDocument;
@@ -972,10 +986,12 @@ async function loadDocument(docId) {
   syncClipToolColor();
   renderQuickMarkStack();
   hideSelectionHighlightButton();
+  state.pendingReaderPosition = await loadSavedReaderPosition(docId);
+  state.lastReaderPosition = null;
   setMode('select');
   renderDocumentList();
   setStatus('Loading document…');
-  const shouldHideFrameUntilRestored = hasSavedReaderScrollPosition(docId);
+  const shouldHideFrameUntilRestored = hasSavedReaderScrollPosition(state.pendingReaderPosition);
   setReaderFrameRestoring(shouldHideFrameUntilRestored);
   const rememberOpenPromise = storage.rememberDocumentOpen?.(docId);
   const annotationsPromise = fetchAnnotations(docId);
@@ -990,8 +1006,8 @@ async function loadDocument(docId) {
   renderQuickMarks(getFrameDoc());
   renderNoteList();
   requestAnimationFrame(() => {
-    restoreReaderScrollPosition(getFrameDoc());
-    requestAnimationFrame(() => setReaderFrameRestoring(false));
+    restoreReaderScrollPosition(getFrameDoc(), state.pendingReaderPosition)
+      .finally(() => requestAnimationFrame(() => setReaderFrameRestoring(false)));
   });
   setStatus('Ready. Select text in the document to highlight it.');
   history.replaceState(null, '', readerUrlForDoc(docId));
@@ -1210,6 +1226,7 @@ function onFramePointerMove(event) {
 function onFramePointerUp(event) {
   const session = state.pdfHighlightSession;
   if (!session || session.pointerId !== event.pointerId) {
+    if (isFrameInteractiveControl(event?.target)) return;
     if (state.currentDocument?.sourceType === 'pdf') scheduleFrameSelectionCapture(event);
     return;
   }
@@ -1225,6 +1242,7 @@ function onFramePointerCancel(event) {
 }
 
 function scheduleFrameSelectionCapture(event) {
+  if (isFrameInteractiveControl(event?.target)) return;
   if (state.readingMode) return;
   if (!['select', 'attach-highlight'].includes(state.mode)) return;
   if (!compatibilityFeatureEnabled('singleBlockTextHighlights')) return;
@@ -1318,6 +1336,7 @@ async function createPdfRectHighlight(page, rect) {
 }
 
 function onFrameKeyDown(event) {
+  if (isFrameInteractiveControl(event?.target)) return;
   if (handleSaveBundleHotkey(event)) return;
   if (handleInkToolHotkey(event)) return;
   if (handleHistoryHotkey(event)) return;
@@ -1365,6 +1384,7 @@ function handleInkToolHotkey(event) {
 }
 
 function onFrameKeyUp(event) {
+  if (isFrameInteractiveControl(event?.target)) return;
   if (isSideNoteEditableTarget(event?.target)) return;
   if (state.readingMode) return;
   if (!['select', 'attach-highlight'].includes(state.mode)) return;
@@ -1385,6 +1405,10 @@ function isSideNoteEditableTarget(target) {
   return Boolean(target?.closest?.('.reader-side-note-title, .reader-side-note-body'));
 }
 
+function isFrameInteractiveControl(target) {
+  return Boolean(target?.closest?.('#pdfToolbar, input, textarea, select, button, [contenteditable]:not([contenteditable="false"])'));
+}
+
 function editableSelectionActive(element) {
   if (!element) return false;
   const selection = element.ownerDocument?.getSelection?.();
@@ -1397,6 +1421,7 @@ function editableSelectionActive(element) {
 
 function onFrameClick(event) {
   const frameDoc = getFrameDoc();
+  if (isFrameInteractiveControl(event.target)) return;
   if (
     state.currentDocument?.sourceType === 'pdf'
     && event.target?.closest?.('.textLayer')
@@ -1547,6 +1572,7 @@ function onFrameClick(event) {
 }
 
 function onFrameDoubleClick(event) {
+  if (isFrameInteractiveControl(event.target)) return;
   const sideNote = event.target?.closest?.('.reader-side-note');
   if (!sideNote) {
     if (isSideNoteBlankAreaEvent(event)) {
@@ -4367,46 +4393,215 @@ function hideSaveToast() {
   delete els.saveToast.dataset.saveState;
 }
 
-function readerScrollStorageKey(docId = state.docId) {
-  return `reader-scroll:${docId || 'default'}`;
+function setReaderFrameRestoring(restoring) {
+  els.frame.classList.toggle('is-restoring-position', Boolean(restoring));
 }
 
-function hasSavedReaderScrollPosition(docId = state.docId) {
+async function loadSavedReaderPosition(docId) {
   try {
-    const parsed = JSON.parse(sessionStorage.getItem(readerScrollStorageKey(docId)) || 'null');
-    const scrollY = Number(parsed?.scrollY);
-    return Number.isFinite(scrollY) && scrollY > 0;
+    return await storage.getReaderPosition?.(docId) || null;
+  } catch {
+    return null;
+  }
+}
+
+function hasSavedReaderScrollPosition(position) {
+  return Boolean(
+    position
+    && (
+      Number(position.scrollY) > 0
+      || position.anchorId
+      || position.id
+      || Number.isFinite(Number(position.pageNumber))
+      || Number.isFinite(Number(position.pageIndex))
+    )
+  );
+}
+
+function saveReaderScrollPosition(doc, options = {}) {
+  if (!state.docId || state.restoringScroll || !doc?.defaultView) return;
+  const position = captureReaderPosition(doc);
+  if (!position) return;
+  state.lastReaderPosition = position;
+  window.clearTimeout(state.readerPositionSaveTimer);
+  state.readerPositionSaveTimer = 0;
+  if (options.immediate) {
+    persistReaderPosition(position);
+    return;
+  }
+  state.readerPositionSaveTimer = window.setTimeout(() => {
+    state.readerPositionSaveTimer = 0;
+    persistReaderPosition(position);
+  }, READER_POSITION_SAVE_DELAY_MS);
+}
+
+function flushReaderScrollPosition(doc = state.iframeLoaded ? getFrameDoc() : null) {
+  if (doc?.defaultView && !state.restoringScroll) {
+    const position = captureReaderPosition(doc);
+    if (position) state.lastReaderPosition = position;
+  }
+  window.clearTimeout(state.readerPositionSaveTimer);
+  state.readerPositionSaveTimer = 0;
+  if (!state.lastReaderPosition) return Promise.resolve(false);
+  return persistReaderPosition(state.lastReaderPosition);
+}
+
+async function persistReaderPosition(position) {
+  if (!position?.docId || !storage.setReaderPosition) return false;
+  try {
+    await storage.setReaderPosition(position.docId, position);
+    return true;
   } catch {
     return false;
   }
 }
 
-function setReaderFrameRestoring(restoring) {
-  els.frame.classList.toggle('is-restoring-position', Boolean(restoring));
+function captureReaderPosition(doc) {
+  const win = doc?.defaultView;
+  if (!state.docId || !win) return null;
+  const base = {
+    version: 1,
+    docId: state.docId,
+    sourceType: state.currentDocument?.sourceType === 'pdf' ? 'pdf' : 'html',
+    scrollY: Math.max(0, win.scrollY || 0),
+    updatedAt: new Date().toISOString()
+  };
+  return base.sourceType === 'pdf'
+    ? capturePdfReaderPosition(doc, base)
+    : captureHtmlReaderPosition(doc, base);
 }
 
-function saveReaderScrollPosition(doc) {
-  if (!state.docId || state.restoringScroll || !doc?.defaultView) return;
-  sessionStorage.setItem(readerScrollStorageKey(), JSON.stringify({
-    scrollY: doc.defaultView.scrollY,
-    updatedAt: Date.now()
-  }));
+function captureHtmlReaderPosition(doc, base) {
+  const anchor = readerPositionAnchor(doc);
+  if (!anchor) return base.scrollY > 0 ? base : null;
+  return {
+    ...base,
+    ...anchor
+  };
 }
 
-function restoreReaderScrollPosition(doc) {
-  if (!state.docId || !doc?.defaultView) return;
-  try {
-    const parsed = JSON.parse(sessionStorage.getItem(readerScrollStorageKey()) || 'null');
-    const scrollY = Number(parsed?.scrollY);
-    if (!Number.isFinite(scrollY) || scrollY <= 0) return;
-    state.restoringScroll = true;
-    doc.defaultView.scrollTo(0, scrollY);
-    window.setTimeout(() => {
-      state.restoringScroll = false;
-    }, 100);
-  } catch {
-    state.restoringScroll = false;
+function readerPositionAnchor(doc) {
+  const win = doc.defaultView;
+  const viewportY = win.innerHeight * 0.34;
+  let best = null;
+  let bestDistance = Infinity;
+  for (const element of doc.querySelectorAll(ANCHOR_SELECTOR)) {
+    const rect = element.getBoundingClientRect();
+    if (rect.bottom < 0) continue;
+    if (rect.top > win.innerHeight && best) break;
+    const distance = rect.top <= viewportY && rect.bottom >= viewportY
+      ? 0
+      : Math.min(Math.abs(rect.top - viewportY), Math.abs(rect.bottom - viewportY));
+    if (distance < bestDistance) {
+      const top = win.scrollY + rect.top;
+      best = {
+        anchorId: element.dataset.anchorId || '',
+        id: element.id || '',
+        offset: win.scrollY - top
+      };
+      bestDistance = distance;
+    }
   }
+  return best;
+}
+
+function capturePdfReaderPosition(doc, base) {
+  const win = doc.defaultView;
+  const viewportY = win.innerHeight * 0.35;
+  let fallback = null;
+  let best = null;
+  let bestDistance = Infinity;
+  for (const page of doc.querySelectorAll('.pdf-page')) {
+    const rect = page.getBoundingClientRect();
+    const pageIndex = Number(page.dataset.pdfPageIndex);
+    const pageNumber = Number.isFinite(pageIndex) ? pageIndex + 1 : Number(page.dataset.pdfPageLabel);
+    const candidate = {
+      ...base,
+      pageIndex: Number.isFinite(pageIndex) ? pageIndex : null,
+      pageNumber: Number.isFinite(pageNumber) ? pageNumber : null,
+      ratio: rect.height ? clampNumber((viewportY - rect.top) / rect.height, 0, 1, 0) : 0
+    };
+    if (!fallback && rect.bottom >= 0) fallback = candidate;
+    if (rect.top > win.innerHeight && best) break;
+    const distance = rect.top <= viewportY && rect.bottom >= viewportY
+      ? 0
+      : Math.min(Math.abs(rect.top - viewportY), Math.abs(rect.bottom - viewportY));
+    if (distance < bestDistance) {
+      best = candidate;
+      bestDistance = distance;
+    }
+  }
+  return best || fallback || (base.scrollY > 0 ? base : null);
+}
+
+async function restoreReaderScrollPosition(doc, position = state.pendingReaderPosition) {
+  if (!state.docId || !doc?.defaultView || !position) return;
+  state.pendingReaderPosition = null;
+  let scrollY = null;
+  if (state.currentDocument?.sourceType === 'pdf') {
+    scrollY = await restoredPdfScrollY(doc, position);
+  } else {
+    scrollY = restoredHtmlScrollY(doc, position);
+  }
+  if (!Number.isFinite(scrollY)) scrollY = Number(position.scrollY);
+  if (!Number.isFinite(scrollY) || scrollY <= 0) return;
+  state.restoringScroll = true;
+  doc.defaultView.scrollTo(0, Math.max(0, scrollY));
+  window.setTimeout(() => {
+    state.restoringScroll = false;
+  }, 100);
+}
+
+function restoredHtmlScrollY(doc, position) {
+  const target = readerPositionAnchorElement(doc, position);
+  if (!target) return null;
+  const offset = Number(position.offset);
+  return doc.defaultView.scrollY + target.getBoundingClientRect().top + (Number.isFinite(offset) ? offset : 0);
+}
+
+function readerPositionAnchorElement(doc, position) {
+  if (position.anchorId) {
+    const anchored = doc.querySelector(`[data-anchor-id="${cssEscape(String(position.anchorId))}"]`);
+    if (anchored) return anchored;
+  }
+  if (position.id) return doc.getElementById(String(position.id));
+  return null;
+}
+
+async function restoredPdfScrollY(doc, position) {
+  const page = await readerPositionPdfPageElement(doc, position);
+  if (!page) return null;
+  const ratio = Number.isFinite(Number(position.ratio)) ? Number(position.ratio) : 0;
+  const rect = page.getBoundingClientRect();
+  return doc.defaultView.scrollY + rect.top + rect.height * clampNumber(ratio, 0, 1, 0) - doc.defaultView.innerHeight * 0.35;
+}
+
+function readerPositionPdfPageElementNow(doc, position) {
+  const pageIndex = Number(position.pageIndex);
+  if (Number.isFinite(pageIndex) && pageIndex >= 0) {
+    const page = doc.querySelector(`.pdf-page[data-pdf-page-index="${cssEscape(String(Math.round(pageIndex)))}"]`);
+    if (page) return page;
+  }
+  const pageNumber = Number(position.pageNumber);
+  if (Number.isFinite(pageNumber) && pageNumber > 0) {
+    return doc.querySelector(`#pdf-page-${cssEscape(String(Math.round(pageNumber)))}`);
+  }
+  return null;
+}
+
+function readerPositionPdfPageElement(doc, position) {
+  const found = readerPositionPdfPageElementNow(doc, position);
+  if (found || doc.documentElement.dataset.pdfPagesReady === 'true') return Promise.resolve(found);
+  return new Promise((resolve) => {
+    const startedAt = Date.now();
+    const interval = window.setInterval(() => {
+      const page = readerPositionPdfPageElementNow(doc, position);
+      if (page || doc.documentElement.dataset.pdfPagesReady === 'true' || Date.now() - startedAt > PDF_POSITION_READY_TIMEOUT_MS) {
+        window.clearInterval(interval);
+        resolve(page || readerPositionPdfPageElementNow(doc, position));
+      }
+    }, 100);
+  });
 }
 
 function layoutSideNotes(doc) {
