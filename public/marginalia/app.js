@@ -203,6 +203,12 @@ function syncAppUpdateUi() {
   }
 }
 
+function reloadForAppUpdate(version = '') {
+  const url = new URL(location.href);
+  url.searchParams.set('app-update', version || String(Date.now()));
+  window.setTimeout(() => location.replace(url.href), 120);
+}
+
 async function loadDocuments(options = {}) {
   if (options.showLoading !== false) {
     documentsEl.innerHTML = '<p class="small">Loading documents...</p>';
@@ -1238,12 +1244,12 @@ async function updateInstalledApp() {
     const result = await updateAppFromNetwork();
     if (result.updated) {
       appendLibraryLog(successMessage('Update', `Updated Marginalia${networkVersion?.label ? ` to ${networkVersion.label}` : ''}. Reloading the app...`));
-      window.setTimeout(() => location.reload(), 120);
+      reloadForAppUpdate(networkVersion?.version);
       return;
     }
     if (networkVersion && networkVersion.version !== APP_VERSION) {
       appendLibraryLog(successMessage('Update', `Homepage has ${networkVersion.label}. Reloading this tab to refresh Marginalia.`));
-      window.setTimeout(() => location.reload(), 120);
+      reloadForAppUpdate(networkVersion.version);
       return;
     }
     const latest = networkVersion?.label || 'the latest app version available from the homepage';
