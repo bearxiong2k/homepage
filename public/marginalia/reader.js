@@ -1406,6 +1406,7 @@ function isSideNoteEditableTarget(target) {
 }
 
 function isFrameInteractiveControl(target) {
+  if (target?.closest?.('.reader-side-note, .reader-jump-note-button')) return false;
   return Boolean(target?.closest?.('#pdfToolbar, input, textarea, select, button, [contenteditable]:not([contenteditable="false"])'));
 }
 
