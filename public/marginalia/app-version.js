@@ -1,3 +1,3 @@
-export const APP_VERSION = '20260701-234610';
-export const APP_VERSION_LABEL = 'Version 2026-07-01 23:46:10 CST';
-export const APP_VERSION_SHORT = '2026-07-01 23:46 CST';
+export const APP_VERSION = '20260702-003324';
+export const APP_VERSION_LABEL = 'Version 2026-07-02 00:33:24 CST';
+export const APP_VERSION_SHORT = '2026-07-02 00:33 CST';

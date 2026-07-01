@@ -172,9 +172,13 @@ async function checkForAvailableAppUpdate(options = {}) {
     const networkVersion = await fetchNetworkAppVersion();
     availableNetworkVersion = networkVersion && !networkVersion.isCurrent ? networkVersion : null;
     if (options.log) {
-      appendLibraryLog(availableNetworkVersion
-        ? `Update available: ${availableNetworkVersion.label}.`
-        : `Marginalia is already using ${networkVersion?.label || APP_VERSION_LABEL}.`);
+      if (availableNetworkVersion) {
+        appendLibraryLog(`Update available: ${availableNetworkVersion.label}.`);
+      } else if (networkVersion?.isCurrent) {
+        appendLibraryLog(`Marginalia is already using ${networkVersion.label}.`);
+      } else {
+        appendLibraryLog('Could not read the hosted Marginalia app version. Check the network connection and try again.', true);
+      }
     }
     return networkVersion;
   } finally {
@@ -1235,12 +1239,6 @@ async function updateInstalledApp() {
   appendLibraryLog(`Checking homepage for the latest Marginalia app. Current ${APP_VERSION_LABEL}.`);
   try {
     const networkVersion = availableNetworkVersion || await checkForAvailableAppUpdate();
-    if (networkVersion?.isCurrent) {
-      availableNetworkVersion = null;
-      syncAppUpdateUi();
-      appendLibraryLog(successMessage('Update', `Marginalia is already using ${networkVersion.label || APP_VERSION_LABEL}.`));
-      return;
-    }
     const result = await updateAppFromNetwork();
     if (result.updated) {
       appendLibraryLog(successMessage('Update', `Updated Marginalia${networkVersion?.label ? ` to ${networkVersion.label}` : ''}. Reloading the app...`));
@@ -1252,7 +1250,12 @@ async function updateInstalledApp() {
       reloadForAppUpdate(networkVersion.version);
       return;
     }
+    if (!networkVersion) {
+      appendLibraryLog('Could not read the hosted Marginalia app version. Check the network connection and try again.', true);
+      return;
+    }
     const latest = networkVersion?.label || 'the latest app version available from the homepage';
+    availableNetworkVersion = null;
     appendLibraryLog(successMessage('Update', `Marginalia is already using ${latest}.`));
   } finally {
     updateAppBtn.disabled = false;

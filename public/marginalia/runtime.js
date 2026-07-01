@@ -1,10 +1,5 @@
 import { APP_VERSION, APP_VERSION_LABEL } from './app-version.js';
 
-const SERVICE_WORKER_OPTIONS = {
-  scope: appBasePath(),
-  updateViaCache: 'none'
-};
-
 export function currentStorageMode() {
   return 'indexeddb';
 }
@@ -27,7 +22,7 @@ export function appBasePath() {
 export async function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return false;
   try {
-    await navigator.serviceWorker.register(new URL('./service-worker.js', location.href), SERVICE_WORKER_OPTIONS);
+    await navigator.serviceWorker.register(new URL('./service-worker.js', location.href), serviceWorkerOptions());
     return true;
   } catch (error) {
     console.warn('Service worker registration failed.', error);
@@ -41,7 +36,7 @@ export async function updateAppFromNetwork(options = {}) {
   }
   const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : 12000;
   const registration = await navigator.serviceWorker.getRegistration(appBasePath())
-    || await navigator.serviceWorker.register(new URL('./service-worker.js', location.href), SERVICE_WORKER_OPTIONS);
+    || await navigator.serviceWorker.register(new URL('./service-worker.js', location.href), serviceWorkerOptions());
   const watcher = createServiceWorkerActivationWatcher(registration, timeoutMs);
   await registration.update();
   requestWaitingWorkerActivation(registration);
@@ -62,7 +57,7 @@ export async function fetchNetworkAppVersion(options = {}) {
     const response = await fetch(url, { cache: 'no-store', signal: controller.signal });
     if (!response.ok) return null;
     const source = await response.text();
-    return parseVersionModuleSource(source);
+    return parseAppVersionModuleSource(source);
   } catch {
     return null;
   } finally {
@@ -116,10 +111,18 @@ function requestWaitingWorkerActivation(registration) {
   registration.waiting?.postMessage?.({ type: 'MARGINALIA_SKIP_WAITING' });
 }
 
-function parseVersionModuleSource(source) {
-  const version = moduleStringExport(source, 'APP_VERSION') || APP_VERSION;
+function serviceWorkerOptions() {
+  return {
+    scope: appBasePath(),
+    updateViaCache: 'none'
+  };
+}
+
+export function parseAppVersionModuleSource(source, currentVersion = APP_VERSION, currentLabel = APP_VERSION_LABEL) {
+  const version = moduleStringExport(source, 'APP_VERSION');
+  if (!version) return null;
   const label = moduleStringExport(source, 'APP_VERSION_LABEL') || `Version ${version}`;
-  return { version, label, isCurrent: version === APP_VERSION, currentLabel: APP_VERSION_LABEL };
+  return { version, label, isCurrent: version === currentVersion, currentLabel };
 }
 
 function moduleStringExport(source, exportName) {
