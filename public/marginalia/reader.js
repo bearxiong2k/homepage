@@ -32,6 +32,10 @@ import {
   annotationPrimaryPdfPageNumber,
   pdfPageIndexFromTarget
 } from './pdf-targets.js';
+import {
+  metricForDocumentY,
+  sortedScrollMetrics
+} from './scroll-position.js';
 import { currentStorageMode, registerServiceWorker, urlWithStorage } from './runtime.js';
 import { APP_VERSION_LABEL, APP_VERSION_SHORT } from './app-version.js';
 
@@ -91,6 +95,12 @@ const state = {
   pdfPendingJumpStatusUntil: 0,
   frameScrollRaf: 0,
   frameScrollDoc: null,
+  readerPositionCaptureTimer: 0,
+  readerPositionCaptureDoc: null,
+  htmlAnchorMetrics: [],
+  htmlAnchorMetricsDirty: true,
+  htmlAnchorMetricsRaf: 0,
+  quickMarkStackLastSyncAt: 0,
   sideNoteLayoutRaf: 0,
   sideNoteLayoutDoc: null,
   selectionCaptureTimer: 0,
@@ -182,6 +192,8 @@ const MAX_QUICK_MARKS = 8;
 const PDF_READY_TIMEOUT_MS = 120000;
 const PDF_POSITION_READY_TIMEOUT_MS = 12000;
 const READER_POSITION_SAVE_DELAY_MS = 350;
+const READER_POSITION_PRECISE_CAPTURE_DELAY_MS = 160;
+const QUICK_MARK_SCROLL_SYNC_INTERVAL_MS = 120;
 const SAVE_SUCCESS_VISIBLE_MS = 3600;
 const INK_CANVAS_HEIGHT = { min: 96, default: 420, max: 1800, padding: 18 };
 const NOTES_PANEL_WIDTH = { min: 260, default: 360 };
@@ -1000,6 +1012,10 @@ async function loadDocument(docId) {
   }
   state.frameScrollDoc = null;
   state.sideNoteLayoutDoc = null;
+  state.readerPositionCaptureDoc = null;
+  state.htmlAnchorMetrics = [];
+  state.htmlAnchorMetricsDirty = true;
+  state.quickMarkStackLastSyncAt = 0;
   if (state.pdfFrameRefreshRaf) {
     cancelAnimationFrame(state.pdfFrameRefreshRaf);
     state.pdfFrameRefreshRaf = 0;
@@ -1011,6 +1027,14 @@ async function loadDocument(docId) {
   if (state.sideNoteLayoutRaf) {
     cancelAnimationFrame(state.sideNoteLayoutRaf);
     state.sideNoteLayoutRaf = 0;
+  }
+  if (state.htmlAnchorMetricsRaf) {
+    cancelAnimationFrame(state.htmlAnchorMetricsRaf);
+    state.htmlAnchorMetricsRaf = 0;
+  }
+  if (state.readerPositionCaptureTimer) {
+    window.clearTimeout(state.readerPositionCaptureTimer);
+    state.readerPositionCaptureTimer = 0;
   }
   state.layoutWidths = loadLayoutWidths(docId);
   state.notesPanelWidth = loadNotesPanelWidth(docId);
@@ -1196,6 +1220,7 @@ async function instrumentIframe() {
     renderLayoutResizers(doc);
     syncJumpToNoteButton(doc);
     updateSelectionHighlightButton();
+    scheduleHtmlAnchorMetricsRefresh(doc);
   });
   doc.defaultView.addEventListener('scroll', () => scheduleFrameScrollWork(doc), { passive: true });
   if (state.currentDocument?.sourceType === 'pdf') {
@@ -1203,6 +1228,7 @@ async function instrumentIframe() {
   }
   syncFrameModeClass(doc);
   await renderLatexMath(doc);
+  rebuildHtmlAnchorMetrics(doc);
 }
 
 function scheduleFrameScrollWork(doc = getFrameDoc()) {
@@ -1213,10 +1239,18 @@ function scheduleFrameScrollWork(doc = getFrameDoc()) {
     state.frameScrollRaf = 0;
     state.frameScrollDoc = null;
     if (!frameDoc || frameDoc !== getFrameDoc()) return;
-    saveReaderScrollPosition(frameDoc);
-    syncJumpToNoteButton(frameDoc);
-    syncQuickMarkStack(frameDoc);
-    updateSelectionHighlightButton();
+    saveReaderScrollPosition(frameDoc, { precise: false });
+    if (state.activeAnnotationId) syncJumpToNoteButton(frameDoc);
+    if (state.quickMarks.length) {
+      const now = performance.now();
+      if (now - state.quickMarkStackLastSyncAt >= QUICK_MARK_SCROLL_SYNC_INTERVAL_MS) {
+        state.quickMarkStackLastSyncAt = now;
+        syncQuickMarkStack(frameDoc);
+      }
+    }
+    if (state.currentTarget?.type === 'text' && els.highlightSelectionBtn && !els.highlightSelectionBtn.hidden) {
+      updateSelectionHighlightButton();
+    }
   });
 }
 
@@ -4594,9 +4628,11 @@ function hasSavedReaderScrollPosition(position) {
 
 function saveReaderScrollPosition(doc, options = {}) {
   if (!state.docId || state.restoringScroll || !doc?.defaultView) return;
-  const position = captureReaderPosition(doc);
+  const precise = options.precise !== false;
+  const position = captureReaderPosition(doc, { precise });
   if (!position) return;
   state.lastReaderPosition = position;
+  if (!precise) schedulePreciseReaderPositionCapture(doc);
   window.clearTimeout(state.readerPositionSaveTimer);
   state.readerPositionSaveTimer = 0;
   if (options.immediate) {
@@ -4610,8 +4646,12 @@ function saveReaderScrollPosition(doc, options = {}) {
 }
 
 function flushReaderScrollPosition(doc = state.iframeLoaded ? getFrameDoc() : null) {
+  if (state.readerPositionCaptureTimer) {
+    window.clearTimeout(state.readerPositionCaptureTimer);
+    state.readerPositionCaptureTimer = 0;
+  }
   if (doc?.defaultView && !state.restoringScroll) {
-    const position = captureReaderPosition(doc);
+    const position = captureReaderPosition(doc, { precise: true });
     if (position) state.lastReaderPosition = position;
   }
   window.clearTimeout(state.readerPositionSaveTimer);
@@ -4630,7 +4670,19 @@ async function persistReaderPosition(position) {
   }
 }
 
-function captureReaderPosition(doc) {
+function schedulePreciseReaderPositionCapture(doc) {
+  state.readerPositionCaptureDoc = doc;
+  window.clearTimeout(state.readerPositionCaptureTimer);
+  state.readerPositionCaptureTimer = window.setTimeout(() => {
+    const frameDoc = state.readerPositionCaptureDoc;
+    state.readerPositionCaptureTimer = 0;
+    state.readerPositionCaptureDoc = null;
+    if (!frameDoc || frameDoc !== getFrameDoc()) return;
+    saveReaderScrollPosition(frameDoc, { precise: true });
+  }, READER_POSITION_PRECISE_CAPTURE_DELAY_MS);
+}
+
+function captureReaderPosition(doc, options = {}) {
   const win = doc?.defaultView;
   if (!state.docId || !win) return null;
   const base = {
@@ -4640,6 +4692,7 @@ function captureReaderPosition(doc) {
     scrollY: Math.max(0, win.scrollY || 0),
     updatedAt: new Date().toISOString()
   };
+  if (options.precise === false) return base;
   return base.sourceType === 'pdf'
     ? capturePdfReaderPosition(doc, base)
     : captureHtmlReaderPosition(doc, base);
@@ -4647,7 +4700,7 @@ function captureReaderPosition(doc) {
 
 function captureHtmlReaderPosition(doc, base) {
   const anchor = readerPositionAnchor(doc);
-  if (!anchor) return base.scrollY > 0 ? base : null;
+  if (!anchor) return base;
   return {
     ...base,
     ...anchor
@@ -4657,55 +4710,96 @@ function captureHtmlReaderPosition(doc, base) {
 function readerPositionAnchor(doc) {
   const win = doc.defaultView;
   const viewportY = win.innerHeight * 0.34;
-  let best = null;
-  let bestDistance = Infinity;
-  for (const element of doc.querySelectorAll(ANCHOR_SELECTOR)) {
-    const rect = element.getBoundingClientRect();
-    if (rect.bottom < 0) continue;
-    if (rect.top > win.innerHeight && best) break;
-    const distance = rect.top <= viewportY && rect.bottom >= viewportY
-      ? 0
-      : Math.min(Math.abs(rect.top - viewportY), Math.abs(rect.bottom - viewportY));
-    if (distance < bestDistance) {
-      const top = win.scrollY + rect.top;
-      best = {
-        anchorId: element.dataset.anchorId || '',
-        id: element.id || '',
-        offset: win.scrollY - top
-      };
-      bestDistance = distance;
+  return readerPositionAnchorFromProbe(doc, viewportY)
+    || readerPositionAnchorFromMetrics(doc, win.scrollY + viewportY);
+}
+
+function readerPositionAnchorFromProbe(doc, viewportY) {
+  const win = doc.defaultView;
+  if (!doc.elementsFromPoint || !win?.innerWidth) return null;
+  const y = clampNumber(viewportY, 1, Math.max(1, win.innerHeight - 1), 1);
+  const sampleXs = [
+    win.innerWidth * 0.38,
+    win.innerWidth * 0.5,
+    win.innerWidth * 0.62,
+    Math.min(win.innerWidth - 1, 24)
+  ];
+  for (const rawX of sampleXs) {
+    const x = clampNumber(rawX, 1, Math.max(1, win.innerWidth - 1), 1);
+    for (const element of doc.elementsFromPoint(x, y)) {
+      if (element.closest?.('.reader-side-note-layer, .reader-layout-resizer, .reader-quick-clip-layer')) continue;
+      const anchor = closestAnchorElement(element);
+      if (!anchor || anchor.closest?.('.reader-side-note-layer')) continue;
+      const captured = readerPositionForAnchorElement(doc, anchor);
+      if (captured) return captured;
     }
   }
-  return best;
+  return null;
+}
+
+function readerPositionAnchorFromMetrics(doc, documentY) {
+  if (state.htmlAnchorMetricsDirty) rebuildHtmlAnchorMetrics(doc);
+  const metric = metricForDocumentY(state.htmlAnchorMetrics, documentY);
+  if (!metric?.element?.isConnected) return null;
+  return readerPositionForAnchorElement(doc, metric.element);
+}
+
+function readerPositionForAnchorElement(doc, element) {
+  if (!element || element.closest?.('.reader-side-note-layer')) return null;
+  const rect = element.getBoundingClientRect();
+  if (!rect.height && !rect.width) return null;
+  const top = doc.defaultView.scrollY + rect.top;
+  return {
+    anchorId: element.dataset.anchorId || '',
+    id: element.id || '',
+    offset: doc.defaultView.scrollY - top
+  };
+}
+
+function scheduleHtmlAnchorMetricsRefresh(doc = getFrameDoc()) {
+  if (state.currentDocument?.sourceType === 'pdf') return;
+  state.htmlAnchorMetricsDirty = true;
+  if (state.htmlAnchorMetricsRaf) return;
+  state.htmlAnchorMetricsRaf = requestAnimationFrame(() => {
+    state.htmlAnchorMetricsRaf = 0;
+    if (!doc || doc !== getFrameDoc()) return;
+    rebuildHtmlAnchorMetrics(doc);
+  });
+}
+
+function rebuildHtmlAnchorMetrics(doc = getFrameDoc()) {
+  if (!doc || state.currentDocument?.sourceType === 'pdf') {
+    state.htmlAnchorMetrics = [];
+    state.htmlAnchorMetricsDirty = false;
+    return;
+  }
+  const scrollY = doc.defaultView?.scrollY || 0;
+  state.htmlAnchorMetrics = sortedScrollMetrics(Array.from(doc.querySelectorAll(ANCHOR_SELECTOR))
+    .filter((element) => !element.closest?.('.reader-side-note-layer'))
+    .map((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        element,
+        anchorId: element.dataset.anchorId || '',
+        id: element.id || '',
+        top: scrollY + rect.top,
+        height: rect.height || 0
+      };
+    }));
+  state.htmlAnchorMetricsDirty = false;
 }
 
 function capturePdfReaderPosition(doc, base) {
-  const win = doc.defaultView;
-  const viewportY = win.innerHeight * 0.35;
-  let fallback = null;
-  let best = null;
-  let bestDistance = Infinity;
-  for (const page of doc.querySelectorAll('.pdf-page')) {
-    const rect = page.getBoundingClientRect();
-    const pageIndex = Number(page.dataset.pdfPageIndex);
-    const pageNumber = Number.isFinite(pageIndex) ? pageIndex + 1 : Number(page.dataset.pdfPageLabel);
-    const candidate = {
-      ...base,
-      pageIndex: Number.isFinite(pageIndex) ? pageIndex : null,
-      pageNumber: Number.isFinite(pageNumber) ? pageNumber : null,
-      ratio: rect.height ? clampNumber((viewportY - rect.top) / rect.height, 0, 1, 0) : 0
-    };
-    if (!fallback && rect.bottom >= 0) fallback = candidate;
-    if (rect.top > win.innerHeight && best) break;
-    const distance = rect.top <= viewportY && rect.bottom >= viewportY
-      ? 0
-      : Math.min(Math.abs(rect.top - viewportY), Math.abs(rect.bottom - viewportY));
-    if (distance < bestDistance) {
-      best = candidate;
-      bestDistance = distance;
-    }
-  }
-  return best || fallback || (base.scrollY > 0 ? base : null);
+  const pageNumber = Number(doc.documentElement.dataset.pdfCurrentPage);
+  const pageIndex = Number(doc.documentElement.dataset.pdfCurrentPageIndex);
+  const ratio = Number(doc.documentElement.dataset.pdfCurrentPageRatio);
+  if (!Number.isFinite(pageNumber) || pageNumber <= 0) return base;
+  return {
+    ...base,
+    pageIndex: Number.isFinite(pageIndex) && pageIndex >= 0 ? pageIndex : pageNumber - 1,
+    pageNumber,
+    ratio: Number.isFinite(ratio) ? clampNumber(ratio, 0, 1, 0) : 0
+  };
 }
 
 async function restoreReaderScrollPosition(doc, position = state.pendingReaderPosition) {

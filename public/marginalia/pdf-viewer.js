@@ -1,4 +1,9 @@
 import * as pdfjsLib from './vendor/pdfjs/pdf.mjs';
+import {
+  metricForDocumentY,
+  pageRatioForMetric,
+  sortedScrollMetrics
+} from './scroll-position.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdfjs/pdf.worker.mjs', location.href).href;
 const PDFJS_ASSETS = {
@@ -29,6 +34,7 @@ const pageShellPromises = new Map();
 const renderQueue = [];
 const renderingPages = new Set();
 const renderedPages = new Set();
+let pageMetrics = [];
 const MAX_RENDER_CONCURRENCY = 2;
 const MAX_DEVICE_SCALE = 2.5;
 const MIN_PAGE_SCALE = 0.35;
@@ -40,11 +46,15 @@ let pdfDocument = null;
 let zoomScale = null;
 let zoomGeneration = 0;
 let selectionOverlayRaf = 0;
+let pageMetricsRaf = 0;
 let textSelectionDrag = null;
 let horizontalPanLocked = false;
+let pdfWindowScrolling = false;
+let pdfWindowScrollIdleTimer = 0;
 let lastHorizontalScroll = pdfViewport?.scrollLeft || 0;
 let lastNonReadingViewportWidth = 0;
 let currentPageNumber = 1;
+let lastDispatchedCurrentPageNumber = null;
 
 if (params.get('embedded') === 'reader') {
   document.documentElement.classList.add('reader-embedded');
@@ -68,7 +78,7 @@ pageNumberInput?.addEventListener('keydown', (event) => {
   commitPageNumberInput();
   pageNumberInput.blur();
 });
-document.addEventListener('wheel', handlePdfWheel, { passive: false });
+document.addEventListener('wheel', handlePdfWheel, { passive: true });
 document.addEventListener('selectionchange', scheduleSelectionOverlayUpdate);
 document.addEventListener('pointerdown', beginTextSelectionDrag, true);
 document.addEventListener('pointermove', updateTextSelectionDrag, true);
@@ -78,7 +88,7 @@ document.addEventListener('reader-reading-mode-change', scheduleZoomRefresh);
 document.addEventListener('reader-side-note-layout-change', scheduleZoomRefresh);
 document.addEventListener('reader-pdf-ensure-page', handleReaderPdfEnsurePage);
 window.addEventListener('resize', scheduleZoomRefresh);
-window.addEventListener('scroll', syncPageControls, { passive: true });
+window.addEventListener('scroll', handlePdfWindowScroll, { passive: true });
 pdfViewport?.addEventListener('scroll', handlePdfViewportScroll, { passive: true });
 
 syncHorizontalPanLock();
@@ -156,6 +166,7 @@ async function createPageShell(pdf, pageNumber) {
   updatePageGeometry(record);
   syncZoomControls();
   observer?.observe(pageEl);
+  schedulePageMetricsRefresh();
   notifyPageChanged(pageNumber, 'shell');
   return record;
 }
@@ -194,7 +205,7 @@ function handleReaderPdfEnsurePage(event) {
   ensurePageShell(pageNumber)
     .then(() => {
       queuePageRender(pageNumber, { priority: true });
-      drainRenderQueue();
+      forceDrainRenderQueue();
     })
     .catch((error) => {
       document.documentElement.dataset.pdfError = error.message || 'PDF page preparation failed.';
@@ -274,6 +285,7 @@ function queuePageRender(pageNumber, options = {}) {
 }
 
 function drainRenderQueue() {
+  if (pdfWindowScrolling) return;
   while (activeRenderCount < MAX_RENDER_CONCURRENCY && renderQueue.length) {
     const pageNumber = renderQueue.shift();
     activeRenderCount += 1;
@@ -282,6 +294,13 @@ function drainRenderQueue() {
       status(error.message || 'PDF page render failed.');
     });
   }
+}
+
+function forceDrainRenderQueue() {
+  const wasScrolling = pdfWindowScrolling;
+  pdfWindowScrolling = false;
+  drainRenderQueue();
+  pdfWindowScrolling = wasScrolling;
 }
 
 async function renderPage(record, generation, renderToken) {
@@ -356,6 +375,30 @@ function updatePageGeometry(record) {
   record.pageEl.style.height = `${Math.ceil(viewport.height)}px`;
   record.pageEl.style.minHeight = `${Math.ceil(viewport.height)}px`;
   record.pageEl.dataset.zoom = String(Number(record.cssScale.toFixed(4)));
+  schedulePageMetricsRefresh();
+}
+
+function schedulePageMetricsRefresh() {
+  if (pageMetricsRaf) return;
+  pageMetricsRaf = requestAnimationFrame(() => {
+    pageMetricsRaf = 0;
+    rebuildPageMetrics();
+    syncPageControls();
+  });
+}
+
+function rebuildPageMetrics() {
+  pageMetrics = sortedScrollMetrics(orderedPageRecords().map(([pageNumber, record]) => {
+    const rect = record.pageEl.getBoundingClientRect();
+    const top = window.scrollY + rect.top;
+    const height = rect.height || record.pageEl.offsetHeight || 0;
+    return {
+      pageNumber,
+      pageIndex: pageNumber - 1,
+      top,
+      height
+    };
+  }));
 }
 
 function pageCssScale(viewport) {
@@ -847,15 +890,10 @@ function rectIntersects(a, b) {
 
 function handlePdfWheel(event) {
   if (event.ctrlKey || event.metaKey) return;
-  const requestedLeft = wheelDelta(event.deltaX, event.deltaMode);
-  const left = horizontalPanLocked ? 0 : requestedLeft;
+  const left = wheelDelta(event.deltaX, event.deltaMode);
   const top = wheelDelta(event.deltaY, event.deltaMode);
-  if (!left && !top && !(horizontalPanLocked && requestedLeft)) return;
-  event.preventDefault();
-  if (left && pdfViewport) {
-    pdfViewport.scrollBy({ left, behavior: 'auto' });
-  }
-  if (top) {
+  if (!left && !top) return;
+  if (top && event.target?.closest?.('#pdfViewport')) {
     window.scrollBy({
       left: 0,
       top,
@@ -863,6 +901,16 @@ function handlePdfWheel(event) {
     });
   }
   scheduleSelectionOverlayUpdate();
+}
+
+function handlePdfWindowScroll() {
+  pdfWindowScrolling = true;
+  window.clearTimeout(pdfWindowScrollIdleTimer);
+  pdfWindowScrollIdleTimer = window.setTimeout(() => {
+    pdfWindowScrolling = false;
+    drainRenderQueue();
+  }, 140);
+  syncPageControls();
 }
 
 function handlePdfViewportScroll() {
@@ -898,39 +946,42 @@ function scrollToPageNumber(pageNumber) {
   currentPageNumber = pageNumber;
   syncPageControls();
   queuePageRender(pageNumber);
-  drainRenderQueue();
+  forceDrainRenderQueue();
 }
 
 function syncPageControls() {
   if (!pdfDocument) return;
-  const pageNumber = visiblePageNumber() || currentPageNumber || 1;
-  currentPageNumber = clamp(pageNumber, 1, pdfDocument.numPages);
+  const pageState = visiblePageState();
+  currentPageNumber = clamp(pageState?.pageNumber || currentPageNumber || 1, 1, pdfDocument.numPages);
+  const pageIndex = pageState?.pageIndex ?? currentPageNumber - 1;
+  const ratio = Number.isFinite(pageState?.ratio) ? pageState.ratio : 0;
   document.documentElement.dataset.pdfCurrentPage = String(currentPageNumber);
+  document.documentElement.dataset.pdfCurrentPageIndex = String(pageIndex);
+  document.documentElement.dataset.pdfCurrentPageRatio = String(Number(ratio.toFixed(5)));
   if (pageNumberInput && document.activeElement !== pageNumberInput) pageNumberInput.value = String(currentPageNumber);
   if (pageTotalLabel) pageTotalLabel.textContent = `/ ${pdfDocument.numPages}`;
   if (pageIndicator) pageIndicator.textContent = `Page ${currentPageNumber} / ${pdfDocument.numPages}`;
+  if (currentPageNumber !== lastDispatchedCurrentPageNumber) {
+    lastDispatchedCurrentPageNumber = currentPageNumber;
+    document.dispatchEvent(new CustomEvent('pdf-current-page-change', {
+      detail: {
+        pageNumber: currentPageNumber,
+        pageIndex,
+        ratio
+      }
+    }));
+  }
 }
 
-function visiblePageNumber() {
-  const probeY = window.innerHeight * 0.38;
-  let best = null;
-  let bestDistance = Infinity;
-  for (const [pageNumber, record] of orderedPageRecords()) {
-    const rect = record.pageEl.getBoundingClientRect();
-    if (rect.bottom < 0) continue;
-    if (rect.top > window.innerHeight) {
-      if (best) break;
-      return pageNumber;
-    }
-    const distance = rect.top <= probeY && rect.bottom >= probeY
-      ? 0
-      : Math.min(Math.abs(rect.top - probeY), Math.abs(rect.bottom - probeY));
-    if (distance < bestDistance) {
-      best = pageNumber;
-      bestDistance = distance;
-    }
-  }
-  return best;
+function visiblePageState() {
+  const probeDocumentY = window.scrollY + window.innerHeight * 0.38;
+  const metric = metricForDocumentY(pageMetrics, probeDocumentY);
+  if (!metric) return null;
+  return {
+    pageNumber: metric.pageNumber,
+    pageIndex: metric.pageIndex,
+    ratio: pageRatioForMetric(metric, probeDocumentY)
+  };
 }
 
 function toggleHorizontalPanLock() {

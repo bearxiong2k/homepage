@@ -200,6 +200,10 @@
       scrollbar-gutter: stable;
     }
 
+    :root[data-pdf-horizontal-pan="locked"] #pdfViewport {
+      overflow-x: hidden;
+    }
+
     :root.reader-embedded #pdfViewport {
       width: calc(100vw - var(--reader-side-note-layer-width));
     }
