@@ -27,6 +27,11 @@ import {
   collectPendingEraseStrokes,
   commitPendingEraseStrokes
 } from './ink-eraser.js';
+import {
+  annotationPdfPageIndexes,
+  annotationPrimaryPdfPageNumber,
+  pdfPageIndexFromTarget
+} from './pdf-targets.js';
 import { currentStorageMode, registerServiceWorker, urlWithStorage } from './runtime.js';
 import { APP_VERSION_LABEL, APP_VERSION_SHORT } from './app-version.js';
 
@@ -78,6 +83,16 @@ const state = {
   libraryChooser: null,
   pdfHighlightSession: null,
   pdfFrameRefreshRaf: 0,
+  pdfDirtyPageIndexes: new Set(),
+  pdfNeedsFullRefresh: false,
+  pendingPdfAnnotationJump: null,
+  pdfPendingJumpNotice: null,
+  pdfPendingJumpNoticeTimer: 0,
+  pdfPendingJumpStatusUntil: 0,
+  frameScrollRaf: 0,
+  frameScrollDoc: null,
+  sideNoteLayoutRaf: 0,
+  sideNoteLayoutDoc: null,
   selectionCaptureTimer: 0,
   suppressPdfHighlightClick: false,
   undoStack: [],
@@ -974,6 +989,29 @@ async function loadDocument(docId) {
   state.focusModeNoteViewportTop = null;
   state.focusModeAnchorViewportTop = null;
   state.pinnedAnnotationId = null;
+  state.pdfDirtyPageIndexes.clear();
+  state.pdfNeedsFullRefresh = false;
+  state.pendingPdfAnnotationJump = null;
+  state.pdfPendingJumpNotice = null;
+  state.pdfPendingJumpStatusUntil = 0;
+  if (state.pdfPendingJumpNoticeTimer) {
+    window.clearTimeout(state.pdfPendingJumpNoticeTimer);
+    state.pdfPendingJumpNoticeTimer = 0;
+  }
+  state.frameScrollDoc = null;
+  state.sideNoteLayoutDoc = null;
+  if (state.pdfFrameRefreshRaf) {
+    cancelAnimationFrame(state.pdfFrameRefreshRaf);
+    state.pdfFrameRefreshRaf = 0;
+  }
+  if (state.frameScrollRaf) {
+    cancelAnimationFrame(state.frameScrollRaf);
+    state.frameScrollRaf = 0;
+  }
+  if (state.sideNoteLayoutRaf) {
+    cancelAnimationFrame(state.sideNoteLayoutRaf);
+    state.sideNoteLayoutRaf = 0;
+  }
   state.layoutWidths = loadLayoutWidths(docId);
   state.notesPanelWidth = loadNotesPanelWidth(docId);
   applyNotesPanelWidth();
@@ -1009,7 +1047,9 @@ async function loadDocument(docId) {
     restoreReaderScrollPosition(getFrameDoc(), state.pendingReaderPosition)
       .finally(() => requestAnimationFrame(() => setReaderFrameRestoring(false)));
   });
-  setStatus('Ready. Select text in the document to highlight it.');
+  if (!state.pendingPdfAnnotationJump && performance.now() >= state.pdfPendingJumpStatusUntil) {
+    setStatus('Ready. Select text in the document to highlight it.');
+  }
   history.replaceState(null, '', readerUrlForDoc(docId));
 }
 
@@ -1157,29 +1197,77 @@ async function instrumentIframe() {
     syncJumpToNoteButton(doc);
     updateSelectionHighlightButton();
   });
-  doc.defaultView.addEventListener('scroll', () => {
-    saveReaderScrollPosition(doc);
-    syncJumpToNoteButton(doc);
-    syncQuickMarkStack(doc);
-    updateSelectionHighlightButton();
-  }, { passive: true });
+  doc.defaultView.addEventListener('scroll', () => scheduleFrameScrollWork(doc), { passive: true });
   if (state.currentDocument?.sourceType === 'pdf') {
-    doc.addEventListener('pdf-page-ready', () => schedulePdfFrameRefresh(doc));
+    doc.addEventListener('pdf-page-ready', (event) => handlePdfPageReady(doc, event));
   }
   syncFrameModeClass(doc);
   await renderLatexMath(doc);
+}
+
+function scheduleFrameScrollWork(doc = getFrameDoc()) {
+  state.frameScrollDoc = doc;
+  if (state.frameScrollRaf) return;
+  state.frameScrollRaf = requestAnimationFrame(() => {
+    const frameDoc = state.frameScrollDoc;
+    state.frameScrollRaf = 0;
+    state.frameScrollDoc = null;
+    if (!frameDoc || frameDoc !== getFrameDoc()) return;
+    saveReaderScrollPosition(frameDoc);
+    syncJumpToNoteButton(frameDoc);
+    syncQuickMarkStack(frameDoc);
+    updateSelectionHighlightButton();
+  });
+}
+
+function handlePdfPageReady(doc, event) {
+  const phase = event.detail?.phase || 'shell';
+  if (phase === 'all-pages') {
+    state.pdfNeedsFullRefresh = true;
+    schedulePdfFrameRefresh(doc);
+    return;
+  }
+  if (!['shell', 'text'].includes(phase)) return;
+  const pageIndex = Number(event.detail?.pageIndex);
+  if (!Number.isInteger(pageIndex) || pageIndex < 0) return;
+  state.pdfDirtyPageIndexes.add(pageIndex);
+  schedulePdfFrameRefresh(doc);
 }
 
 function schedulePdfFrameRefresh(doc = getFrameDoc()) {
   if (state.pdfFrameRefreshRaf) return;
   state.pdfFrameRefreshRaf = requestAnimationFrame(() => {
     state.pdfFrameRefreshRaf = 0;
+    flushPdfFrameRefresh(doc);
+  });
+}
+
+function flushPdfFrameRefresh(doc = getFrameDoc()) {
+  if (!doc || doc !== getFrameDoc()) return;
+  const dirtyPageIndexes = new Set(state.pdfDirtyPageIndexes);
+  state.pdfDirtyPageIndexes.clear();
+  if (dirtyPageIndexes.size) {
+    renderAnnotationsForPdfPageIndexes(doc, dirtyPageIndexes);
+  }
+  if (state.pdfNeedsFullRefresh && !sideNoteEditingActive(doc)) {
+    state.pdfNeedsFullRefresh = false;
     renderAnnotations();
     renderNoteList();
-    renderQuickMarks(doc);
-    syncQuickMarkStack(doc);
-    syncJumpToNoteButton(doc);
-  });
+    retryPendingPdfAnnotationJump(getFrameDoc());
+    return;
+  }
+  renderQuickMarks(doc);
+  syncQuickMarkStack(doc);
+  syncJumpToNoteButton(doc);
+  retryPendingPdfAnnotationJump(doc, dirtyPageIndexes);
+}
+
+function flushDeferredPdfFullRefresh(doc = getFrameDoc()) {
+  if (!state.pdfNeedsFullRefresh || sideNoteEditingActive(doc)) return false;
+  state.pdfNeedsFullRefresh = false;
+  renderAnnotations();
+  renderNoteList();
+  return true;
 }
 
 function onFrameMouseUp(event) {
@@ -2770,6 +2858,8 @@ async function createAnnotationFromTarget(sourceTarget, options = {}) {
 function renderAnnotations() {
   if (!state.iframeLoaded) return;
   const doc = getFrameDoc();
+  state.pdfDirtyPageIndexes.clear();
+  state.pdfNeedsFullRefresh = false;
   const metrics = layoutMetrics(doc);
   const sideNotesVisible = sideNotesVisibleForMetrics(metrics);
   syncPinnedNoteChrome();
@@ -2801,6 +2891,80 @@ function renderAnnotations() {
   renderLayoutEditor(doc);
   syncFrameNotesPanelOverlayState(doc);
   renderQuickMarks(doc);
+}
+
+function renderAnnotationsForPdfPageIndexes(doc, pageIndexes) {
+  if (!state.iframeLoaded || state.currentDocument?.sourceType !== 'pdf') return;
+  const targets = new Set([...pageIndexes].filter((index) => Number.isInteger(index) && index >= 0));
+  if (!targets.size) return;
+  const annotations = state.annotations.filter((annotation) => (
+    annotationPdfPageIndexes(annotation).some((pageIndex) => targets.has(pageIndex))
+  ));
+  if (!annotations.length) return;
+  const metrics = layoutMetrics(doc);
+  const sideNotesVisible = sideNotesVisibleForMetrics(metrics);
+  syncPinnedNoteChrome();
+  injectReaderStyles(doc);
+  syncFrameReadingMode(doc);
+
+  for (const annotation of annotations) {
+    state.annotationResolution.set(annotation.id, buildAnnotationResolution(doc, annotation));
+    clearRenderedAnnotation(doc, annotation.id);
+    if (!state.readingMode || state.readingShowHighlights) {
+      for (const { target, index } of annotationHighlightTargets(annotation)) {
+        if (target.type === 'pdf-rect') {
+          applyPdfRectHighlight(doc, annotation, target, index);
+        } else {
+          applyTextHighlight(doc, annotation, target, index);
+        }
+      }
+    }
+    if (sideNotesVisible) upsertSideNoteForAnnotation(doc, annotation);
+  }
+  if (sideNotesVisible) {
+    requestSideNoteLayout(doc);
+  }
+  renderNavigatorNoteCards(annotations.map((annotation) => annotation.id));
+}
+
+function buildAnnotationResolution(doc, annotation) {
+  const targets = [
+    { target: annotation.target, index: 0, primary: true },
+    ...(annotation.targets || []).map((target, index) => ({ target, index: index + 1, primary: false }))
+  ];
+  const resolvedTargets = targets.map(({ target, index, primary }) => resolveAnnotationTarget(doc, target, index, primary));
+  const unresolvedTargets = resolvedTargets.filter((target) => target.status === 'unresolved');
+  const pendingTargets = resolvedTargets.filter((target) => target.status === 'pending');
+  return {
+    status: unresolvedTargets.length ? 'unresolved' : pendingTargets.length ? 'pending' : 'resolved',
+    unresolvedReason: unresolvedTargets[0]?.unresolvedReason || null,
+    targets: resolvedTargets
+  };
+}
+
+function upsertSideNoteForAnnotation(doc, annotation) {
+  const escaped = cssEscape(annotation.id);
+  const existing = doc.querySelector(`.reader-side-note[data-annotation-id="${escaped}"]`);
+  if (existing?.classList.contains('is-editing')) return;
+  if (existing) {
+    syncExistingSideNote(existing, annotation);
+    return;
+  }
+  attachMarker(doc, annotation);
+}
+
+function syncExistingSideNote(note, annotation) {
+  const isPinned = annotation.id === state.pinnedAnnotationId;
+  const isCollapsed = state.collapsedSideNoteIds.has(annotation.id);
+  note.className = [
+    'reader-side-note',
+    annotation.id === state.activeAnnotationId ? 'is-active' : '',
+    isPinned ? 'is-pinned' : '',
+    isCollapsed ? 'is-collapsed' : '',
+    annotationResolution(annotation)?.status === 'unresolved' ? 'is-unresolved' : ''
+  ].filter(Boolean).join(' ');
+  if (annotation.id === state.activeAnnotationId) note.dataset.inkTool = state.inkTool;
+  else delete note.dataset.inkTool;
 }
 
 function applyTextHighlight(doc, annotation, target = annotation.target, targetIndex = 0) {
@@ -2846,18 +3010,7 @@ function applyPdfRectHighlight(doc, annotation, target = annotation.target, targ
 function buildAnnotationResolutionMap(doc, annotations) {
   const map = new Map();
   for (const annotation of annotations) {
-    const targets = [
-      { target: annotation.target, index: 0, primary: true },
-      ...(annotation.targets || []).map((target, index) => ({ target, index: index + 1, primary: false }))
-    ];
-    const resolvedTargets = targets.map(({ target, index, primary }) => resolveAnnotationTarget(doc, target, index, primary));
-    const unresolvedTargets = resolvedTargets.filter((target) => target.status === 'unresolved');
-    const pendingTargets = resolvedTargets.filter((target) => target.status === 'pending');
-    map.set(annotation.id, {
-      status: unresolvedTargets.length ? 'unresolved' : pendingTargets.length ? 'pending' : 'resolved',
-      unresolvedReason: unresolvedTargets[0]?.unresolvedReason || null,
-      targets: resolvedTargets
-    });
+    map.set(annotation.id, buildAnnotationResolution(doc, annotation));
   }
   return map;
 }
@@ -3677,22 +3830,42 @@ function clearRenderedAnnotations(doc) {
   }
 }
 
+function clearRenderedAnnotation(doc, annotationId) {
+  const escaped = cssEscape(annotationId);
+  doc.querySelectorAll(`.reader-pdf-highlight-rect[data-annotation-id="${escaped}"], .reader-pdf-highlight-draft[data-annotation-id="${escaped}"]`)
+    .forEach((highlight) => highlight.remove());
+  doc.querySelectorAll(`.reader-highlight[data-annotation-id="${escaped}"]`).forEach((highlight) => {
+    if (highlight.matches('span.reader-highlight')) {
+      const parent = highlight.parentNode;
+      while (highlight.firstChild) parent.insertBefore(highlight.firstChild, highlight);
+      highlight.remove();
+      parent.normalize();
+      return;
+    }
+    clearAtomicHighlightSurface(highlight);
+  });
+}
+
 function clearAtomicHighlightSurfaces(doc) {
   const atomicHighlights = doc.querySelectorAll('table.reader-highlight, .reader-math-inline.reader-highlight, .reader-math-display.reader-highlight, .formula.reader-highlight, [data-reader-math-rendered="true"].reader-highlight, [data-math-source="tex"].reader-highlight');
   for (const element of atomicHighlights) {
-    element.classList.remove(
-      'reader-highlight',
-      'reader-highlight-yellow',
-      'reader-highlight-blue',
-      'reader-highlight-green',
-      'reader-highlight-pink',
-      'reader-highlight-attached',
-      'reader-highlight-primary',
-      'is-active'
-    );
-    delete element.dataset.annotationId;
-    delete element.dataset.targetIndex;
+    clearAtomicHighlightSurface(element);
   }
+}
+
+function clearAtomicHighlightSurface(element) {
+  element.classList.remove(
+    'reader-highlight',
+    'reader-highlight-yellow',
+    'reader-highlight-blue',
+    'reader-highlight-green',
+    'reader-highlight-pink',
+    'reader-highlight-attached',
+    'reader-highlight-primary',
+    'is-active'
+  );
+  delete element.dataset.annotationId;
+  delete element.dataset.targetIndex;
 }
 
 function applyFocusModeDisplay(doc) {
@@ -4653,6 +4826,22 @@ function layoutSideNotes(doc) {
   requestAnimationFrame(() => redrawSideInkCanvases(doc));
 }
 
+function requestSideNoteLayout(doc = getFrameDoc()) {
+  state.sideNoteLayoutDoc = doc;
+  if (state.sideNoteLayoutRaf) return;
+  state.sideNoteLayoutRaf = requestAnimationFrame(() => {
+    const frameDoc = state.sideNoteLayoutDoc;
+    state.sideNoteLayoutRaf = 0;
+    state.sideNoteLayoutDoc = null;
+    if (!frameDoc || frameDoc !== getFrameDoc()) return;
+    layoutSideNotes(frameDoc);
+  });
+}
+
+function sideNoteEditingActive(doc = getFrameDoc()) {
+  return Boolean(doc?.querySelector?.('.reader-side-note.is-editing'));
+}
+
 function redrawSideInkCanvases(doc) {
   if (!doc) return;
   const entries = Array.from(doc.querySelectorAll('.reader-side-note-ink'))
@@ -5348,7 +5537,7 @@ function beginInlineTextEdit(annotationId, note, focusField = 'body', pointerEve
   placeCaretFromPoint(focusElement, pointerEvent);
 
   const editableElements = [title, ...bodies].filter(Boolean);
-  const onInput = () => layoutSideNotes(note.ownerDocument);
+  const onInput = () => requestSideNoteLayout(note.ownerDocument);
   const onKeyDown = (event) => {
     if (event.key === 'Escape') {
       if (title) title.textContent = title.dataset.originalText || '';
@@ -5381,7 +5570,8 @@ async function finishInlineTextEdit(annotationId, note) {
   note.classList.remove('is-editing');
   if (note.dataset.cancelInlineSave === 'true') {
     delete note.dataset.cancelInlineSave;
-    layoutSideNotes(note.ownerDocument);
+    requestSideNoteLayout(note.ownerDocument);
+    flushDeferredPdfFullRefresh(note.ownerDocument);
     return;
   }
   await saveInlineNoteText(annotationId, note, title?.textContent || '', bodies);
@@ -5437,15 +5627,42 @@ function renderNoteList(options = {}) {
   requestNavigatorInkPreviewRedraw();
 }
 
+function renderNavigatorNoteCards(annotationIds) {
+  if (!els.noteList || !state.annotations.length) return;
+  const ids = [...new Set(annotationIds || [])].filter(Boolean);
+  if (!ids.length) return;
+  for (const annotationId of ids) {
+    const annotation = state.annotations.find((item) => item.id === annotationId);
+    if (!annotation) continue;
+    const existing = els.noteList.querySelector(`.note-card[data-annotation-id="${cssEscape(annotationId)}"]`);
+    if (!existing) {
+      renderNoteList({ anchorAnnotationId: annotationId });
+      return;
+    }
+    if (existing.querySelector('.note-card-title.is-editing')) continue;
+    existing.replaceWith(createNavigatorNoteCard(annotation));
+  }
+  requestNavigatorInkPreviewRedraw();
+}
+
 function createNavigatorNoteCard(annotation) {
   const card = document.createElement('article');
   const resolution = annotationResolution(annotation);
+  const pendingNotice = state.pdfPendingJumpNotice?.annotationId === annotation.id
+    && performance.now() < state.pdfPendingJumpNotice.until
+    ? state.pdfPendingJumpNotice
+    : null;
+  const pendingJump = state.pendingPdfAnnotationJump?.annotationId === annotation.id
+    ? state.pendingPdfAnnotationJump
+    : pendingNotice;
   card.className = [
     'note-card',
     annotation.id === state.activeAnnotationId ? 'is-active' : '',
-    resolution?.status === 'unresolved' ? 'is-unresolved' : ''
+    resolution?.status === 'unresolved' ? 'is-unresolved' : '',
+    pendingJump ? 'is-target-pending' : ''
   ].filter(Boolean).join(' ');
   card.dataset.annotationId = annotation.id;
+  if (pendingJump) card.dataset.targetPendingPage = String(pendingJump.pageNumber);
   if (isNavigatorNoteExpanded(annotation.id)) card.classList.add('is-expanded');
 
   const header = document.createElement('div');
@@ -5465,7 +5682,9 @@ function createNavigatorNoteCard(annotation) {
   });
   const meta = document.createElement('div');
   meta.className = 'note-card-meta';
-  meta.textContent = resolution?.status === 'unresolved'
+  meta.textContent = pendingJump
+    ? `Loading page ${pendingJump.pageNumber}...`
+    : resolution?.status === 'unresolved'
     ? unresolvedAnnotationLabel(annotation)
     : annotationSectionLabel(annotation);
   titleWrap.append(title, meta);
@@ -5884,6 +6103,8 @@ function clearActiveAnnotation() {
   state.activeAnnotationId = null;
   state.attachTargetAnnotationId = null;
   state.removeTargetAnnotationId = null;
+  state.pendingPdfAnnotationJump = null;
+  state.pdfPendingJumpNotice = null;
   if (state.mode === 'attach-highlight') setMode('select');
   if (state.mode === 'remove-highlight') setMode('select');
   if (state.mode === 'pdf-highlight') setMode('select');
@@ -5992,6 +6213,10 @@ function jumpToAnnotation(annotationId) {
   const escaped = cssEscape(annotationId);
   const note = doc.querySelector(`.reader-side-note[data-annotation-id="${escaped}"]`);
   const annotation = state.annotations.find((item) => item.id === annotationId);
+  if (requestPdfPageForAnnotationJump(doc, annotation)) {
+    syncJumpToNoteButton(doc);
+    return;
+  }
   const targetTop = note
     ? doc.defaultView.scrollY + note.getBoundingClientRect().top
     : annotationTop(doc, annotation);
@@ -5999,6 +6224,78 @@ function jumpToAnnotation(annotationId) {
     doc.defaultView.scrollTo(0, Math.max(0, targetTop - doc.defaultView.innerHeight * NOTE_JUMP_VIEWPORT_OFFSET_RATIO));
   }
   syncJumpToNoteButton(doc);
+}
+
+function requestPdfPageForAnnotationJump(doc, annotation) {
+  if (state.currentDocument?.sourceType !== 'pdf' || !annotation) return false;
+  const pageNumber = annotationPrimaryPdfPageNumber(annotation);
+  if (!pageNumber) return false;
+  const pageIndex = pageNumber - 1;
+  if (readerPositionPdfPageElementNow(doc, { pageIndex, pageNumber }) && pdfPageShellsReadyThrough(doc, pageIndex)) {
+    return false;
+  }
+  state.pendingPdfAnnotationJump = {
+    annotationId: annotation.id,
+    pageIndex,
+    pageNumber
+  };
+  state.pdfPendingJumpStatusUntil = performance.now() + 1500;
+  state.pdfPendingJumpNotice = {
+    annotationId: annotation.id,
+    pageNumber,
+    until: state.pdfPendingJumpStatusUntil
+  };
+  schedulePdfPendingJumpNoticeClear(annotation.id);
+  doc.dispatchEvent(new doc.defaultView.CustomEvent('reader-pdf-ensure-page', {
+    detail: {
+      annotationId: annotation.id,
+      pageIndex,
+      pageNumber
+    }
+  }));
+  setStatus(`Loading page ${pageNumber} for selected note...`);
+  renderNavigatorNoteCards([annotation.id]);
+  return true;
+}
+
+function retryPendingPdfAnnotationJump(doc) {
+  const pending = state.pendingPdfAnnotationJump;
+  if (!pending || !state.activeAnnotationId || pending.annotationId !== state.activeAnnotationId) return;
+  if (!pdfPageShellsReadyThrough(doc, pending.pageIndex)) return;
+  const escaped = cssEscape(pending.annotationId);
+  const note = doc.querySelector(`.reader-side-note[data-annotation-id="${escaped}"]`);
+  if (!note) return;
+  layoutSideNotes(doc);
+  state.pendingPdfAnnotationJump = null;
+  renderNavigatorNoteCards([pending.annotationId]);
+  jumpToAnnotation(pending.annotationId);
+}
+
+function schedulePdfPendingJumpNoticeClear(annotationId) {
+  if (state.pdfPendingJumpNoticeTimer) {
+    window.clearTimeout(state.pdfPendingJumpNoticeTimer);
+    state.pdfPendingJumpNoticeTimer = 0;
+  }
+  const delay = Math.max(0, (state.pdfPendingJumpNotice?.until || 0) - performance.now());
+  state.pdfPendingJumpNoticeTimer = window.setTimeout(() => {
+    state.pdfPendingJumpNoticeTimer = 0;
+    if (state.pendingPdfAnnotationJump?.annotationId === annotationId) return;
+    if (state.pdfPendingJumpNotice?.annotationId !== annotationId) return;
+    if (performance.now() < state.pdfPendingJumpNotice.until) {
+      schedulePdfPendingJumpNoticeClear(annotationId);
+      return;
+    }
+    state.pdfPendingJumpNotice = null;
+    renderNavigatorNoteCards([annotationId]);
+  }, delay);
+}
+
+function pdfPageShellsReadyThrough(doc, pageIndex) {
+  if (!Number.isInteger(pageIndex) || pageIndex < 0) return true;
+  for (let index = 0; index <= pageIndex; index += 1) {
+    if (!doc.querySelector(`[data-pdf-page-index="${cssEscape(String(index))}"]`)) return false;
+  }
+  return true;
 }
 
 function annotationTop(doc, annotation) {
@@ -6416,8 +6713,12 @@ function pdfPageLabelForElement(element) {
 
 function resolveTargetElement(doc, target) {
   if (!target) return null;
-  if (['pdf-page-point', 'pdf-rect'].includes(target.type) && Number.isFinite(Number(target.pageIndex))) {
-    return doc.querySelector(`[data-pdf-page-index="${cssEscape(String(Number(target.pageIndex)))}"]`);
+  if (state.currentDocument?.sourceType === 'pdf' && ['text', 'pdf-page-point', 'pdf-rect'].includes(target.type)) {
+    const pageIndex = pdfPageIndexFromTarget(target);
+    if (pageIndex != null) {
+      const page = doc.querySelector(`[data-pdf-page-index="${cssEscape(String(pageIndex))}"]`);
+      if (page) return page;
+    }
   }
   if (target.anchorId) {
     const escaped = cssEscape(target.anchorId);
