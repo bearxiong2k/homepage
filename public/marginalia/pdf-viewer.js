@@ -99,6 +99,7 @@ document.addEventListener('reader-side-note-layout-change', scheduleZoomRefresh)
 document.addEventListener('reader-pdf-ensure-page', handleReaderPdfEnsurePage);
 window.addEventListener('resize', scheduleZoomRefresh);
 window.addEventListener('scroll', handlePdfWindowScroll, { passive: true });
+pdfViewport?.addEventListener('wheel', handlePdfViewportWheel, { passive: false });
 pdfViewport?.addEventListener('scroll', handlePdfViewportScroll, { passive: true });
 
 syncHorizontalPanLock();
@@ -1035,6 +1036,16 @@ function handlePdfWindowScroll() {
   schedulePageControlsSync();
 }
 
+function handlePdfViewportWheel(event) {
+  if (!event.deltaY || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+  event.preventDefault();
+  const verticalDelta = wheelDeltaPixels(event.deltaY, event.deltaMode, window.innerHeight);
+  if (verticalDelta) window.scrollBy({ left: 0, top: verticalDelta, behavior: 'auto' });
+  if (!pdfViewport || horizontalPanLocked || !event.deltaX) return;
+  const horizontalDelta = wheelDeltaPixels(event.deltaX, event.deltaMode, pdfViewport.clientWidth);
+  if (horizontalDelta) pdfViewport.scrollLeft += horizontalDelta;
+}
+
 function handlePdfViewportScroll() {
   if (!pdfViewport) return;
   if (horizontalPanLocked && Math.round(pdfViewport.scrollLeft) !== Math.round(lastHorizontalScroll)) {
@@ -1145,6 +1156,12 @@ function pageNumberFromElement(element) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function wheelDeltaPixels(delta, mode, pageSize) {
+  if (mode === WheelEvent.DOM_DELTA_LINE) return delta * 16;
+  if (mode === WheelEvent.DOM_DELTA_PAGE) return delta * pageSize;
+  return delta;
 }
 
 function status(message) {

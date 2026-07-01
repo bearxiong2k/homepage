@@ -11,7 +11,7 @@ import {
 import { encodeInkForStorage } from './ink-codec.js';
 
 const DB_NAME = 'annotator-reader';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const APP_META_LAST_OPEN_DOCUMENT = 'lastOpenDocument';
 const APP_META_CURRENT_LIBRARY = 'currentLibrary';
 const APP_META_LOCAL_PROFILE = 'localProfile';
@@ -30,8 +30,9 @@ export class IndexedDbStorageAdapter {
 
   async listDocuments() {
     const db = await openDb();
-    const documents = await readAll(db, 'documents');
-    return documents.map(normalizeStoredDocument);
+    const documents = await readAll(db, 'documentMetadata');
+    if (documents.length) return documents.map(normalizeStoredDocument);
+    return this.rebuildDocumentMetadata();
   }
 
   async getDocument(docId) {
@@ -315,6 +316,7 @@ export class IndexedDbStorageAdapter {
     const db = await openDb();
     await writeTransaction(db, [
       'documents',
+      'documentMetadata',
       'annotations',
       'annotationBodies',
       'documentAssets',
@@ -512,8 +514,8 @@ export class IndexedDbStorageAdapter {
       sourcePathEdited: true,
       updatedAt: new Date().toISOString()
     };
-    await writeTransaction(db, ['documents'], (stores) => {
-      stores.documents.put(updated);
+    await writeTransaction(db, ['documents', 'documentMetadata'], (stores) => {
+      putDocumentRecord(stores, updated);
     });
     return updated;
   }
@@ -566,8 +568,8 @@ export class IndexedDbStorageAdapter {
         updatedAt: now
       };
     }
-    await writeTransaction(db, ['documents'], (stores) => {
-      stores.documents.put(updated);
+    await writeTransaction(db, ['documents', 'documentMetadata'], (stores) => {
+      putDocumentRecord(stores, updated);
     });
     return updated;
   }
@@ -597,7 +599,7 @@ export class IndexedDbStorageAdapter {
       title: file.name ? file.name.replace(/\.html?$/i, '') : ''
     });
     const db = await openDb();
-    const documents = await readAll(db, 'documents');
+    const documents = await this.listDocuments();
     const now = new Date().toISOString();
     const document = {
       id: uniqueDocumentId(normalized.id, documents),
@@ -611,8 +613,8 @@ export class IndexedDbStorageAdapter {
       createdAt: now,
       updatedAt: now
     };
-    await writeTransaction(db, ['documents'], (stores) => {
-      stores.documents.put(document);
+    await writeTransaction(db, ['documents', 'documentMetadata'], (stores) => {
+      putDocumentRecord(stores, document);
     });
     if (library) await this.addDocumentToLibraryContext(library, document);
     return document;
@@ -767,13 +769,14 @@ export class IndexedDbStorageAdapter {
     const lastOpen = await readOne(db, 'appMeta', APP_META_LAST_OPEN_DOCUMENT);
     await writeTransaction(db, [
       'documents',
+      'documentMetadata',
       'annotations',
       'annotationBodies',
       'documentAssets',
       'documentFileHandles',
       'appMeta'
     ], (stores) => {
-      stores.documents.delete(docId);
+      deleteDocumentRecord(stores, docId);
       stores.documentFileHandles.delete(docId);
       for (const annotation of annotations) stores.annotations.delete(annotation.id);
       for (const body of bodies) stores.annotationBodies.delete(body.id);
@@ -831,8 +834,8 @@ export class IndexedDbStorageAdapter {
       mimeType: asset.mimeType || 'application/octet-stream'
     }));
     const db = await openDb();
-    await writeTransaction(db, ['documents', 'annotations', 'annotationBodies', 'documentAssets'], (stores) => {
-      stores.documents.put(document);
+    await writeTransaction(db, ['documents', 'documentMetadata', 'annotations', 'annotationBodies', 'documentAssets'], (stores) => {
+      putDocumentRecord(stores, document);
       for (const annotation of annotations) {
         const { note, ...metadata } = annotation;
         stores.annotations.put({
@@ -896,11 +899,23 @@ export class IndexedDbStorageAdapter {
       updatedAt: now
     };
     const db = await openDb();
-    await writeTransaction(db, ['documents'], (stores) => {
-      stores.documents.put(document);
+    await writeTransaction(db, ['documents', 'documentMetadata'], (stores) => {
+      putDocumentRecord(stores, document);
     });
     if (library) await this.addDocumentToLibraryContext(library, document);
     return document;
+  }
+
+  async rebuildDocumentMetadata() {
+    const db = await openDb();
+    const documents = await readAll(db, 'documents');
+    const metadata = documents.map(documentMetadataFromStoredDocument).filter(Boolean);
+    if (metadata.length) {
+      await writeTransaction(db, ['documentMetadata'], (stores) => {
+        for (const document of metadata) stores.documentMetadata.put(document);
+      });
+    }
+    return metadata.map(normalizeStoredDocument);
   }
 }
 
@@ -1022,6 +1037,33 @@ function normalizeStoredDocument(document) {
     ...normalized,
     compatibility: normalizePdfCompatibility(normalized.compatibility, normalized.pages)
   };
+}
+
+export function documentMetadataFromStoredDocument(document) {
+  if (!document?.id) return null;
+  const normalized = normalizeStoredDocument(document);
+  return {
+    id: normalized.id,
+    title: normalized.title || normalized.id,
+    sourceType: normalized.sourceType || 'html',
+    sourcePath: normalized.sourcePath,
+    sourcePathEdited: Boolean(normalized.sourcePathEdited),
+    pageCount: normalized.pageCount || null,
+    pages: normalized.pages || null,
+    compatibility: normalized.compatibility || null,
+    createdAt: normalized.createdAt || '',
+    updatedAt: normalized.updatedAt || ''
+  };
+}
+
+function putDocumentRecord(stores, document) {
+  stores.documents.put(document);
+  stores.documentMetadata?.put(documentMetadataFromStoredDocument(document));
+}
+
+function deleteDocumentRecord(stores, docId) {
+  stores.documents.delete(docId);
+  stores.documentMetadata?.delete(docId);
 }
 
 function readerPositionKey(docId) {
@@ -1443,6 +1485,19 @@ function openDb() {
       const db = request.result;
       if (!db.objectStoreNames.contains('documents')) {
         db.createObjectStore('documents', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('documentMetadata')) {
+        const metadataStore = db.createObjectStore('documentMetadata', { keyPath: 'id' });
+        if (db.objectStoreNames.contains('documents')) {
+          const sourceStore = request.transaction.objectStore('documents');
+          sourceStore.openCursor().onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (!cursor) return;
+            const metadata = documentMetadataFromStoredDocument(cursor.value);
+            if (metadata) metadataStore.put(metadata);
+            cursor.continue();
+          };
+        }
       }
       if (!db.objectStoreNames.contains('annotations')) {
         const store = db.createObjectStore('annotations', { keyPath: 'id' });
