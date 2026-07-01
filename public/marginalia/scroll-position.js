@@ -41,6 +41,19 @@ export function scrollYForPageMetric(metric, ratio, viewportHeight, viewportRati
   return Math.max(0, top + height * clamp(Number(ratio) || 0, 0, 1) - viewHeight * clamp(Number(viewportRatio) || 0, 0, 1));
 }
 
+export function readAheadPageNumbers(currentPage, pageCount, options = {}) {
+  const current = Math.round(Number(currentPage));
+  const total = Math.round(Number(pageCount));
+  if (!Number.isInteger(current) || !Number.isInteger(total) || current < 1 || total < 1) return [];
+  const clampedCurrent = clamp(current, 1, total);
+  const previousCount = Math.max(0, Math.round(Number(options.previousCount ?? 1)) || 0);
+  const nextCount = Math.max(0, Math.round(Number(options.nextCount ?? 2)) || 0);
+  const pages = [clampedCurrent];
+  for (let offset = 1; offset <= nextCount; offset += 1) pages.push(clampedCurrent + offset);
+  for (let offset = 1; offset <= previousCount; offset += 1) pages.push(clampedCurrent - offset);
+  return [...new Set(pages.filter((pageNumber) => pageNumber >= 1 && pageNumber <= total))];
+}
+
 export function normalizedScrollMetric(input) {
   const top = numberOrNull(input?.top);
   const height = numberOrNull(input?.height);

@@ -89,11 +89,14 @@ const state = {
   pdfFrameRefreshRaf: 0,
   pdfDirtyPageIndexes: new Set(),
   pdfNeedsFullRefresh: false,
+  pdfDeferredRefreshEffects: false,
   pendingPdfAnnotationJump: null,
   pdfPendingJumpNotice: null,
   pdfPendingJumpNoticeTimer: 0,
   pdfPendingJumpStatusUntil: 0,
+  frameScrolling: false,
   frameScrollRaf: 0,
+  frameScrollIdleTimer: 0,
   frameScrollDoc: null,
   readerPositionCaptureTimer: 0,
   readerPositionCaptureDoc: null,
@@ -1003,6 +1006,7 @@ async function loadDocument(docId) {
   state.pinnedAnnotationId = null;
   state.pdfDirtyPageIndexes.clear();
   state.pdfNeedsFullRefresh = false;
+  state.pdfDeferredRefreshEffects = false;
   state.pendingPdfAnnotationJump = null;
   state.pdfPendingJumpNotice = null;
   state.pdfPendingJumpStatusUntil = 0;
@@ -1010,6 +1014,7 @@ async function loadDocument(docId) {
     window.clearTimeout(state.pdfPendingJumpNoticeTimer);
     state.pdfPendingJumpNoticeTimer = 0;
   }
+  state.frameScrolling = false;
   state.frameScrollDoc = null;
   state.sideNoteLayoutDoc = null;
   state.readerPositionCaptureDoc = null;
@@ -1023,6 +1028,10 @@ async function loadDocument(docId) {
   if (state.frameScrollRaf) {
     cancelAnimationFrame(state.frameScrollRaf);
     state.frameScrollRaf = 0;
+  }
+  if (state.frameScrollIdleTimer) {
+    window.clearTimeout(state.frameScrollIdleTimer);
+    state.frameScrollIdleTimer = 0;
   }
   if (state.sideNoteLayoutRaf) {
     cancelAnimationFrame(state.sideNoteLayoutRaf);
@@ -1233,6 +1242,15 @@ async function instrumentIframe() {
 
 function scheduleFrameScrollWork(doc = getFrameDoc()) {
   state.frameScrollDoc = doc;
+  state.frameScrolling = true;
+  window.clearTimeout(state.frameScrollIdleTimer);
+  state.frameScrollIdleTimer = window.setTimeout(() => {
+    state.frameScrollIdleTimer = 0;
+    state.frameScrolling = false;
+    if (state.pdfDeferredRefreshEffects && state.currentDocument?.sourceType === 'pdf') {
+      schedulePdfFrameRefresh(doc);
+    }
+  }, 160);
   if (state.frameScrollRaf) return;
   state.frameScrollRaf = requestAnimationFrame(() => {
     const frameDoc = state.frameScrollDoc;
@@ -1261,7 +1279,7 @@ function handlePdfPageReady(doc, event) {
     schedulePdfFrameRefresh(doc);
     return;
   }
-  if (!['shell', 'text'].includes(phase)) return;
+  if (!['shell', 'canvas', 'text'].includes(phase)) return;
   const pageIndex = Number(event.detail?.pageIndex);
   if (!Number.isInteger(pageIndex) || pageIndex < 0) return;
   state.pdfDirtyPageIndexes.add(pageIndex);
@@ -1280,25 +1298,38 @@ function flushPdfFrameRefresh(doc = getFrameDoc()) {
   if (!doc || doc !== getFrameDoc()) return;
   const dirtyPageIndexes = new Set(state.pdfDirtyPageIndexes);
   state.pdfDirtyPageIndexes.clear();
+  const deferNonessential = state.frameScrolling;
   if (dirtyPageIndexes.size) {
-    renderAnnotationsForPdfPageIndexes(doc, dirtyPageIndexes);
+    renderAnnotationsForPdfPageIndexes(doc, dirtyPageIndexes, { deferNonessential });
   }
   if (state.pdfNeedsFullRefresh && !sideNoteEditingActive(doc)) {
     state.pdfNeedsFullRefresh = false;
+    state.pdfDeferredRefreshEffects = false;
     renderAnnotations();
     renderNoteList();
     retryPendingPdfAnnotationJump(getFrameDoc());
     return;
   }
-  renderQuickMarks(doc);
-  syncQuickMarkStack(doc);
-  syncJumpToNoteButton(doc);
+  if (deferNonessential) {
+    state.pdfDeferredRefreshEffects = true;
+  } else {
+    if (state.pdfDeferredRefreshEffects) {
+      state.pdfDeferredRefreshEffects = false;
+      if (!sideNoteEditingActive(doc)) layoutSideNotes(doc);
+      renderNoteList();
+    }
+    state.pdfDeferredRefreshEffects = false;
+    renderQuickMarks(doc);
+    syncQuickMarkStack(doc);
+    syncJumpToNoteButton(doc);
+  }
   retryPendingPdfAnnotationJump(doc, dirtyPageIndexes);
 }
 
 function flushDeferredPdfFullRefresh(doc = getFrameDoc()) {
   if (!state.pdfNeedsFullRefresh || sideNoteEditingActive(doc)) return false;
   state.pdfNeedsFullRefresh = false;
+  state.pdfDeferredRefreshEffects = false;
   renderAnnotations();
   renderNoteList();
   return true;
@@ -2894,6 +2925,7 @@ function renderAnnotations() {
   const doc = getFrameDoc();
   state.pdfDirtyPageIndexes.clear();
   state.pdfNeedsFullRefresh = false;
+  state.pdfDeferredRefreshEffects = false;
   const metrics = layoutMetrics(doc);
   const sideNotesVisible = sideNotesVisibleForMetrics(metrics);
   syncPinnedNoteChrome();
@@ -2927,7 +2959,7 @@ function renderAnnotations() {
   renderQuickMarks(doc);
 }
 
-function renderAnnotationsForPdfPageIndexes(doc, pageIndexes) {
+function renderAnnotationsForPdfPageIndexes(doc, pageIndexes, options = {}) {
   if (!state.iframeLoaded || state.currentDocument?.sourceType !== 'pdf') return;
   const targets = new Set([...pageIndexes].filter((index) => Number.isInteger(index) && index >= 0));
   if (!targets.size) return;
@@ -2955,10 +2987,16 @@ function renderAnnotationsForPdfPageIndexes(doc, pageIndexes) {
     }
     if (sideNotesVisible) upsertSideNoteForAnnotation(doc, annotation);
   }
-  if (sideNotesVisible) {
+  if (sideNotesVisible && !options.deferNonessential) {
     requestSideNoteLayout(doc);
+  } else if (sideNotesVisible) {
+    state.pdfDeferredRefreshEffects = true;
   }
-  renderNavigatorNoteCards(annotations.map((annotation) => annotation.id));
+  if (!options.deferNonessential) {
+    renderNavigatorNoteCards(annotations.map((annotation) => annotation.id));
+  } else {
+    state.pdfDeferredRefreshEffects = true;
+  }
 }
 
 function buildAnnotationResolution(doc, annotation) {
