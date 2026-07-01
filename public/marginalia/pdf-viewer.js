@@ -62,7 +62,7 @@ let horizontalPanLocked = false;
 let pdfWindowScrolling = false;
 let pdfWindowScrollIdleTimer = 0;
 let readAheadRequestId = 0;
-let lastHorizontalScroll = pdfViewport?.scrollLeft || 0;
+let horizontalPanOffset = 0;
 let lastNonReadingViewportWidth = 0;
 let currentPageNumber = 1;
 let lastDispatchedCurrentPageNumber = null;
@@ -99,7 +99,7 @@ document.addEventListener('reader-side-note-layout-change', scheduleZoomRefresh)
 document.addEventListener('reader-pdf-ensure-page', handleReaderPdfEnsurePage);
 window.addEventListener('resize', scheduleZoomRefresh);
 window.addEventListener('scroll', handlePdfWindowScroll, { passive: true });
-pdfViewport?.addEventListener('wheel', handlePdfViewportWheel, { passive: false });
+pdfViewport?.addEventListener('wheel', handlePdfViewportWheel, { passive: true });
 pdfViewport?.addEventListener('scroll', handlePdfViewportScroll, { passive: true });
 
 syncHorizontalPanLock();
@@ -621,25 +621,24 @@ function refreshZoomedPages() {
 
 function captureHorizontalPan() {
   if (!pdfViewport) return null;
-  const maxScroll = Math.max(0, pdfViewport.scrollWidth - pdfViewport.clientWidth);
+  const maxScroll = maxHorizontalPanOffset();
   return {
-    left: pdfViewport.scrollLeft,
-    ratio: maxScroll > 0 ? pdfViewport.scrollLeft / maxScroll : 0
+    left: horizontalPanOffset,
+    ratio: maxScroll > 0 ? horizontalPanOffset / maxScroll : 0
   };
 }
 
 function restoreHorizontalPan(pan) {
   if (!pdfViewport || !pan) return;
   requestAnimationFrame(() => {
-    const maxScroll = Math.max(0, pdfViewport.scrollWidth - pdfViewport.clientWidth);
+    const maxScroll = maxHorizontalPanOffset();
     if (horizontalPanLocked) {
-      pdfViewport.scrollLeft = clamp(pan.left, 0, maxScroll);
+      setHorizontalPanOffset(clamp(pan.left, 0, maxScroll));
     } else {
-      pdfViewport.scrollLeft = maxScroll > 0
+      setHorizontalPanOffset(maxScroll > 0
         ? clamp(pan.ratio * maxScroll, 0, maxScroll)
-        : 0;
+        : 0);
     }
-    lastHorizontalScroll = pdfViewport.scrollLeft;
   });
 }
 
@@ -1037,23 +1036,18 @@ function handlePdfWindowScroll() {
 }
 
 function handlePdfViewportWheel(event) {
-  if (!event.deltaY || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
-  event.preventDefault();
-  const verticalDelta = wheelDeltaPixels(event.deltaY, event.deltaMode, window.innerHeight);
-  if (verticalDelta) window.scrollBy({ left: 0, top: verticalDelta, behavior: 'auto' });
   if (!pdfViewport || horizontalPanLocked || !event.deltaX) return;
+  if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
   const horizontalDelta = wheelDeltaPixels(event.deltaX, event.deltaMode, pdfViewport.clientWidth);
-  if (horizontalDelta) pdfViewport.scrollLeft += horizontalDelta;
+  if (horizontalDelta) setHorizontalPanOffset(horizontalPanOffset + horizontalDelta);
 }
 
 function handlePdfViewportScroll() {
   if (!pdfViewport) return;
-  if (horizontalPanLocked && Math.round(pdfViewport.scrollLeft) !== Math.round(lastHorizontalScroll)) {
-    pdfViewport.scrollLeft = lastHorizontalScroll;
-    return;
+  if (pdfViewport.scrollLeft) {
+    if (!horizontalPanLocked) setHorizontalPanOffset(horizontalPanOffset + pdfViewport.scrollLeft);
+    pdfViewport.scrollLeft = 0;
   }
-  if (Math.round(pdfViewport.scrollLeft) === Math.round(lastHorizontalScroll)) return;
-  lastHorizontalScroll = pdfViewport.scrollLeft;
   scheduleSelectionOverlayUpdate();
   schedulePageControlsSync();
 }
@@ -1125,7 +1119,6 @@ function toggleHorizontalPanLock() {
 
 function syncHorizontalPanLock() {
   document.documentElement.dataset.pdfHorizontalPan = horizontalPanLocked ? 'locked' : 'unlocked';
-  if (horizontalPanLocked && pdfViewport) lastHorizontalScroll = pdfViewport.scrollLeft;
   if (!horizontalPanLockBtn) return;
   horizontalPanLockBtn.classList.toggle('is-active', horizontalPanLocked);
   horizontalPanLockBtn.setAttribute('aria-pressed', String(horizontalPanLocked));
@@ -1156,6 +1149,20 @@ function pageNumberFromElement(element) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function maxHorizontalPanOffset() {
+  if (!pdfViewport) return 0;
+  return Math.max(0, pdfViewport.scrollWidth - pdfViewport.clientWidth);
+}
+
+function setHorizontalPanOffset(offset) {
+  if (!pdfViewport) return;
+  const nextOffset = clamp(Number(offset) || 0, 0, maxHorizontalPanOffset());
+  if (Math.round(nextOffset) === Math.round(horizontalPanOffset)) return;
+  horizontalPanOffset = nextOffset;
+  pdfViewport.style.setProperty('--pdf-horizontal-pan-offset', `${horizontalPanOffset}px`);
+  scheduleSelectionOverlayUpdate();
 }
 
 function wheelDeltaPixels(delta, mode, pageSize) {

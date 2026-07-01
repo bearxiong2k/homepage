@@ -193,15 +193,9 @@
 
     #pdfViewport {
       width: 100vw;
-      overflow-x: auto;
-      overflow-y: hidden;
-      overscroll-behavior-x: contain;
+      overflow-x: clip;
+      overflow-y: visible;
       overscroll-behavior-y: auto;
-      scrollbar-gutter: stable;
-    }
-
-    :root[data-pdf-horizontal-pan="locked"] #pdfViewport {
-      overflow-x: hidden;
     }
 
     :root.reader-embedded #pdfViewport {
@@ -219,6 +213,8 @@
       width: max-content;
       min-width: 100%;
       padding-top: 52px;
+      transform: translateX(calc(-1 * var(--pdf-horizontal-pan-offset, 0px)));
+      transform-origin: top left;
     }
 
     @supports (justify-content: safe center) {
