@@ -199,6 +199,10 @@
       overscroll-behavior-y: auto;
     }
 
+    :root[data-pdf-horizontal-pan="locked"] #pdfViewport {
+      overflow-x: clip;
+    }
+
     :root.reader-embedded #pdfViewport {
       width: calc(100vw - var(--reader-side-note-layer-width));
     }
@@ -214,6 +218,11 @@
       width: max-content;
       min-width: 100%;
       padding-top: 52px;
+    }
+
+    :root[data-pdf-horizontal-pan="locked"] #pdfRoot {
+      transform: translateX(calc(-1 * var(--pdf-horizontal-lock-offset, 0px)));
+      transform-origin: top left;
     }
 
     @supports (justify-content: safe center) {
