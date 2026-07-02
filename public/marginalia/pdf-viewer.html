@@ -18,7 +18,7 @@
       padding: 0 0 80px;
       min-width: 0;
       background: #f4f1eb;
-      overflow-x: hidden;
+      overflow-x: clip;
     }
 
     :root.reader-embedded body {
@@ -193,8 +193,9 @@
 
     #pdfViewport {
       width: 100vw;
-      overflow-x: clip;
+      overflow-x: auto;
       overflow-y: visible;
+      overscroll-behavior-x: contain;
       overscroll-behavior-y: auto;
     }
 
@@ -213,8 +214,6 @@
       width: max-content;
       min-width: 100%;
       padding-top: 52px;
-      transform: translateX(calc(-1 * var(--pdf-horizontal-pan-offset, 0px)));
-      transform-origin: top left;
     }
 
     @supports (justify-content: safe center) {

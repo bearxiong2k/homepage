@@ -3540,7 +3540,7 @@ function injectReaderStyles(doc) {
   style.id = 'html-annotation-reader-style';
   style.textContent = `
     html, body { overscroll-behavior: none; overflow-x: clip; }
-    html.pdf-viewer-document.reader-embedded, html.pdf-viewer-document.reader-embedded body { overflow-x: hidden !important; }
+    html.pdf-viewer-document.reader-embedded, html.pdf-viewer-document.reader-embedded body { overflow-x: clip !important; }
     .reader-highlight { border-radius: .12em; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
     .reader-highlight-yellow { background: rgba(255, 224, 88, .56); }
     .reader-highlight-blue { background: rgba(255, 224, 88, .56); }

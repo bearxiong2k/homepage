@@ -62,7 +62,7 @@ let horizontalPanLocked = false;
 let pdfWindowScrolling = false;
 let pdfWindowScrollIdleTimer = 0;
 let readAheadRequestId = 0;
-let horizontalPanOffset = 0;
+let lockedHorizontalScrollLeft = 0;
 let lastNonReadingViewportWidth = 0;
 let currentPageNumber = 1;
 let lastDispatchedCurrentPageNumber = null;
@@ -99,7 +99,6 @@ document.addEventListener('reader-side-note-layout-change', scheduleZoomRefresh)
 document.addEventListener('reader-pdf-ensure-page', handleReaderPdfEnsurePage);
 window.addEventListener('resize', scheduleZoomRefresh);
 window.addEventListener('scroll', handlePdfWindowScroll, { passive: true });
-pdfViewport?.addEventListener('wheel', handlePdfViewportWheel, { passive: true });
 pdfViewport?.addEventListener('scroll', handlePdfViewportScroll, { passive: true });
 
 syncHorizontalPanLock();
@@ -623,8 +622,8 @@ function captureHorizontalPan() {
   if (!pdfViewport) return null;
   const maxScroll = maxHorizontalPanOffset();
   return {
-    left: horizontalPanOffset,
-    ratio: maxScroll > 0 ? horizontalPanOffset / maxScroll : 0
+    left: pdfViewport.scrollLeft,
+    ratio: maxScroll > 0 ? pdfViewport.scrollLeft / maxScroll : 0
   };
 }
 
@@ -632,13 +631,12 @@ function restoreHorizontalPan(pan) {
   if (!pdfViewport || !pan) return;
   requestAnimationFrame(() => {
     const maxScroll = maxHorizontalPanOffset();
-    if (horizontalPanLocked) {
-      setHorizontalPanOffset(clamp(pan.left, 0, maxScroll));
-    } else {
-      setHorizontalPanOffset(maxScroll > 0
+    const restoredLeft = horizontalPanLocked
+      ? clamp(pan.left, 0, maxScroll)
+      : maxScroll > 0
         ? clamp(pan.ratio * maxScroll, 0, maxScroll)
-        : 0);
-    }
+        : 0;
+    setHorizontalScrollLeft(restoredLeft);
   });
 }
 
@@ -1035,18 +1033,16 @@ function handlePdfWindowScroll() {
   schedulePageControlsSync();
 }
 
-function handlePdfViewportWheel(event) {
-  if (!pdfViewport || horizontalPanLocked || !event.deltaX) return;
-  if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
-  const horizontalDelta = wheelDeltaPixels(event.deltaX, event.deltaMode, pdfViewport.clientWidth);
-  if (horizontalDelta) setHorizontalPanOffset(horizontalPanOffset + horizontalDelta);
-}
-
 function handlePdfViewportScroll() {
   if (!pdfViewport) return;
-  if (pdfViewport.scrollLeft) {
-    if (!horizontalPanLocked) setHorizontalPanOffset(horizontalPanOffset + pdfViewport.scrollLeft);
-    pdfViewport.scrollLeft = 0;
+  if (horizontalPanLocked) {
+    const lockedLeft = clamp(lockedHorizontalScrollLeft, 0, maxHorizontalPanOffset());
+    if (Math.abs(pdfViewport.scrollLeft - lockedLeft) > 0.5) {
+      pdfViewport.scrollLeft = lockedLeft;
+      return;
+    }
+  } else {
+    lockedHorizontalScrollLeft = pdfViewport.scrollLeft;
   }
   scheduleSelectionOverlayUpdate();
   schedulePageControlsSync();
@@ -1119,6 +1115,9 @@ function toggleHorizontalPanLock() {
 
 function syncHorizontalPanLock() {
   document.documentElement.dataset.pdfHorizontalPan = horizontalPanLocked ? 'locked' : 'unlocked';
+  if (pdfViewport) {
+    lockedHorizontalScrollLeft = clamp(pdfViewport.scrollLeft, 0, maxHorizontalPanOffset());
+  }
   if (!horizontalPanLockBtn) return;
   horizontalPanLockBtn.classList.toggle('is-active', horizontalPanLocked);
   horizontalPanLockBtn.setAttribute('aria-pressed', String(horizontalPanLocked));
@@ -1156,19 +1155,13 @@ function maxHorizontalPanOffset() {
   return Math.max(0, pdfViewport.scrollWidth - pdfViewport.clientWidth);
 }
 
-function setHorizontalPanOffset(offset) {
+function setHorizontalScrollLeft(offset) {
   if (!pdfViewport) return;
   const nextOffset = clamp(Number(offset) || 0, 0, maxHorizontalPanOffset());
-  if (Math.round(nextOffset) === Math.round(horizontalPanOffset)) return;
-  horizontalPanOffset = nextOffset;
-  pdfViewport.style.setProperty('--pdf-horizontal-pan-offset', `${horizontalPanOffset}px`);
+  if (Math.round(nextOffset) === Math.round(pdfViewport.scrollLeft)) return;
+  pdfViewport.scrollLeft = nextOffset;
+  lockedHorizontalScrollLeft = nextOffset;
   scheduleSelectionOverlayUpdate();
-}
-
-function wheelDeltaPixels(delta, mode, pageSize) {
-  if (mode === WheelEvent.DOM_DELTA_LINE) return delta * 16;
-  if (mode === WheelEvent.DOM_DELTA_PAGE) return delta * pageSize;
-  return delta;
 }
 
 function status(message) {
