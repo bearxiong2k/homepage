@@ -36,6 +36,7 @@ import {
   metricForDocumentY,
   sortedScrollMetrics
 } from './scroll-position.js';
+import { createReaderSessionChannel, randomSessionId } from './reader-session-channel.js';
 import { currentStorageMode, registerServiceWorker, urlWithStorage } from './runtime.js';
 import { APP_VERSION_LABEL, APP_VERSION_SHORT } from './app-version.js';
 
@@ -129,7 +130,15 @@ const state = {
   appDialog: null,
   pendingImportKind: null,
   navigatorInkPreviewRenderRaf: 0,
-  noteDrawerResizeObserver: null
+  noteDrawerResizeObserver: null,
+  splitSessionId: null,
+  splitChannel: null,
+  splitNotesWindow: null,
+  splitNotesActive: false,
+  splitStateRaf: 0,
+  splitStateDoc: null,
+  splitScrollRaf: 0,
+  splitSuppressScrollBroadcastUntil: 0
 };
 
 const els = {
@@ -140,6 +149,7 @@ const els = {
   undoBtn: document.querySelector('#undoBtn'),
   redoBtn: document.querySelector('#redoBtn'),
   clipToolBtn: document.querySelector('#clipToolBtn'),
+  splitNotesBtn: document.querySelector('#splitNotesBtn'),
   quickMarkStack: document.querySelector('#quickMarkStack'),
   cancelModeBtn: document.querySelector('#cancelModeBtn'),
   readingModeBtn: document.querySelector('#readingModeBtn'),
@@ -252,6 +262,7 @@ function bindChromeEvents() {
   els.undoBtn.addEventListener('click', () => undoHistoryCommand().catch((error) => setStatus(error.message, true)));
   els.redoBtn.addEventListener('click', () => redoHistoryCommand().catch((error) => setStatus(error.message, true)));
   els.clipToolBtn.addEventListener('pointerdown', startQuickMarkToolDrag);
+  els.splitNotesBtn?.addEventListener('click', () => openSplitNotesWindow().catch((error) => setStatus(error.message, true)));
   els.toggleNotesBtn.addEventListener('pointerdown', onNotesTabPointerDown);
   els.toggleNotesBtn.addEventListener('click', onNotesTabClick);
   els.notesPanelResizer?.addEventListener('pointerdown', onNotesPanelResizerPointerDown);
@@ -289,6 +300,7 @@ function bindChromeEvents() {
   });
   window.addEventListener('beforeunload', () => {
     flushReaderScrollPosition();
+    closeSplitNotesSession({ notify: true });
   });
   window.addEventListener('pagehide', () => {
     flushReaderScrollPosition();
@@ -985,6 +997,7 @@ function readerUrlForDoc(docId) {
 
 async function loadDocument(docId) {
   if (!docId) return;
+  if (state.docId && state.docId !== docId) closeSplitNotesSession({ notify: true });
   if (state.iframeLoaded && state.docId) {
     await flushReaderScrollPosition();
   }
@@ -1231,6 +1244,7 @@ async function instrumentIframe() {
     syncJumpToNoteButton(doc);
     updateSelectionHighlightButton();
     scheduleHtmlAnchorMetricsRefresh(doc);
+    scheduleSplitNotesStateBroadcast(doc);
   });
   doc.defaultView.addEventListener('scroll', () => scheduleFrameScrollWork(doc), { passive: true });
   if (state.currentDocument?.sourceType === 'pdf') {
@@ -1259,6 +1273,7 @@ function scheduleFrameScrollWork(doc = getFrameDoc()) {
     state.frameScrollDoc = null;
     if (!frameDoc || frameDoc !== getFrameDoc()) return;
     saveReaderScrollPosition(frameDoc, { precise: false });
+    broadcastSplitSourceScroll(frameDoc);
     if (state.activeAnnotationId) syncJumpToNoteButton(frameDoc);
     if (state.quickMarks.length) {
       const now = performance.now();
@@ -1325,6 +1340,7 @@ function flushPdfFrameRefresh(doc = getFrameDoc()) {
     syncJumpToNoteButton(doc);
   }
   retryPendingPdfAnnotationJump(doc, dirtyPageIndexes);
+  scheduleSplitNotesStateBroadcast(doc);
 }
 
 function flushDeferredPdfFullRefresh(doc = getFrameDoc()) {
@@ -1926,6 +1942,169 @@ function syncNotesPanelControls() {
   if (arrow) arrow.textContent = collapsed ? '‹' : '›';
 }
 
+async function openSplitNotesWindow() {
+  if (!state.docId) {
+    setStatus('Open a source before splitting notes.', true);
+    return;
+  }
+  ensureSplitNotesChannel();
+  const url = urlWithStorage('reader-notes.html', {
+    doc: state.docId,
+    session: state.splitSessionId
+  }, state.storageMode);
+  const notesWindow = window.open(url, `marginalia-notes-${state.splitSessionId}`, 'popup,width=460,height=900');
+  if (!notesWindow) {
+    closeSplitNotesSession({ notify: false });
+    setStatus('Browser blocked the split notes window.', true);
+    return;
+  }
+  state.splitNotesWindow = notesWindow;
+  setSplitNotesActive(true);
+  state.splitChannel.post('source-state', buildSplitNotesSourceState());
+  setStatus('Split notes window opened.');
+}
+
+function ensureSplitNotesChannel() {
+  if (state.splitChannel && state.splitSessionId) return state.splitChannel;
+  state.splitSessionId = randomSessionId();
+  state.splitChannel = createReaderSessionChannel({
+    docId: state.docId,
+    sessionId: state.splitSessionId,
+    role: 'source',
+    onMessage: handleSplitNotesMessage
+  });
+  return state.splitChannel;
+}
+
+function handleSplitNotesMessage(envelope) {
+  const { type, payload = {} } = envelope;
+  if (type === 'notes-ready' || type === 'request-state') {
+    setSplitNotesActive(true, { render: false });
+    scheduleSplitNotesStateBroadcast();
+    return;
+  }
+  if (type === 'notes-scroll') {
+    applySplitNotesScroll(payload.scrollY);
+    return;
+  }
+  if (type === 'activate-annotation') {
+    if (payload.annotationId) activateAnnotation(payload.annotationId, false);
+    return;
+  }
+  if (type === 'jump-to-annotation') {
+    if (payload.annotationId) activateAnnotation(payload.annotationId, true);
+    return;
+  }
+  if (type === 'close-notes') {
+    closeSplitNotesSession({ notify: false });
+  }
+}
+
+function setSplitNotesActive(active, options = {}) {
+  const next = Boolean(active);
+  const changed = state.splitNotesActive !== next;
+  state.splitNotesActive = next;
+  document.body.classList.toggle('reader-split-notes-source', next);
+  els.splitNotesBtn?.classList.toggle('is-active', next);
+  els.splitNotesBtn?.setAttribute('aria-pressed', String(next));
+  if (state.iframeLoaded) {
+    const doc = getFrameDoc();
+    doc?.body?.classList.toggle('reader-split-notes-source', next);
+    syncFrameNotesPanelOverlayState(doc);
+  }
+  if (changed && options.render !== false) renderAnnotations();
+}
+
+function closeSplitNotesSession(options = {}) {
+  const channel = state.splitChannel;
+  if (options.notify && channel) channel.post('close-source');
+  if (state.splitStateRaf) {
+    cancelAnimationFrame(state.splitStateRaf);
+    state.splitStateRaf = 0;
+  }
+  if (state.splitScrollRaf) {
+    cancelAnimationFrame(state.splitScrollRaf);
+    state.splitScrollRaf = 0;
+  }
+  channel?.close();
+  state.splitChannel = null;
+  state.splitSessionId = null;
+  state.splitNotesWindow = null;
+  setSplitNotesActive(false);
+}
+
+function scheduleSplitNotesStateBroadcast(doc = state.iframeLoaded ? getFrameDoc() : null) {
+  if (!state.splitNotesActive || !state.splitChannel) return;
+  state.splitStateDoc = doc;
+  if (state.splitStateRaf) return;
+  state.splitStateRaf = requestAnimationFrame(() => {
+    state.splitStateRaf = 0;
+    if (!state.splitNotesActive || !state.splitChannel) return;
+    state.splitChannel.post('source-state', buildSplitNotesSourceState(state.splitStateDoc || getFrameDoc()));
+    state.splitStateDoc = null;
+  });
+}
+
+function broadcastSplitSourceScroll(doc = getFrameDoc()) {
+  if (!state.splitNotesActive || !state.splitChannel || !doc?.defaultView) return;
+  if (performance.now() < state.splitSuppressScrollBroadcastUntil) return;
+  if (state.splitScrollRaf) return;
+  state.splitScrollRaf = requestAnimationFrame(() => {
+    state.splitScrollRaf = 0;
+    if (!state.splitNotesActive || !state.splitChannel || !doc?.defaultView) return;
+    state.splitChannel.post('source-scroll', {
+      scrollY: Math.max(0, doc.defaultView.scrollY || 0)
+    });
+  });
+}
+
+function applySplitNotesScroll(scrollY) {
+  if (!state.iframeLoaded) return;
+  const doc = getFrameDoc();
+  const view = doc?.defaultView;
+  if (!view) return;
+  const y = Math.max(0, Number(scrollY) || 0);
+  if (Math.abs((view.scrollY || 0) - y) < 1) return;
+  state.splitSuppressScrollBroadcastUntil = performance.now() + 80;
+  view.scrollTo({ top: y, behavior: 'auto' });
+}
+
+function buildSplitNotesSourceState(doc = state.iframeLoaded ? getFrameDoc() : null) {
+  const view = doc?.defaultView;
+  const scrollHeight = doc
+    ? Math.max(doc.documentElement.scrollHeight, doc.body?.scrollHeight || 0, view?.innerHeight || 0)
+    : 0;
+  return {
+    docId: state.docId,
+    documentTitle: state.currentDocument?.title || state.docId || '',
+    sourceType: state.currentDocument?.sourceType || 'html',
+    activeAnnotationId: state.activeAnnotationId || null,
+    scrollY: Math.max(0, view?.scrollY || 0),
+    scrollHeight,
+    viewportHeight: Math.max(0, view?.innerHeight || 0),
+    annotations: state.annotations.map(cloneAnnotation),
+    noteMetrics: doc ? splitNoteMetrics(doc) : []
+  };
+}
+
+function splitNoteMetrics(doc) {
+  return state.annotations.map((annotation) => {
+    const resolution = state.annotationResolution.get(annotation.id) || buildAnnotationResolution(doc, annotation);
+    const position = sideNotePosition(doc, annotation);
+    const hintedY = Number(annotation?.target?.clientHint?.documentY);
+    return {
+      id: annotation.id,
+      top: Number.isFinite(position?.top)
+        ? position.top
+        : Number.isFinite(hintedY)
+          ? hintedY
+          : 24,
+      status: resolution.status || 'resolved',
+      pageNumber: annotationPrimaryPdfPageNumber(annotation) || null
+    };
+  });
+}
+
 function onNotesTabClick(event) {
   if (state.suppressNotesTabClick) {
     state.suppressNotesTabClick = false;
@@ -2040,11 +2219,12 @@ function isNotesPanelExpanded() {
 }
 
 function sideNotesVisibleForMetrics(metrics) {
-  return !state.readingMode && Boolean(metrics?.noteVisible);
+  return !state.splitNotesActive && !state.readingMode && Boolean(metrics?.noteVisible);
 }
 
 function syncFrameNotesPanelOverlayState(doc) {
   if (!doc?.body) return;
+  doc.body.classList.toggle('reader-split-notes-source', state.splitNotesActive);
   doc.body.classList.toggle('reader-notes-overlay-open', isNotesPanelExpanded());
   renderLayoutResizers(doc);
 }
@@ -2991,6 +3171,7 @@ function renderAnnotations() {
   renderLayoutEditor(doc);
   syncFrameNotesPanelOverlayState(doc);
   renderQuickMarks(doc);
+  scheduleSplitNotesStateBroadcast(doc);
 }
 
 function renderAnnotationsForPdfPageIndexes(doc, pageIndexes, options = {}) {
@@ -3031,6 +3212,7 @@ function renderAnnotationsForPdfPageIndexes(doc, pageIndexes, options = {}) {
   } else {
     state.pdfDeferredRefreshEffects = true;
   }
+  scheduleSplitNotesStateBroadcast(doc);
 }
 
 function buildAnnotationResolution(doc, annotation) {
@@ -3614,7 +3796,8 @@ function injectReaderStyles(doc) {
     body.reader-notes-hidden .reader-side-note-layer { display: none !important; }
     body.reader-notes-overlay-open .reader-side-note-layer,
     body.reader-notes-overlay-open .reader-side-note-layer * { pointer-events: none !important; }
-    body.reader-notes-overlay-open .reader-layout-resizer { display: none !important; }
+    body.reader-notes-overlay-open .reader-layout-resizer,
+    body.reader-split-notes-source .reader-layout-resizer { display: none !important; }
     .reader-focus-before-marker { margin-bottom: 0 !important; }
     .reader-focus-after-marker { margin-top: 0 !important; }
     .reader-focus-contraction-marker { display: grid; place-items: center; width: 100%; height: 1.05rem; margin: .28rem 0; color: #9a6a15; opacity: .55; pointer-events: none; }
@@ -4389,6 +4572,7 @@ function renderLayoutEditor(doc) {
 function renderLayoutResizers(doc) {
   doc.querySelectorAll('.reader-layout-resizer').forEach((handle) => handle.remove());
   const metrics = layoutMetrics(doc);
+  if (state.splitNotesActive) return;
   if (state.readingMode && metrics.layout.noteFraction > 0) return;
   if (isNotesPanelExpanded()) return;
   if (!metrics.noteVisible) return;
@@ -6295,6 +6479,7 @@ function syncActiveAnnotationState() {
     highlight.classList.toggle('is-active', highlight.dataset.annotationId === state.activeAnnotationId);
   });
   layoutSideNotes(doc);
+  scheduleSplitNotesStateBroadcast(doc);
 }
 
 function syncSideInkToolbars(doc) {

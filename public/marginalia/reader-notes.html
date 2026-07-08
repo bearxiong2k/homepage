@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Split Notes - Marginalia</title>
+  <link rel="manifest" href="manifest.webmanifest?v=20260708-220254">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="split-notes-body">
+  <main id="splitNotesScroller" class="split-notes-scroller" aria-label="Side notes">
+    <div id="splitNotesCanvas" class="split-notes-canvas"></div>
+  </main>
+
+  <button id="toggleNotesBtn" class="notes-tab" type="button" title="Open notes navigator" aria-label="Open notes navigator" aria-expanded="false" aria-controls="noteDrawerBody">
+    <span class="notes-tab-label">Notes</span>
+    <span class="notes-tab-arrow" aria-hidden="true">‹</span>
+  </button>
+
+  <aside id="rightPanel" class="right-panel is-collapsed" aria-label="Notes navigator">
+    <div id="noteDrawerBody" class="note-drawer-body">
+      <div class="drawer-head">
+        <div>
+          <h2 class="brand">Notes</h2>
+          <p id="noteCount" class="small"></p>
+        </div>
+      </div>
+      <div id="noteList" class="note-list"></div>
+    </div>
+  </aside>
+
+  <p id="status" class="sr-only" aria-live="polite"></p>
+  <script type="module" src="reader-notes.js"></script>
+</body>
+</html>
