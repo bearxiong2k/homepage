@@ -2087,6 +2087,14 @@ function handleSplitNotesMessage(envelope) {
     insertSplitNoteBlock(payload).catch((error) => setStatus(error.message, true));
     return;
   }
+  if (type === 'remove-note-block') {
+    removeSplitNoteBlock(payload).catch((error) => setStatus(error.message, true));
+    return;
+  }
+  if (type === 'delete-annotation') {
+    deleteSplitAnnotation(payload).catch((error) => setStatus(error.message, true));
+    return;
+  }
   if (type === 'set-ink-tool') {
     setSplitInkTool(payload);
     return;
@@ -2291,6 +2299,7 @@ async function appendSplitInkStroke(payload = {}) {
 async function insertSplitNoteBlock(payload = {}) {
   const annotationId = String(payload.annotationId || '');
   const blockType = payload.blockType === 'ink' ? 'ink' : 'text';
+  const afterBlockIndex = Number(payload.afterBlockIndex);
   const annotation = state.annotations.find((item) => item.id === annotationId);
   if (!annotation) return;
   const blocks = sideNoteContentBlocks(annotation);
@@ -2298,11 +2307,42 @@ async function insertSplitNoteBlock(payload = {}) {
     ? { type: 'ink', ink: { strokes: [], height: INK_CANVAS_HEIGHT.default } }
     : { type: 'text', markdown: '' };
   if (blocks.length === 1 && blocks[0]?.type === 'blank') blocks[0] = block;
-  else blocks.push(block);
-  await saveAnnotationBlocks(annotation, blocks, { render: false });
+  else if (Number.isInteger(afterBlockIndex) && afterBlockIndex >= 0) {
+    blocks.splice(Math.min(afterBlockIndex + 1, blocks.length), 0, block);
+  } else {
+    blocks.push(block);
+  }
+  const before = cloneAnnotation(annotation);
+  const updated = await saveAnnotationBlocks(annotation, blocks, { render: false });
+  recordAnnotationHistory('note block insertion', before, updated, annotationId);
   state.activeAnnotationId = annotationId;
   renderAnnotations();
   renderNoteList();
+  scheduleSplitNotesStateBroadcast();
+}
+
+async function removeSplitNoteBlock(payload = {}) {
+  const annotationId = String(payload.annotationId || '');
+  const blockIndex = Number(payload.blockIndex);
+  const annotation = state.annotations.find((item) => item.id === annotationId);
+  if (!annotation || !Number.isInteger(blockIndex) || blockIndex < 0) return;
+  const before = cloneAnnotation(annotation);
+  const blocks = sideNoteContentBlocks(annotation);
+  if (blockIndex >= blocks.length) return;
+  if (blocks.length <= 1) blocks.splice(0, blocks.length, { ...BLANK_NOTE_BLOCK });
+  else blocks.splice(blockIndex, 1);
+  const updated = await saveAnnotationBlocks(annotation, blocks, { render: false });
+  recordAnnotationHistory('note block deletion', before, updated, annotationId);
+  state.activeAnnotationId = annotationId;
+  renderAnnotations();
+  renderNoteList();
+  scheduleSplitNotesStateBroadcast();
+}
+
+async function deleteSplitAnnotation(payload = {}) {
+  const annotationId = String(payload.annotationId || '');
+  if (!annotationId) return;
+  await deleteAnnotation(annotationId);
   scheduleSplitNotesStateBroadcast();
 }
 

@@ -534,6 +534,8 @@ body.has-pinned-note .notes-tab-arrow {
 }
 
 .split-notes-body {
+  --split-notes-drawer-margin: 42px;
+  --reader-notes-panel-width: min(420px, calc(100vw - var(--split-notes-drawer-margin)));
   min-height: 100vh;
   overflow: hidden;
   background: #f8f6f0;
@@ -541,6 +543,16 @@ body.has-pinned-note .notes-tab-arrow {
 
 .split-notes-body .right-panel {
   z-index: 44;
+  width: min(var(--reader-notes-panel-width), calc(100vw - var(--split-notes-drawer-margin)));
+  max-width: calc(100vw - var(--split-notes-drawer-margin));
+}
+
+.split-notes-body .notes-tab {
+  right: 0;
+}
+
+.split-notes-body .note-drawer-body {
+  padding: 12px;
 }
 
 .split-notes-scroller {
@@ -610,7 +622,10 @@ body.has-pinned-note .notes-tab-arrow {
 .split-side-note-tools {
   float: right;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 4px;
+  max-width: min(100%, 15rem);
   margin-left: 8px;
 }
 
@@ -624,10 +639,24 @@ body.has-pinned-note .notes-tab-arrow {
   cursor: pointer;
 }
 
+.split-side-note-tools button.danger,
+.split-note-block-tools button.danger,
+.split-side-note-ink-tools button.danger {
+  color: #8f1f12;
+  border-color: #e1b6ad;
+}
+
 .split-side-note-status,
 .split-side-note-muted {
   color: #7b6a55;
   font: 12px/1.35 ui-sans-serif, system-ui, sans-serif;
+}
+
+.split-side-note.is-collapsed .split-side-note-body,
+.split-side-note.is-collapsed .split-side-note-ink-wrap,
+.split-side-note.is-collapsed .split-note-block-tools,
+.split-side-note.is-collapsed .split-side-note-status {
+  display: none !important;
 }
 
 .split-side-note-ink-wrap {
@@ -656,6 +685,8 @@ body.has-pinned-note .notes-tab-arrow {
   left: 6px;
   top: 6px;
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 3px;
   border: 1px solid rgba(216, 199, 168, 0.88);
@@ -671,6 +702,56 @@ body.has-pinned-note .notes-tab-arrow {
   background: #fffdf8;
   color: #7a3d00;
   font: 11px/1.2 ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.split-side-note-ink-tools button.is-active {
+  border-color: #7a3d00;
+  background: #f2d48d;
+  color: #2e1a00;
+}
+
+.split-side-note-ink-tools label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #7a3d00;
+  font: 11px/1.2 ui-sans-serif, system-ui, sans-serif;
+}
+
+.split-side-note-ink-tools input[type="color"] {
+  width: 1.55rem;
+  height: 1.35rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.split-side-note-ink-tools select {
+  border: 1px solid #d8c7a8;
+  border-radius: 3px;
+  padding: 0.12rem 0.2rem;
+  background: #fffdf8;
+  color: #7a3d00;
+  font: inherit;
+}
+
+.split-note-block-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  margin: 0.32rem 0 0.62rem;
+  font: 12px/1.2 ui-sans-serif, system-ui, sans-serif;
+}
+
+.split-note-block-tools button {
+  border: 1px solid #d8c7a8;
+  border-radius: 4px;
+  padding: 0.2rem 0.42rem;
+  background: #fffdf8;
+  color: #7a3d00;
+  font: inherit;
   cursor: pointer;
 }
 
