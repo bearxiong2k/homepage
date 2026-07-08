@@ -139,7 +139,10 @@ const state = {
   splitStateDoc: null,
   splitScrollRaf: 0,
   splitSuppressScrollBroadcastUntil: 0,
-  splitWindowMonitorTimer: 0
+  splitWindowMonitorTimer: 0,
+  splitSourceWindowTarget: null,
+  splitSourceFallbackTimer: 0,
+  splitSourceFallbackResizeReadyAt: 0
 };
 
 const els = {
@@ -288,7 +291,10 @@ function bindChromeEvents() {
   syncNotesPanelControls();
   syncHistoryControls();
   syncReadingModeControls();
-  window.addEventListener('resize', () => applyNotesTabTop(currentNotesTabTop()));
+  window.addEventListener('resize', () => {
+    applyNotesTabTop(currentNotesTabTop());
+    maybeReleaseSplitSourceWidthFallback();
+  });
   window.addEventListener('message', (event) => {
     if (event.source !== els.frame?.contentWindow) return;
     if (event.data?.type === 'annotation-saved') {
@@ -1948,22 +1954,94 @@ async function openSplitNotesWindow() {
     setStatus('Open a source before splitting notes.', true);
     return;
   }
+  const splitWindowTarget = measureSplitSourceWindowTarget();
   ensureSplitNotesChannel();
   const url = urlWithStorage('reader-notes.html', {
     doc: state.docId,
     session: state.splitSessionId
   }, state.storageMode);
-  const notesWindow = window.open(url, `marginalia-notes-${state.splitSessionId}`, 'popup,width=460,height=900');
+  const notesWindow = window.open(url, `marginalia-notes-${state.splitSessionId}`, splitNotesWindowFeatures(splitWindowTarget));
   if (!notesWindow) {
     closeSplitNotesSession({ notify: false });
     setStatus('Browser blocked the split notes window.', true);
     return;
   }
   state.splitNotesWindow = notesWindow;
+  state.splitSourceWindowTarget = splitWindowTarget;
   startSplitNotesWindowMonitor();
   setSplitNotesActive(true);
+  resizeSourceWindowForSplit(splitWindowTarget);
   state.splitChannel.post('source-state', buildSplitNotesSourceState());
   setStatus('Split notes window opened.');
+}
+
+function measureSplitSourceWindowTarget(doc = state.iframeLoaded ? getFrameDoc() : null) {
+  const frameView = doc?.defaultView;
+  if (!frameView) return null;
+  const metrics = layoutMetrics(doc, { splitSourceOnly: false });
+  const noteWidth = Math.max(0, Math.round(metrics.viewportWidth - metrics.sourceWidth));
+  const parentChromeWidth = Math.max(0, window.outerWidth - window.innerWidth);
+  const parentFrameGap = Math.max(0, window.innerWidth - frameView.innerWidth);
+  const targetInnerWidth = Math.max(420, Math.round(parentFrameGap + metrics.sourceWidth));
+  const targetOuterWidth = Math.max(420, Math.round(targetInnerWidth + parentChromeWidth));
+  const popupWidth = Math.round(normalizeNotesPanelWidth(state.notesPanelWidth || NOTES_PANEL_WIDTH.default));
+  const popupHeight = Math.max(420, Math.round(window.outerHeight || window.innerHeight || 900));
+  const screenLeft = Number.isFinite(window.screenX) ? window.screenX : window.screenLeft;
+  const screenTop = Number.isFinite(window.screenY) ? window.screenY : window.screenTop;
+  return {
+    noteWidth,
+    sourceWidth: Math.round(metrics.sourceWidth),
+    targetInnerWidth,
+    targetOuterWidth,
+    popupWidth,
+    popupHeight,
+    popupLeft: Number.isFinite(screenLeft) ? Math.round(screenLeft + targetOuterWidth) : null,
+    popupTop: Number.isFinite(screenTop) ? Math.round(screenTop) : null
+  };
+}
+
+function splitNotesWindowFeatures(target) {
+  const width = Math.round(target?.popupWidth || normalizeNotesPanelWidth(state.notesPanelWidth || NOTES_PANEL_WIDTH.default));
+  const height = Math.round(target?.popupHeight || 900);
+  const features = ['popup', `width=${width}`, `height=${height}`];
+  if (Number.isFinite(target?.popupLeft)) features.push(`left=${target.popupLeft}`);
+  if (Number.isFinite(target?.popupTop)) features.push(`top=${target.popupTop}`);
+  return features.join(',');
+}
+
+function resizeSourceWindowForSplit(target) {
+  if (!target || target.noteWidth < 24) return;
+  document.documentElement.style.setProperty('--reader-split-source-window-width', `${target.targetInnerWidth}px`);
+  state.splitSourceFallbackResizeReadyAt = performance.now() + 700;
+  if (state.splitSourceFallbackTimer) window.clearTimeout(state.splitSourceFallbackTimer);
+  state.splitSourceFallbackTimer = window.setTimeout(() => {
+    state.splitSourceFallbackTimer = 0;
+    if (!state.splitNotesActive || state.splitSourceWindowTarget !== target) return;
+    const resizeBlocked = Math.abs(window.innerWidth - target.targetInnerWidth) > 24;
+    setSplitSourceWidthFallback(resizeBlocked);
+  }, 220);
+  try {
+    window.resizeTo(target.targetOuterWidth, window.outerHeight || window.innerHeight);
+  } catch {
+    // Browser tabs often reject script-driven resizing; split layout still removes the note column.
+  }
+}
+
+function setSplitSourceWidthFallback(active) {
+  document.body.classList.toggle('reader-split-source-width-fallback', Boolean(active));
+  if (!active) document.documentElement.style.removeProperty('--reader-split-source-window-width');
+}
+
+function maybeReleaseSplitSourceWidthFallback() {
+  if (!state.splitNotesActive || !document.body.classList.contains('reader-split-source-width-fallback')) return;
+  if (performance.now() < state.splitSourceFallbackResizeReadyAt) return;
+  setSplitSourceWidthFallback(false);
+  if (state.iframeLoaded) {
+    const doc = getFrameDoc();
+    updateResponsiveReaderLayout(doc);
+    renderLayoutResizers(doc);
+    scheduleSplitNotesStateBroadcast(doc);
+  }
 }
 
 function ensureSplitNotesChannel() {
@@ -2048,10 +2126,17 @@ function closeSplitNotesSession(options = {}) {
     cancelAnimationFrame(state.splitScrollRaf);
     state.splitScrollRaf = 0;
   }
+  if (state.splitSourceFallbackTimer) {
+    window.clearTimeout(state.splitSourceFallbackTimer);
+    state.splitSourceFallbackTimer = 0;
+  }
   channel?.close();
   state.splitChannel = null;
   state.splitSessionId = null;
   state.splitNotesWindow = null;
+  state.splitSourceWindowTarget = null;
+  state.splitSourceFallbackResizeReadyAt = 0;
+  setSplitSourceWidthFallback(false);
   if (state.splitWindowMonitorTimer) {
     window.clearInterval(state.splitWindowMonitorTimer);
     state.splitWindowMonitorTimer = 0;
@@ -2320,6 +2405,7 @@ function finishNotesTabDrag(event) {
 }
 
 function onNotesPanelResizerPointerDown(event) {
+  if (state.splitNotesActive) return;
   if (event.button != null && event.button !== 0) return;
   event.preventDefault();
   event.stopPropagation();
@@ -2345,6 +2431,10 @@ function onNotesPanelResizerPointerDown(event) {
 function onNotesPanelResizeMove(event) {
   const session = state.notesPanelResizeSession;
   if (!session) return;
+  if (state.splitNotesActive) {
+    finishNotesPanelResize(event);
+    return;
+  }
   event.preventDefault();
   const requestedWidth = session.startWidth + session.startX - event.clientX;
   state.notesPanelWidth = normalizeNotesPanelWidth(requestedWidth);
@@ -4640,10 +4730,22 @@ function updateResponsiveReaderLayout(doc) {
   }
 }
 
-function layoutMetrics(doc) {
+function layoutMetrics(doc, options = {}) {
   const layout = constrainLayoutForViewport(doc, state.layoutWidths);
   const viewportWidth = Math.max(320, doc.defaultView.innerWidth);
   const gap = 0;
+  if (options.splitSourceOnly ?? state.splitNotesActive) {
+    return {
+      layout,
+      viewportWidth,
+      gap,
+      rawNoteWidth: 0,
+      noteVisible: false,
+      sourceWidth: viewportWidth,
+      noteLayerWidth: 0,
+      sourceNoteX: viewportWidth
+    };
+  }
   const rawNoteWidth = viewportWidth * layout.noteFraction;
   const noteVisible = rawNoteWidth >= MIN_VISIBLE_NOTE_WIDTH;
   const sourceWidth = noteVisible ? viewportWidth - rawNoteWidth : viewportWidth;

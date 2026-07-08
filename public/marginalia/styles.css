@@ -426,6 +426,10 @@ body.reader-split-notes-source .right-panel {
   display: none;
 }
 
+body.reader-split-source-width-fallback .app-shell {
+  width: min(100vw, var(--reader-split-source-window-width, 100vw));
+}
+
 body.reader-split-notes-source #splitNotesBtn {
   background: #f2d48d;
   color: #2e1a00;
