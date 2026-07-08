@@ -114,6 +114,7 @@ const state = {
   quickMarks: [],
   quickMarkColorIndex: 0,
   quickMarkDragSession: null,
+  quickMarkDragRenderRaf: 0,
   suppressQuickMarkClickId: null,
   quickMarkLimitReminderTimer: 0,
   tooltipTimer: null,
@@ -2464,8 +2465,8 @@ function bindInlineQuickMarkDragSource(dragSource, pointerId) {
   const view = dragSource?.ownerDocument?.defaultView;
   if (!session || !dragSource || !view) return;
   bindQuickMarkDragSource(dragSource);
+  const frameRect = els.frame.getBoundingClientRect();
   const normalizeFrameEvent = (frameEvent) => {
-    const frameRect = els.frame.getBoundingClientRect();
     return {
       pointerId: frameEvent.pointerId,
       clientX: frameRect.left + frameEvent.clientX,
@@ -2476,10 +2477,11 @@ function bindInlineQuickMarkDragSource(dragSource, pointerId) {
   const move = (frameEvent) => onQuickMarkDragMove(normalizeFrameEvent(frameEvent));
   const end = (frameEvent) => onQuickMarkDragEnd(normalizeFrameEvent(frameEvent));
   const cancel = () => onQuickMarkDragCancel();
-  dragSource.addEventListener('pointermove', move, { passive: false });
+  const moveType = 'onpointerrawupdate' in view ? 'pointerrawupdate' : 'pointermove';
+  dragSource.addEventListener(moveType, move, { passive: false });
   dragSource.addEventListener('pointerup', end, { once: true });
   dragSource.addEventListener('pointercancel', cancel, { once: true });
-  view.addEventListener('pointermove', move, { passive: false });
+  view.addEventListener(moveType, move, { passive: false });
   view.addEventListener('pointerup', end, { once: true });
   view.addEventListener('pointercancel', cancel, { once: true });
   try {
@@ -2488,10 +2490,10 @@ function bindInlineQuickMarkDragSource(dragSource, pointerId) {
     // Pointer capture is best effort across browser/iframe implementations.
   }
   session.inlineCleanup = () => {
-    dragSource.removeEventListener('pointermove', move);
+    dragSource.removeEventListener(moveType, move);
     dragSource.removeEventListener('pointerup', end);
     dragSource.removeEventListener('pointercancel', cancel);
-    view.removeEventListener('pointermove', move);
+    view.removeEventListener(moveType, move);
     view.removeEventListener('pointerup', end);
     view.removeEventListener('pointercancel', cancel);
     try {
@@ -2526,10 +2528,14 @@ function startQuickMarkDrag(options) {
     ghost,
     moved: false,
     lastX: options.startX,
-    lastY: options.startY
+    lastY: options.startY,
+    renderedX: null,
+    renderedY: null
   };
-  positionQuickMarkGhost(options.startX, options.startY);
-  overlay.addEventListener('pointermove', onQuickMarkDragMove, { passive: false });
+  renderQuickMarkGhost();
+  const moveType = 'onpointerrawupdate' in window ? 'pointerrawupdate' : 'pointermove';
+  state.quickMarkDragSession.moveType = moveType;
+  overlay.addEventListener(moveType, onQuickMarkDragMove, { passive: false });
   overlay.addEventListener('pointerup', onQuickMarkDragEnd, { once: true });
   overlay.addEventListener('pointercancel', onQuickMarkDragCancel, { once: true });
   try {
@@ -2543,12 +2549,13 @@ function onQuickMarkDragMove(event) {
   const session = state.quickMarkDragSession;
   if (!session || event.pointerId !== session.pointerId) return;
   event.preventDefault();
-  if (Math.abs(event.clientX - session.startX) > 3 || Math.abs(event.clientY - session.startY) > 3) {
+  const point = latestQuickMarkPointerPoint(event);
+  if (Math.abs(point.clientX - session.startX) > 3 || Math.abs(point.clientY - session.startY) > 3) {
     session.moved = true;
   }
-  session.lastX = event.clientX;
-  session.lastY = event.clientY;
-  positionQuickMarkGhost(event.clientX, event.clientY);
+  session.lastX = point.clientX;
+  session.lastY = point.clientY;
+  requestQuickMarkGhostRender();
 }
 
 function onQuickMarkDragEnd(event) {
@@ -2601,16 +2608,43 @@ function cleanupQuickMarkDrag() {
   session?.inlineCleanup?.();
   session?.overlay?.remove();
   session?.ghost?.remove();
-  session?.overlay?.removeEventListener('pointermove', onQuickMarkDragMove);
+  if (state.quickMarkDragRenderRaf) {
+    cancelAnimationFrame(state.quickMarkDragRenderRaf);
+    state.quickMarkDragRenderRaf = 0;
+  }
+  session?.overlay?.removeEventListener(session.moveType || 'pointermove', onQuickMarkDragMove);
   session?.overlay?.removeEventListener('pointerup', onQuickMarkDragEnd);
   session?.overlay?.removeEventListener('pointercancel', onQuickMarkDragCancel);
 }
 
-function positionQuickMarkGhost(clientX, clientY) {
-  const ghost = state.quickMarkDragSession?.ghost;
-  if (!ghost) return;
-  ghost.style.left = `${clientX}px`;
-  ghost.style.top = `${clientY}px`;
+function latestQuickMarkPointerPoint(event) {
+  const samples = typeof event.getCoalescedEvents === 'function' ? event.getCoalescedEvents() : null;
+  const latest = samples?.length ? samples[samples.length - 1] : event;
+  return {
+    clientX: latest.clientX,
+    clientY: latest.clientY
+  };
+}
+
+function requestQuickMarkGhostRender() {
+  if (state.quickMarkDragRenderRaf) return;
+  state.quickMarkDragRenderRaf = requestAnimationFrame(() => {
+    state.quickMarkDragRenderRaf = 0;
+    renderQuickMarkGhost();
+  });
+}
+
+function renderQuickMarkGhost() {
+  const session = state.quickMarkDragSession;
+  const ghost = session?.ghost;
+  if (!session || !ghost) return;
+  const nextX = Math.round(session.lastX);
+  const nextY = Math.round(session.lastY);
+  if (session.renderedX === nextX && session.renderedY === nextY) return;
+  session.renderedX = nextX;
+  session.renderedY = nextY;
+  ghost.style.setProperty('--quick-mark-ghost-x', `${nextX}px`);
+  ghost.style.setProperty('--quick-mark-ghost-y', `${nextY}px`);
 }
 
 function isPointOverElement(clientX, clientY, element) {
