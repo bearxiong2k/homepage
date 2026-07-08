@@ -138,7 +138,10 @@ const state = {
   splitStateRaf: 0,
   splitStateDoc: null,
   splitScrollRaf: 0,
-  splitSuppressScrollBroadcastUntil: 0,
+  splitPendingScrollY: 0,
+  splitLastLocalScrollSentAt: 0,
+  splitRemoteScrollTargetY: null,
+  splitRemoteScrollTargetUntil: 0,
   splitWindowMonitorTimer: 0,
   splitSourceWindowTarget: null,
   splitSourceFallbackTimer: 0,
@@ -1253,7 +1256,10 @@ async function instrumentIframe() {
     scheduleHtmlAnchorMetricsRefresh(doc);
     scheduleSplitNotesStateBroadcast(doc);
   });
-  doc.defaultView.addEventListener('scroll', () => scheduleFrameScrollWork(doc), { passive: true });
+  doc.defaultView.addEventListener('scroll', () => {
+    broadcastSplitSourceScroll(doc);
+    scheduleFrameScrollWork(doc);
+  }, { passive: true });
   if (state.currentDocument?.sourceType === 'pdf') {
     doc.addEventListener('pdf-page-ready', (event) => handlePdfPageReady(doc, event));
   }
@@ -1280,7 +1286,6 @@ function scheduleFrameScrollWork(doc = getFrameDoc()) {
     state.frameScrollDoc = null;
     if (!frameDoc || frameDoc !== getFrameDoc()) return;
     saveReaderScrollPosition(frameDoc, { precise: false });
-    broadcastSplitSourceScroll(frameDoc);
     if (state.activeAnnotationId) syncJumpToNoteButton(frameDoc);
     if (state.quickMarks.length) {
       const now = performance.now();
@@ -2064,7 +2069,7 @@ function handleSplitNotesMessage(envelope) {
     return;
   }
   if (type === 'notes-scroll') {
-    applySplitNotesScroll(payload.scrollY);
+    applySplitNotesScroll(payload.scrollY, envelope.sentAt);
     return;
   }
   if (type === 'activate-annotation') {
@@ -2175,26 +2180,57 @@ function scheduleSplitNotesStateBroadcast(doc = state.iframeLoaded ? getFrameDoc
 
 function broadcastSplitSourceScroll(doc = getFrameDoc()) {
   if (!state.splitNotesActive || !state.splitChannel || !doc?.defaultView) return;
-  if (performance.now() < state.splitSuppressScrollBroadcastUntil) return;
+  const y = Math.max(0, doc.defaultView.scrollY || 0);
+  if (consumeSplitRemoteScrollEcho(y)) return;
+  state.splitPendingScrollY = y;
   if (state.splitScrollRaf) return;
   state.splitScrollRaf = requestAnimationFrame(() => {
     state.splitScrollRaf = 0;
     if (!state.splitNotesActive || !state.splitChannel || !doc?.defaultView) return;
+    const currentScrollY = Number(doc.defaultView.scrollY);
+    const scrollY = Math.max(0, Number.isFinite(currentScrollY) ? currentScrollY : state.splitPendingScrollY || 0);
+    state.splitPendingScrollY = scrollY;
+    state.splitLastLocalScrollSentAt = Date.now();
     state.splitChannel.post('source-scroll', {
-      scrollY: Math.max(0, doc.defaultView.scrollY || 0)
+      scrollY
     });
   });
 }
 
-function applySplitNotesScroll(scrollY) {
+function applySplitNotesScroll(scrollY, sentAt = 0) {
+  if (Number(sentAt) && Number(sentAt) < state.splitLastLocalScrollSentAt) return;
   if (!state.iframeLoaded) return;
   const doc = getFrameDoc();
   const view = doc?.defaultView;
   if (!view) return;
   const y = Math.max(0, Number(scrollY) || 0);
   if (Math.abs((view.scrollY || 0) - y) < 1) return;
-  state.splitSuppressScrollBroadcastUntil = performance.now() + 80;
-  view.scrollTo({ top: y, behavior: 'auto' });
+  markSplitRemoteScrollTarget(y);
+  view.scrollTo(0, y);
+}
+
+function markSplitRemoteScrollTarget(scrollY) {
+  state.splitRemoteScrollTargetY = Math.max(0, Number(scrollY) || 0);
+  state.splitRemoteScrollTargetUntil = performance.now() + 350;
+}
+
+function consumeSplitRemoteScrollEcho(scrollY) {
+  if (state.splitRemoteScrollTargetY == null) return false;
+  if (performance.now() > state.splitRemoteScrollTargetUntil) {
+    clearSplitRemoteScrollTarget();
+    return false;
+  }
+  if (Math.abs(scrollY - state.splitRemoteScrollTargetY) <= 1.5) {
+    clearSplitRemoteScrollTarget();
+    return true;
+  }
+  clearSplitRemoteScrollTarget();
+  return false;
+}
+
+function clearSplitRemoteScrollTarget() {
+  state.splitRemoteScrollTargetY = null;
+  state.splitRemoteScrollTargetUntil = 0;
 }
 
 function buildSplitNotesSourceState(doc = state.iframeLoaded ? getFrameDoc() : null) {

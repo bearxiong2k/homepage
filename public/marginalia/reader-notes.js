@@ -23,7 +23,10 @@ const state = {
   expandedNavigatorNoteIds: new Set(),
   noteNavigatorExpandAll: false,
   scrollRaf: 0,
-  suppressScrollUntil: 0
+  pendingScrollY: 0,
+  lastLocalScrollSentAt: 0,
+  remoteScrollTargetY: null,
+  remoteScrollTargetUntil: 0
 };
 
 const els = {
@@ -80,7 +83,7 @@ function handleSessionMessage(envelope) {
     return;
   }
   if (type === 'source-scroll') {
-    applySourceScroll(payload.scrollY);
+    applySourceScroll(payload.scrollY, envelope.sentAt);
     return;
   }
   if (type === 'close-source') {
@@ -135,7 +138,7 @@ function renderSideNotes() {
 }
 
 function renderEmptyState(message) {
-  els.canvas.style.height = `${window.innerHeight}px`;
+  els.canvas.style.height = `${Math.max(window.innerHeight, Math.ceil(state.sourceScrollHeight || 0))}px`;
   els.canvas.textContent = '';
   const empty = document.createElement('p');
   empty.className = 'split-notes-empty';
@@ -405,19 +408,50 @@ function onNavigatorClick(event) {
 }
 
 function onNotesScroll() {
-  if (performance.now() < state.suppressScrollUntil) return;
+  const y = Math.max(0, els.scroller.scrollTop || 0);
+  if (consumeRemoteScrollEcho(y)) return;
+  state.pendingScrollY = y;
   if (state.scrollRaf) return;
   state.scrollRaf = requestAnimationFrame(() => {
     state.scrollRaf = 0;
-    state.channel?.post('notes-scroll', { scrollY: Math.max(0, els.scroller.scrollTop || 0) });
+    const currentScrollY = Number(els.scroller.scrollTop);
+    const scrollY = Math.max(0, Number.isFinite(currentScrollY) ? currentScrollY : state.pendingScrollY || 0);
+    state.pendingScrollY = scrollY;
+    state.lastLocalScrollSentAt = Date.now();
+    state.channel?.post('notes-scroll', { scrollY });
   });
 }
 
-function applySourceScroll(scrollY) {
+function applySourceScroll(scrollY, sentAt = 0) {
+  if (Number(sentAt) && Number(sentAt) < state.lastLocalScrollSentAt) return;
   const y = Math.max(0, Number(scrollY) || 0);
   if (Math.abs((els.scroller.scrollTop || 0) - y) < 1) return;
-  state.suppressScrollUntil = performance.now() + 80;
-  els.scroller.scrollTo({ top: y, behavior: 'auto' });
+  markRemoteScrollTarget(y);
+  els.scroller.scrollTop = y;
+}
+
+function markRemoteScrollTarget(scrollY) {
+  state.remoteScrollTargetY = Math.max(0, Number(scrollY) || 0);
+  state.remoteScrollTargetUntil = performance.now() + 350;
+}
+
+function consumeRemoteScrollEcho(scrollY) {
+  if (state.remoteScrollTargetY == null) return false;
+  if (performance.now() > state.remoteScrollTargetUntil) {
+    clearRemoteScrollTarget();
+    return false;
+  }
+  if (Math.abs(scrollY - state.remoteScrollTargetY) <= 1.5) {
+    clearRemoteScrollTarget();
+    return true;
+  }
+  clearRemoteScrollTarget();
+  return false;
+}
+
+function clearRemoteScrollTarget() {
+  state.remoteScrollTargetY = null;
+  state.remoteScrollTargetUntil = 0;
 }
 
 function toggleNavigator() {
