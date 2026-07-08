@@ -138,7 +138,8 @@ const state = {
   splitStateRaf: 0,
   splitStateDoc: null,
   splitScrollRaf: 0,
-  splitSuppressScrollBroadcastUntil: 0
+  splitSuppressScrollBroadcastUntil: 0,
+  splitWindowMonitorTimer: 0
 };
 
 const els = {
@@ -1959,6 +1960,7 @@ async function openSplitNotesWindow() {
     return;
   }
   state.splitNotesWindow = notesWindow;
+  startSplitNotesWindowMonitor();
   setSplitNotesActive(true);
   state.splitChannel.post('source-state', buildSplitNotesSourceState());
   setStatus('Split notes window opened.');
@@ -1993,6 +1995,26 @@ function handleSplitNotesMessage(envelope) {
   }
   if (type === 'jump-to-annotation') {
     if (payload.annotationId) activateAnnotation(payload.annotationId, true);
+    return;
+  }
+  if (type === 'save-note-text') {
+    saveSplitNoteText(payload).catch((error) => setStatus(error.message, true));
+    return;
+  }
+  if (type === 'append-ink-stroke') {
+    appendSplitInkStroke(payload).catch((error) => setStatus(error.message, true));
+    return;
+  }
+  if (type === 'insert-note-block') {
+    insertSplitNoteBlock(payload).catch((error) => setStatus(error.message, true));
+    return;
+  }
+  if (type === 'set-ink-tool') {
+    setSplitInkTool(payload);
+    return;
+  }
+  if (type === 'clear-ink-block') {
+    clearSplitInkBlock(payload).catch((error) => setStatus(error.message, true));
     return;
   }
   if (type === 'close-notes') {
@@ -2030,7 +2052,20 @@ function closeSplitNotesSession(options = {}) {
   state.splitChannel = null;
   state.splitSessionId = null;
   state.splitNotesWindow = null;
+  if (state.splitWindowMonitorTimer) {
+    window.clearInterval(state.splitWindowMonitorTimer);
+    state.splitWindowMonitorTimer = 0;
+  }
   setSplitNotesActive(false);
+}
+
+function startSplitNotesWindowMonitor() {
+  if (state.splitWindowMonitorTimer) window.clearInterval(state.splitWindowMonitorTimer);
+  state.splitWindowMonitorTimer = window.setInterval(() => {
+    if (!state.splitNotesWindow || state.splitNotesWindow.closed) {
+      closeSplitNotesSession({ notify: false });
+    }
+  }, 1000);
 }
 
 function scheduleSplitNotesStateBroadcast(doc = state.iframeLoaded ? getFrameDoc() : null) {
@@ -2082,6 +2117,10 @@ function buildSplitNotesSourceState(doc = state.iframeLoaded ? getFrameDoc() : n
     scrollY: Math.max(0, view?.scrollY || 0),
     scrollHeight,
     viewportHeight: Math.max(0, view?.innerHeight || 0),
+    inkTool: state.inkTool,
+    inkColor: state.inkColor,
+    inkWidth: state.inkWidth,
+    inkPressureEnabled: state.inkPressureEnabled,
     annotations: state.annotations.map(cloneAnnotation),
     noteMetrics: doc ? splitNoteMetrics(doc) : []
   };
@@ -2103,6 +2142,128 @@ function splitNoteMetrics(doc) {
       pageNumber: annotationPrimaryPdfPageNumber(annotation) || null
     };
   });
+}
+
+async function saveSplitNoteText(payload = {}) {
+  const annotationId = String(payload.annotationId || '');
+  const annotation = state.annotations.find((item) => item.id === annotationId);
+  if (!annotation) return;
+  const before = cloneAnnotation(annotation);
+  const title = String(payload.title || '');
+  const textBlocks = Array.isArray(payload.textBlocks) ? payload.textBlocks : [];
+  const blocks = sideNoteContentBlocks(annotation);
+  for (const item of textBlocks) {
+    const index = Number(item?.blockIndex);
+    if (!Number.isInteger(index) || index < 0) continue;
+    if (blocks[index]?.type === 'text' || blocks[index]?.type === 'blank') {
+      blocks[index] = { type: 'text', markdown: String(item.markdown || '') };
+    }
+  }
+  const legacy = legacyNoteFieldsFromBlocks(blocks);
+  const nextAnnotation = {
+    ...annotation,
+    note: {
+      ...(annotation.note || {}),
+      title,
+      ...legacy,
+      blocks
+    }
+  };
+  const updated = await storage.updateAnnotation(state.docId, annotationId, annotationForStorage(nextAnnotation));
+  const runtimeUpdated = annotationWithRuntimeInk(updated);
+  recordAnnotationHistory('note edit', before, runtimeUpdated, annotationId);
+  state.annotations = state.annotations.map((item) => item.id === annotationId ? runtimeUpdated : item);
+  state.activeAnnotationId = annotationId;
+  renderAnnotations();
+  renderNoteList();
+  scheduleSplitNotesStateBroadcast();
+  setStatus('Annotation saved.');
+}
+
+async function appendSplitInkStroke(payload = {}) {
+  const annotationId = String(payload.annotationId || '');
+  const blockIndex = Number(payload.blockIndex);
+  const annotation = state.annotations.find((item) => item.id === annotationId);
+  if (!annotation || !Number.isInteger(blockIndex)) return;
+  const blocks = sideNoteContentBlocks(annotation);
+  const block = blocks[blockIndex];
+  if (block?.type !== 'ink') return;
+  const stroke = normalizeSplitInkStroke(payload.stroke);
+  if (!stroke || stroke.points.length < 2) return;
+  block.ink.strokes.push(stroke);
+  updateInkLogicalBottomForStroke(block.ink, stroke);
+  const history = sideInkHistory(annotationId, blockIndex);
+  history.undo.push({ type: 'add', stroke });
+  history.redo = [];
+  const updated = await saveAnnotationBlocks(annotation, blocks, { render: false });
+  state.activeAnnotationId = annotationId;
+  renderAnnotations();
+  renderNoteList();
+  scheduleSplitNotesStateBroadcast();
+  return updated;
+}
+
+async function insertSplitNoteBlock(payload = {}) {
+  const annotationId = String(payload.annotationId || '');
+  const blockType = payload.blockType === 'ink' ? 'ink' : 'text';
+  const annotation = state.annotations.find((item) => item.id === annotationId);
+  if (!annotation) return;
+  const blocks = sideNoteContentBlocks(annotation);
+  const block = blockType === 'ink'
+    ? { type: 'ink', ink: { strokes: [], height: INK_CANVAS_HEIGHT.default } }
+    : { type: 'text', markdown: '' };
+  if (blocks.length === 1 && blocks[0]?.type === 'blank') blocks[0] = block;
+  else blocks.push(block);
+  await saveAnnotationBlocks(annotation, blocks, { render: false });
+  state.activeAnnotationId = annotationId;
+  renderAnnotations();
+  renderNoteList();
+  scheduleSplitNotesStateBroadcast();
+}
+
+function setSplitInkTool(payload = {}) {
+  const tool = payload.tool === 'eraser' ? 'eraser' : 'pen';
+  state.inkTool = tool;
+  if (typeof payload.color === 'string') state.inkColor = payload.color;
+  const width = Number(payload.width);
+  if (Number.isFinite(width)) state.inkWidth = clampNumber(width, 1, 24, state.inkWidth);
+  if (typeof payload.pressureEnabled === 'boolean') state.inkPressureEnabled = payload.pressureEnabled;
+  syncInkToolUi();
+  scheduleSplitNotesStateBroadcast();
+}
+
+async function clearSplitInkBlock(payload = {}) {
+  const annotationId = String(payload.annotationId || '');
+  const blockIndex = Number(payload.blockIndex);
+  await clearSideInk(annotationId, blockIndex);
+  renderAnnotations();
+  renderNoteList();
+  scheduleSplitNotesStateBroadcast();
+}
+
+function normalizeSplitInkStroke(stroke) {
+  if (!stroke || typeof stroke !== 'object') return null;
+  const points = Array.isArray(stroke.points)
+    ? stroke.points.map((point) => {
+      const x = Number(point?.x);
+      const y = Number(point?.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      const pressure = clampNumber(point?.pressure, 0, 1, 0.5);
+      return {
+        x,
+        y,
+        pressure,
+        t: Number.isFinite(Number(point?.t)) ? Number(point.t) : 0,
+        pointerType: point?.pointerType || 'pen'
+      };
+    }).filter(Boolean)
+    : [];
+  return {
+    color: typeof stroke.color === 'string' ? stroke.color : state.inkColor,
+    width: clampNumber(stroke.width, 1, 24, state.inkWidth),
+    pressureEnabled: stroke.pressureEnabled === true,
+    points
+  };
 }
 
 function onNotesTabClick(event) {
