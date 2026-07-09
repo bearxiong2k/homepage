@@ -549,6 +549,7 @@ body.has-pinned-note .notes-tab-arrow {
 
 .split-notes-body .notes-tab {
   right: 0;
+  z-index: 46;
 }
 
 .split-notes-body .note-drawer-body {
