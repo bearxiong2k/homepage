@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'marginalia-static-';
-const APP_VERSION = '20260710-214542';
+const APP_VERSION = '20260710-232052';
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 const PDFJS_CMAP_ASSETS = [
   '78-EUC-H.bcmap',
@@ -235,6 +235,7 @@ const STATIC_ASSETS = [
   './app.js',
   './app-version.js',
   './reader.js',
+  './reader-notice.js',
   './reader-notes.js',
   './reader-session-channel.js',
   './pdf-viewer.js',

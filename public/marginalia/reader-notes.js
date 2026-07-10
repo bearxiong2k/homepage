@@ -5,6 +5,8 @@ const docId = params.get('doc') || '';
 const sessionId = params.get('session') || '';
 const INK_SPACE = { width: 1000, height: 562.5 };
 const INK_CANVAS_HEIGHT = { min: 96, default: 420, max: 1800 };
+const NOTES_PANEL_WIDTH = { min: 260, default: 360 };
+const SPLIT_NOTES_DRAWER_MARGIN = 42;
 
 const state = {
   channel: null,
@@ -26,7 +28,9 @@ const state = {
   pendingScrollY: 0,
   lastLocalScrollSentAt: 0,
   remoteScrollTargetY: null,
-  remoteScrollTargetUntil: 0
+  remoteScrollTargetUntil: 0,
+  notesPanelWidth: null,
+  notesPanelResizeSession: null
 };
 
 const els = {
@@ -37,7 +41,8 @@ const els = {
   noteCount: document.querySelector('#noteCount'),
   expandAllNotesBtn: document.querySelector('#expandAllNotesBtn'),
   rightPanel: document.querySelector('#rightPanel'),
-  toggleNotesBtn: document.querySelector('#toggleNotesBtn')
+  toggleNotesBtn: document.querySelector('#toggleNotesBtn'),
+  notesPanelResizer: document.querySelector('#notesPanelResizer')
 };
 
 init();
@@ -62,6 +67,8 @@ function init() {
   }
   els.scroller.addEventListener('scroll', onNotesScroll, { passive: true });
   els.toggleNotesBtn.addEventListener('click', toggleNavigator);
+  els.notesPanelResizer?.addEventListener('pointerdown', onNotesPanelResizerPointerDown);
+  els.notesPanelResizer?.addEventListener('keydown', onNotesPanelResizerKeyDown);
   els.expandAllNotesBtn?.addEventListener('click', toggleExpandAllNotes);
   els.noteList.addEventListener('click', onNavigatorClick);
   els.canvas.addEventListener('click', onSideNoteClick);
@@ -70,6 +77,9 @@ function init() {
   els.canvas.addEventListener('focusout', onSideNoteFocusOut);
   els.canvas.addEventListener('keydown', onSideNoteKeyDown);
   els.canvas.addEventListener('paste', onSideNotePaste);
+  state.notesPanelWidth = loadNotesPanelWidth();
+  applyNotesPanelWidth();
+  window.addEventListener('resize', constrainNotesPanelWidthToViewport);
   window.addEventListener('beforeunload', () => state.channel?.post('close-notes'));
   state.channel.post('notes-ready');
   state.channel.post('request-state');
@@ -293,14 +303,14 @@ function createNavigatorCard(annotation) {
   card.dataset.annotationId = annotation.id;
   card.innerHTML = `
     <div class="note-card-header">
+      <div class="note-card-heading">
+        <p class="note-card-title">${escapeHtml(navigatorTitle(annotation))}</p>
+        <div class="note-card-meta">${escapeHtml(navigatorMeta(metric))}</div>
+      </div>
       <div class="note-card-actions">
         <button type="button" class="note-card-expand" data-action="toggle-expand" aria-expanded="${expanded}" aria-controls="${splitNavigatorContentId(annotation.id)}">${escapeHtml(navigatorExpandButtonLabel(annotation.id))}</button>
         <button type="button" data-action="goto">Go to</button>
         <button type="button" class="danger" data-action="delete">Delete</button>
-      </div>
-      <div class="note-card-heading">
-        <p class="note-card-title">${escapeHtml(sideNoteTitle(annotation) || sideNoteText(annotation) || 'Empty note')}</p>
-        <div class="note-card-meta">${escapeHtml(navigatorMeta(annotation, metric))}</div>
       </div>
     </div>
     ${expanded ? navigatorContentHtml(annotation) : ''}
@@ -342,10 +352,23 @@ function restoreSplitNavigatorFocus(snapshot) {
   card?.querySelector(`[data-action="${cssEscape(snapshot.action)}"]`)?.focus?.({ preventScroll: true });
 }
 
-function navigatorMeta(annotation, metric) {
+function navigatorTitle(annotation) {
+  const title = sideNoteTitle(annotation);
+  if (title) return title;
+  const text = sideNoteText(annotation);
+  if (text) return readableSnippet(text, 240);
+  const strokes = sideNoteBlocks(annotation)
+    .filter((block) => block?.type === 'ink')
+    .reduce((count, block) => count + (Array.isArray(block.ink?.strokes) ? block.ink.strokes.length : 0), 0);
+  if (strokes) return `Drawing note (${strokes} stroke${strokes === 1 ? '' : 's'})`;
+  return 'Empty side note';
+}
+
+function navigatorMeta(metric) {
   if (metric?.status === 'pending') return metric.pageNumber ? `Loading page ${metric.pageNumber}...` : 'Loading target...';
   if (metric?.status === 'unresolved') return 'Target unresolved';
-  return sideNoteText(annotation) || 'No text yet.';
+  if (metric?.locationLabel) return metric.locationLabel;
+  return metric?.pageNumber ? `Page ${metric.pageNumber}` : 'Document';
 }
 
 function onSideNoteClick(event) {
@@ -524,12 +547,125 @@ function clearRemoteScrollTarget() {
 function toggleNavigator() {
   const collapsed = !els.rightPanel.classList.contains('is-collapsed');
   els.rightPanel.classList.toggle('is-collapsed', collapsed);
+  if (els.notesPanelResizer) els.notesPanelResizer.tabIndex = collapsed ? -1 : 0;
   els.toggleNotesBtn.setAttribute('aria-expanded', String(!collapsed));
   const label = collapsed ? 'Open notes navigator' : 'Close notes navigator';
   els.toggleNotesBtn.title = label;
   els.toggleNotesBtn.setAttribute('aria-label', label);
   const arrow = els.toggleNotesBtn.querySelector('.notes-tab-arrow');
   if (arrow) arrow.textContent = collapsed ? '‹' : '›';
+}
+
+function onNotesPanelResizerPointerDown(event) {
+  if (event.button != null && event.button !== 0) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const session = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startWidth: currentNotesPanelWidth(),
+    handle: event.currentTarget
+  };
+  state.notesPanelResizeSession = session;
+  session.handle.classList.add('is-dragging');
+  try {
+    session.handle.setPointerCapture?.(event.pointerId);
+  } catch {
+    // Pointer capture is best effort for synthetic events and older browsers.
+  }
+  document.addEventListener('pointermove', onNotesPanelResizeMove);
+  document.addEventListener('pointerup', finishNotesPanelResize);
+  document.addEventListener('pointercancel', finishNotesPanelResize);
+}
+
+function onNotesPanelResizeMove(event) {
+  const session = state.notesPanelResizeSession;
+  if (!session || event.pointerId !== session.pointerId) return;
+  event.preventDefault();
+  state.notesPanelWidth = normalizeNotesPanelWidth(session.startWidth + session.startX - event.clientX);
+  applyNotesPanelWidth();
+}
+
+function finishNotesPanelResize(event) {
+  const session = state.notesPanelResizeSession;
+  if (!session || (event?.pointerId != null && event.pointerId !== session.pointerId)) return;
+  event?.preventDefault?.();
+  session.handle?.classList.remove('is-dragging');
+  document.removeEventListener('pointermove', onNotesPanelResizeMove);
+  document.removeEventListener('pointerup', finishNotesPanelResize);
+  document.removeEventListener('pointercancel', finishNotesPanelResize);
+  state.notesPanelResizeSession = null;
+  saveNotesPanelWidth();
+  setStatus(`Notes navigator width ${Math.round(state.notesPanelWidth)} pixels.`);
+}
+
+function onNotesPanelResizerKeyDown(event) {
+  const step = event.shiftKey ? 48 : 12;
+  const bounds = notesPanelWidthBounds();
+  const current = currentNotesPanelWidth();
+  let next = null;
+  if (event.key === 'ArrowLeft') next = current + step;
+  if (event.key === 'ArrowRight') next = current - step;
+  if (event.key === 'Home') next = bounds.min;
+  if (event.key === 'End') next = bounds.max;
+  if (event.key === '0') next = NOTES_PANEL_WIDTH.default;
+  if (next == null) return;
+  event.preventDefault();
+  event.stopPropagation();
+  state.notesPanelWidth = normalizeNotesPanelWidth(next);
+  applyNotesPanelWidth();
+  saveNotesPanelWidth();
+  setStatus(`Notes navigator width ${Math.round(state.notesPanelWidth)} pixels.`);
+}
+
+function constrainNotesPanelWidthToViewport() {
+  const previous = state.notesPanelWidth;
+  applyNotesPanelWidth();
+  if (previous !== state.notesPanelWidth) saveNotesPanelWidth();
+}
+
+function applyNotesPanelWidth() {
+  const bounds = notesPanelWidthBounds();
+  const width = normalizeNotesPanelWidth(state.notesPanelWidth);
+  state.notesPanelWidth = width;
+  document.body.style.setProperty('--reader-notes-panel-width', `${Math.round(width)}px`);
+  if (!els.notesPanelResizer) return;
+  els.notesPanelResizer.setAttribute('aria-valuemin', String(Math.round(bounds.min)));
+  els.notesPanelResizer.setAttribute('aria-valuemax', String(Math.round(bounds.max)));
+  els.notesPanelResizer.setAttribute('aria-valuenow', String(Math.round(width)));
+  els.notesPanelResizer.setAttribute('aria-valuetext', `${Math.round(width)} pixels wide`);
+}
+
+function currentNotesPanelWidth() {
+  const width = els.rightPanel?.getBoundingClientRect?.().width;
+  return normalizeNotesPanelWidth(Number.isFinite(width) && width > 0 ? width : state.notesPanelWidth);
+}
+
+function notesPanelWidthBounds() {
+  const max = Math.max(1, window.innerWidth - SPLIT_NOTES_DRAWER_MARGIN);
+  return { min: Math.min(NOTES_PANEL_WIDTH.min, max), max };
+}
+
+function normalizeNotesPanelWidth(value) {
+  const bounds = notesPanelWidthBounds();
+  const fallback = Math.min(NOTES_PANEL_WIDTH.default, bounds.max);
+  return Math.min(bounds.max, Math.max(bounds.min, Number.isFinite(value) ? value : fallback));
+}
+
+function notesPanelWidthStorageKey() {
+  return `reader-split-notes-panel-width:${docId || 'default'}`;
+}
+
+function loadNotesPanelWidth() {
+  try {
+    return normalizeNotesPanelWidth(JSON.parse(localStorage.getItem(notesPanelWidthStorageKey()) || 'null'));
+  } catch {
+    return normalizeNotesPanelWidth(null);
+  }
+}
+
+function saveNotesPanelWidth() {
+  localStorage.setItem(notesPanelWidthStorageKey(), JSON.stringify(normalizeNotesPanelWidth(state.notesPanelWidth)));
 }
 
 function toggleSideNoteCollapse(annotationId) {

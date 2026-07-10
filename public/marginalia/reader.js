@@ -31,6 +31,7 @@ import {
   metricForDocumentY,
   sortedScrollMetrics
 } from './scroll-position.js';
+import { buildReaderDocumentNotice } from './reader-notice.js';
 import { createReaderSessionChannel, randomSessionId } from './reader-session-channel.js';
 import { currentStorageMode, registerServiceWorker, urlWithStorage } from './runtime.js';
 import { APP_VERSION_LABEL, APP_VERSION_SHORT } from './app-version.js';
@@ -2387,7 +2388,8 @@ function splitNoteMetrics(doc) {
           ? hintedY
           : 24,
       status: resolution.status || 'resolved',
-      pageNumber: annotationPrimaryPdfPageNumber(annotation) || null
+      pageNumber: annotationPrimaryPdfPageNumber(annotation) || null,
+      locationLabel: annotationSectionLabel(annotation)
     };
   });
 }
@@ -9221,32 +9223,18 @@ function showReaderLoadFailure(error) {
 
 function syncReaderDocumentNotice() {
   if (!state.currentDocument || !state.iframeLoaded) return;
-  const warnings = [...new Set(state.currentDocument.compatibility?.warnings || [])];
-  const staticInteractive = state.currentDocument.sourceType !== 'pdf'
-    && state.currentDocument.compatibility?.features?.interactiveSource;
   const unresolvedCount = [...state.annotationResolution.values()]
     .filter((resolution) => resolution?.status === 'unresolved').length;
-  const projectionWarnings = readerProjectionWarnings();
-  const details = [];
-  if (staticInteractive) details.push('Source scripts and forms are disabled in static reading mode.');
-  if (projectionWarnings.length) {
-    const examples = projectionWarnings.slice(0, 2).map((value) => `“${value}”`).join(', ');
-    details.push(`${projectionWarnings.length} source resource${projectionWarnings.length === 1 ? ' is' : 's are'} blocked or missing in static reading mode${examples ? `: ${examples}` : ''}. Reimport a bundle containing local assets if needed.`);
-  }
-  if (unresolvedCount) details.push(`${unresolvedCount} annotation target${unresolvedCount === 1 ? ' is' : 's are'} unresolved.`);
-  details.push(...warnings.slice(0, 3));
-  if (!details.length) {
+  const notice = buildReaderDocumentNotice({
+    docId: state.docId,
+    projectionWarnings: readerProjectionWarnings(),
+    unresolvedCount
+  });
+  if (!notice) {
     if (els.readerNotice?.dataset.noticeKind === 'warning') hideReaderNotice();
     return;
   }
-  const body = [...new Set(details)].join('\n');
-  showReaderNotice({
-    key: `document:${state.docId}:${body}`,
-    kind: 'warning',
-    title: unresolvedCount ? 'Some annotations need attention' : 'Static reading safeguards are active',
-    body,
-    retry: false
-  });
+  showReaderNotice(notice);
 }
 
 function readerProjectionWarnings() {

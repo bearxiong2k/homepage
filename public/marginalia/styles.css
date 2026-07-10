@@ -1142,7 +1142,8 @@ textarea {
 }
 
 .note-card-header {
-  display: block;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
@@ -1204,13 +1205,12 @@ textarea {
 }
 
 .note-card-actions {
-  float: right;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 4px;
-  max-width: min(100%, 12.5rem);
-  margin: 0 0 6px 10px;
+  width: 100%;
+  margin: 0 0 6px;
 }
 
 .note-card-actions button {
