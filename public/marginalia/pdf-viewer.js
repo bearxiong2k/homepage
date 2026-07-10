@@ -2,8 +2,7 @@ import * as pdfjsLib from './vendor/pdfjs/pdf.mjs';
 import {
   metricForDocumentY,
   pageRatioForMetric,
-  readAheadPageNumbers,
-  sortedScrollMetrics
+  readAheadPageNumbers
 } from './scroll-position.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdfjs/pdf.worker.mjs', location.href).href;
@@ -31,6 +30,7 @@ const horizontalPanLockBtn = document.querySelector('#horizontalPanLockBtn');
 const toolbar = document.querySelector('#pdfToolbar');
 const toolbarToggleBtn = document.querySelector('#toolbarToggleBtn');
 const pageRecords = new Map();
+const orderedPageRecordEntries = [];
 const pageShellPromises = new Map();
 const renderQueue = [];
 const textLayerQueue = [];
@@ -78,12 +78,26 @@ horizontalPanLockBtn?.addEventListener('click', toggleHorizontalPanLock);
 toolbarToggleBtn?.addEventListener('click', toggleToolbarCollapsed);
 zoomInput?.addEventListener('change', commitZoomInput);
 zoomInput?.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    clearPdfInputError(zoomInput);
+    syncZoomControls({ force: true });
+    zoomInput.blur();
+    return;
+  }
   if (event.key !== 'Enter') return;
   event.preventDefault();
   zoomInput.blur();
 });
 pageNumberInput?.addEventListener('change', commitPageNumberInput);
 pageNumberInput?.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    clearPdfInputError(pageNumberInput);
+    syncPageControls({ force: true });
+    pageNumberInput.blur();
+    return;
+  }
   if (event.key !== 'Enter') return;
   event.preventDefault();
   commitPageNumberInput();
@@ -160,9 +174,11 @@ async function createPageShell(pdf, pageNumber) {
   pageEl.dataset.pdfPageIndex = String(pageNumber - 1);
   pageEl.dataset.pdfPageLabel = String(pageNumber);
   pageEl.dataset.renderState = 'pending';
+  pageEl.setAttribute('aria-label', `PDF page ${pageNumber}`);
 
   const placeholder = document.createElement('div');
   placeholder.className = 'pdf-page-placeholder';
+  placeholder.setAttribute('aria-hidden', 'true');
   placeholder.textContent = `Page ${pageNumber}`;
   pageEl.append(placeholder);
   insertPageElement(pageNumber, pageEl);
@@ -176,6 +192,7 @@ async function createPageShell(pdf, pageNumber) {
     textLayerEl: null
   };
   pageRecords.set(pageNumber, record);
+  insertOrderedPageRecord(pageNumber, record);
   updatePageGeometry(record);
   syncZoomControls();
   observer?.observe(pageEl);
@@ -201,7 +218,18 @@ function insertPageElement(pageNumber, pageEl) {
 }
 
 function orderedPageRecords() {
-  return [...pageRecords.entries()].sort((a, b) => a[0] - b[0]);
+  return orderedPageRecordEntries;
+}
+
+function insertOrderedPageRecord(pageNumber, record) {
+  let low = 0;
+  let high = orderedPageRecordEntries.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (orderedPageRecordEntries[middle][0] < pageNumber) low = middle + 1;
+    else high = middle;
+  }
+  orderedPageRecordEntries.splice(low, 0, [pageNumber, record]);
 }
 
 function normalizedPageNumber(value) {
@@ -370,6 +398,8 @@ async function renderPage(record, generation, renderToken) {
   const outputScale = Math.min(window.devicePixelRatio || 1, MAX_DEVICE_SCALE);
   const canvas = document.createElement('canvas');
   canvas.className = 'pdf-page-canvas';
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', `Rendered image of PDF page ${pageNumberFromElement(pageEl)}`);
   const context = canvas.getContext('2d', { alpha: false });
   const cssViewport = page.getViewport({ scale: cssScale });
   const outputViewport = page.getViewport({ scale: cssScale * outputScale });
@@ -443,6 +473,7 @@ function startTextLayerRender(pageNumber) {
     .catch((error) => {
       if (!isRenderCancelled(error)) {
         record.pageEl.dataset.textLayer = 'failed';
+        syncPdfPageAccessibility(record);
         console.warn('PDF text layer failed', error);
       }
     })
@@ -476,15 +507,36 @@ async function renderTextLayer(record, textLayerEl, viewport, generation, render
     await record.textLayer.render();
     if (record.renderToken !== renderToken || generation !== zoomGeneration) return false;
     record.pageEl.dataset.textLayer = textLayerEl.childElementCount ? 'ready' : 'empty';
+    syncPdfPageAccessibility(record);
     notifyPageChanged(pageNumberFromElement(record.pageEl), 'text');
     scheduleSelectionOverlayUpdate();
     return true;
   } catch (error) {
     if (!isRenderCancelled(error)) {
       record.pageEl.dataset.textLayer = 'failed';
+      syncPdfPageAccessibility(record);
       console.warn('PDF text layer failed', error);
     }
     return false;
+  }
+}
+
+function syncPdfPageAccessibility(record) {
+  const canvas = record?.pageEl?.querySelector?.('.pdf-page-canvas');
+  const textLayer = record?.textLayerEl;
+  if (!canvas) return;
+  const hasText = record.pageEl.dataset.textLayer === 'ready' && Boolean(textLayer?.textContent?.trim());
+  if (hasText) {
+    canvas.setAttribute('aria-hidden', 'true');
+    canvas.setAttribute('role', 'presentation');
+    textLayer?.removeAttribute('aria-hidden');
+    return;
+  }
+  canvas.removeAttribute('aria-hidden');
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', `Rendered image of PDF page ${pageNumberFromElement(record.pageEl)}`);
+  if (textLayer && record.pageEl.dataset.textLayer !== 'pending' && record.pageEl.dataset.textLayer !== 'rendering') {
+    textLayer.setAttribute('aria-hidden', 'true');
   }
 }
 
@@ -509,7 +561,7 @@ function schedulePageMetricsRefresh() {
 }
 
 function rebuildPageMetrics() {
-  pageMetrics = sortedScrollMetrics(orderedPageRecords().map(([pageNumber, record]) => {
+  pageMetrics = orderedPageRecords().map(([pageNumber, record]) => {
     const rect = record.pageEl.getBoundingClientRect();
     const top = window.scrollY + rect.top;
     const height = rect.height || record.pageEl.offsetHeight || 0;
@@ -517,9 +569,10 @@ function rebuildPageMetrics() {
       pageNumber,
       pageIndex: pageNumber - 1,
       top,
-      height
+      height,
+      bottom: top + height
     };
-  }));
+  });
 }
 
 function schedulePageControlsSync() {
@@ -571,9 +624,11 @@ function setExplicitZoomRatio(ratio) {
 function commitZoomInput() {
   const ratio = parseZoomInputValue(zoomInput?.value);
   if (!Number.isFinite(ratio)) {
-    syncZoomControls();
+    setPdfInputError(zoomInput, 'Enter a zoom percentage greater than 0, such as 100%.');
+    syncZoomControls({ force: true });
     return;
   }
+  clearPdfInputError(zoomInput);
   setExplicitZoomRatio(ratio);
 }
 
@@ -668,12 +723,12 @@ function parseZoomInputValue(value) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed / 100 : NaN;
 }
 
-function syncZoomControls() {
+function syncZoomControls(options = {}) {
   const zoomRatio = currentRepresentativeZoomRatio();
   document.documentElement.dataset.pdfZoomMode = Math.abs(zoomRatio - 1) < 0.001 ? 'fit-width' : 'relative';
   document.documentElement.dataset.pdfZoom = String(Number(currentRepresentativeScale().toFixed(4)));
   document.documentElement.dataset.pdfZoomRatio = String(Number(zoomRatio.toFixed(4)));
-  if (!zoomInput || document.activeElement === zoomInput) return;
+  if (!zoomInput || (!options.force && document.activeElement === zoomInput)) return;
   zoomInput.value = `${Math.round(zoomRatio * 100)}%`;
 }
 
@@ -1050,10 +1105,17 @@ function handlePdfViewportScroll() {
 function commitPageNumberInput() {
   const pageNumber = Number.parseInt(String(pageNumberInput?.value || '').trim(), 10);
   if (!Number.isFinite(pageNumber) || !pdfDocument) {
-    syncPageControls();
+    setPdfInputError(pageNumberInput, 'Enter a valid PDF page number.');
+    syncPageControls({ force: true });
     return;
   }
-  scrollToPageNumber(clamp(pageNumber, 1, pdfDocument.numPages));
+  if (pageNumber < 1 || pageNumber > pdfDocument.numPages) {
+    setPdfInputError(pageNumberInput, `Enter a page number from 1 to ${pdfDocument.numPages}.`);
+    syncPageControls({ force: true });
+    return;
+  }
+  clearPdfInputError(pageNumberInput);
+  scrollToPageNumber(pageNumber);
 }
 
 function scrollToPageNumber(pageNumber) {
@@ -1071,7 +1133,7 @@ function scrollToPageNumber(pageNumber) {
   forceDrainRenderQueue();
 }
 
-function syncPageControls() {
+function syncPageControls(options = {}) {
   if (!pdfDocument) return;
   const pageState = visiblePageState();
   currentPageNumber = clamp(pageState?.pageNumber || currentPageNumber || 1, 1, pdfDocument.numPages);
@@ -1080,7 +1142,7 @@ function syncPageControls() {
   document.documentElement.dataset.pdfCurrentPage = String(currentPageNumber);
   document.documentElement.dataset.pdfCurrentPageIndex = String(pageIndex);
   document.documentElement.dataset.pdfCurrentPageRatio = String(Number(ratio.toFixed(5)));
-  if (pageNumberInput && document.activeElement !== pageNumberInput) pageNumberInput.value = String(currentPageNumber);
+  if (pageNumberInput && (options.force || document.activeElement !== pageNumberInput)) pageNumberInput.value = String(currentPageNumber);
   if (pageTotalLabel) pageTotalLabel.textContent = `/ ${pdfDocument.numPages}`;
   if (pageIndicator) pageIndicator.textContent = `Page ${currentPageNumber} / ${pdfDocument.numPages}`;
   if (currentPageNumber !== lastDispatchedCurrentPageNumber) {
@@ -1186,6 +1248,22 @@ function syncLockedHorizontalPanOffset() {
 
 function status(message) {
   if (statusEl) statusEl.textContent = message;
+}
+
+function setPdfInputError(input, message) {
+  if (!input) return;
+  input.setAttribute('aria-invalid', 'true');
+  input.setAttribute('aria-errormessage', 'pdfStatus');
+  status(message);
+}
+
+function clearPdfInputError(input) {
+  if (!input) return;
+  input.removeAttribute('aria-invalid');
+  input.setAttribute('aria-errormessage', 'pdfStatus');
+  if (statusEl && !zoomInput?.matches?.('[aria-invalid="true"]') && !pageNumberInput?.matches?.('[aria-invalid="true"]')) {
+    status('');
+  }
 }
 
 function notifyPageChanged(pageNumber, phase = 'shell') {

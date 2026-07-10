@@ -3,22 +3,17 @@ import { currentStorageMode, fetchNetworkAppVersion, registerServiceWorker, upda
 import { createStorageAdapter } from './storage-adapter.js';
 import { downloadBytes } from './bundle.js';
 import {
-  assertWritablePackageDirectory,
   canUseDirectoryAccess,
   canUseFileSystemAccess,
   pickAnnotatorBundleFile,
   pickAnnotatorBundleSaveHandle,
   pickAnnotatorPackageDirectory,
   queryFileHandlePermissionState,
-  readFilesFromDirectoryHandle,
-  writeFilesToDirectoryHandle,
+  readArchiveBytesFromPackageDirectory,
+  writeArchiveBytesToPackageDirectory,
   writeBytesToFileHandle
 } from './file-access.js';
 import {
-  bundleArchiveBytesFromFolderFiles,
-  bundleFolderFilesFromArchiveBytes,
-  libraryArchiveBytesFromFolderFiles,
-  libraryFolderFilesFromArchiveBytes,
   libraryFolderNameForTitle
 } from './folder-package.js';
 import { isAnnotatorLibraryFilename, libraryFilenameForTitle } from './library-package.js';
@@ -91,12 +86,23 @@ async function init() {
     }
   });
   documentsEl?.addEventListener('submit', (event) => {
+    const moveForm = event.target?.closest?.('[data-move-library-item]');
+    if (moveForm) {
+      event.preventDefault();
+      moveLibraryItemFromForm(moveForm).catch(showError);
+      return;
+    }
     const form = event.target?.closest?.('[data-create-library-folder]');
     if (!form) return;
     event.preventDefault();
     createLibraryFolderFromForm(form).catch(showError);
   });
   documentsEl?.addEventListener('click', (event) => {
+    const moveDirectionButton = event.target?.closest?.('[data-library-move-direction]');
+    if (moveDirectionButton) {
+      moveLibraryItemByDirection(moveDirectionButton).catch(showError);
+      return;
+    }
     const viewButton = event.target?.closest?.('[data-library-view-mode]');
     if (viewButton) {
       setLibraryViewMode(viewButton.dataset.libraryViewMode);
@@ -148,6 +154,13 @@ async function init() {
   });
   documentsEl?.addEventListener('dragend', clearLibraryDragState);
   documentsEl?.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && event.target?.closest?.('.library-bundle-popover') && selectedTreeEntryId) {
+      event.preventDefault();
+      const trigger = findLibraryNode('bundle', selectedTreeEntryId)?.querySelector('[data-select-tree-bundle]');
+      selectLibraryTreeBundle('');
+      trigger?.focus?.({ preventScroll: true });
+      return;
+    }
     if (!event.target?.matches?.('[data-library-title], [data-library-bundle-title], [data-library-folder-title], [data-source-title]')) return;
     if (event.key === 'Enter') {
       event.preventDefault();
@@ -159,6 +172,7 @@ async function init() {
       event.target.blur();
     }
   });
+  documentsEl?.addEventListener('input', (event) => clearFieldError(event.target));
   registerServiceWorker()
     .then(() => checkForAvailableAppUpdate())
     .catch(() => {});
@@ -387,14 +401,17 @@ function libraryViewMarkup(model) {
 }
 
 async function refreshLibraryViewFromStorage(options = {}) {
+  const focusSnapshot = captureLibraryFocus();
   const model = await buildLibraryRenderModel();
   libraryRenderModel = model;
   if (!documentsEl.querySelector('[data-library-view-region]') || model.empty) {
     documentsEl.innerHTML = libraryDashboardMarkup(model);
+    restoreLibraryFocus(focusSnapshot);
     return model;
   }
   syncLibraryShellFromModel(model);
   renderLibraryViewRegion(model, options);
+  restoreLibraryFocus(focusSnapshot);
   return model;
 }
 
@@ -488,17 +505,17 @@ function libraryTreeMarkup(rows, folders) {
   const entriesByFolder = libraryRowsByFolder(rows);
   const body = libraryTreeChildrenMarkup('', 0, childrenByParent, entriesByFolder, folders);
   return `
-    <div class="library-tree library-finder" role="tree" aria-label="Library folder tree">
-      <div class="library-finder-root-shell" data-library-node-kind="root" data-library-node-id="" data-library-node-key="root">
-        <div class="library-finder-row library-finder-root" role="treeitem" data-library-drop-folder="" style="--library-tree-depth: 0">
+    <div class="library-tree library-finder" role="list" aria-label="Library folders and bundles">
+      <div class="library-finder-root-shell" role="listitem" data-library-node-kind="root" data-library-node-id="" data-library-node-key="root">
+        <div class="library-finder-row library-finder-root" data-library-drop-folder="" style="--library-tree-depth: 0">
           <span class="library-finder-indent" aria-hidden="true"></span>
           <span class="library-folder-disclosure-spacer" aria-hidden="true"></span>
           <span class="library-finder-icon library-finder-icon-root" aria-hidden="true"></span>
           <span class="library-finder-name">Library root</span>
           <span class="library-finder-meta">${rows.length} bundle${rows.length === 1 ? '' : 's'}</span>
         </div>
-        <div class="library-finder-children" data-library-children-for="">
-          ${body || '<p class="small library-tree-empty">No folders or bundles yet.</p>'}
+        <div class="library-finder-children" role="list" data-library-children-for="">
+          ${body || '<p class="small library-tree-empty" role="listitem">No folders or bundles yet.</p>'}
         </div>
       </div>
     </div>
@@ -520,11 +537,9 @@ function libraryTreeFolderMarkup(folder, depth, childrenByParent, entriesByFolde
   const title = folder.title || folder.id;
   const collapsed = libraryCollapsedFolderIds.has(folder.id);
   return `
-    <div class="library-finder-folder ${collapsed ? 'is-collapsed' : ''}" data-library-node-kind="folder" data-library-node-id="${escapeAttr(folder.id)}" data-library-node-key="folder:${escapeAttr(folder.id)}">
+    <div class="library-finder-folder ${collapsed ? 'is-collapsed' : ''}" role="listitem" data-library-node-kind="folder" data-library-node-id="${escapeAttr(folder.id)}" data-library-node-key="folder:${escapeAttr(folder.id)}">
       <div
         class="library-finder-row library-finder-folder-row"
-        role="treeitem"
-        aria-expanded="${!collapsed}"
         draggable="true"
         data-library-drag-kind="folder"
         data-library-drag-id="${escapeAttr(folder.id)}"
@@ -543,9 +558,24 @@ function libraryTreeFolderMarkup(folder, depth, childrenByParent, entriesByFolde
         </button>
         <span class="library-finder-icon library-finder-icon-folder" aria-hidden="true"></span>
         <input class="library-finder-name-input" type="text" value="${escapeAttr(title)}" data-original-title="${escapeAttr(title)}" data-library-folder-title="${escapeAttr(folder.id)}" aria-label="Folder name">
-        <button class="library-folder-delete" type="button" data-delete-library-folder="${escapeAttr(folder.id)}" data-folder-label="${escapeAttr(title)}" title="Delete folder">Delete</button>
+        <span class="library-folder-actions">
+          <details class="library-organize-menu">
+            <summary>Organize</summary>
+            <div class="library-organize-popover">
+              <form data-move-library-item="folder" data-library-item-id="${escapeAttr(folder.id)}">
+                <label><span>Move to</span><select name="destination">${folderMoveOptionsMarkup(folders, folder)}</select></label>
+                <button type="submit">Move</button>
+              </form>
+              <div class="library-order-actions" aria-label="Folder order">
+                <button type="button" data-library-move-direction="up" data-library-item-kind="folder" data-library-item-id="${escapeAttr(folder.id)}">Move up</button>
+                <button type="button" data-library-move-direction="down" data-library-item-kind="folder" data-library-item-id="${escapeAttr(folder.id)}">Move down</button>
+              </div>
+            </div>
+          </details>
+          <button class="library-folder-delete" type="button" data-delete-library-folder="${escapeAttr(folder.id)}" data-folder-label="${escapeAttr(title)}" title="Delete folder">Delete</button>
+        </span>
       </div>
-      <div class="library-finder-children" data-library-children-for="${escapeAttr(folder.id)}" ${collapsed ? 'hidden' : ''}>
+      <div class="library-finder-children" role="list" data-library-children-for="${escapeAttr(folder.id)}" ${collapsed ? 'hidden' : ''}>
         ${childMarkup || ''}
       </div>
     </div>
@@ -567,6 +597,8 @@ function libraryTreeBundleMarkup({ doc, entry, stats, folderPath }, depth) {
       data-library-doc-id="${escapeAttr(doc.id)}"
       data-library-entry-title="${escapeAttr(entryTitle)}"
       data-library-source-title="${escapeAttr(sourceTitle)}"
+      data-library-folder-id="${escapeAttr(entry.folderId || '')}"
+      role="listitem"
     >
       <button
         class="library-finder-row library-finder-bundle ${selected ? 'is-selected' : ''}"
@@ -575,8 +607,9 @@ function libraryTreeBundleMarkup({ doc, entry, stats, folderPath }, depth) {
         data-library-drag-kind="bundle"
         data-library-drag-id="${escapeAttr(entry.id)}"
         data-select-tree-bundle="${escapeAttr(entry.id)}"
-        role="treeitem"
-        aria-selected="${selected}"
+        aria-pressed="${selected}"
+        aria-expanded="${selected}"
+        ${selected ? `aria-controls="${libraryBundlePopoverId(entry.id)}"` : ''}
       >
         <span class="library-finder-indent" aria-hidden="true"></span>
         <span class="library-folder-disclosure-spacer" aria-hidden="true"></span>
@@ -591,12 +624,20 @@ function libraryTreeBundleMarkup({ doc, entry, stats, folderPath }, depth) {
 
 function libraryBundlePopoverMarkup({ doc, entry, entryTitle, sourceTitle }) {
   return `
-    <div class="library-bundle-popover" role="dialog" aria-label="Bundle actions">
+    <div id="${libraryBundlePopoverId(entry.id)}" class="library-bundle-popover" role="dialog" aria-label="Bundle actions">
       <label class="library-popover-field">
         <span class="library-field-label">Bundle</span>
         <input type="text" value="${escapeAttr(entryTitle)}" data-original-title="${escapeAttr(entryTitle)}" data-library-bundle-title="${escapeAttr(entry.id)}" aria-label="Bundle name">
       </label>
       <span>${escapeHtml(sourceTitle)}</span>
+      <form class="library-popover-move" data-move-library-item="bundle" data-library-item-id="${escapeAttr(entry.id)}">
+        <label><span class="library-field-label">Move to</span><select name="destination">${folderOptionsMarkup(libraryRenderModel?.folders || [], entry.folderId || '')}</select></label>
+        <button type="submit">Move</button>
+      </form>
+      <div class="library-order-actions" aria-label="Bundle order">
+        <button type="button" data-library-move-direction="up" data-library-item-kind="bundle" data-library-item-id="${escapeAttr(entry.id)}">Move up</button>
+        <button type="button" data-library-move-direction="down" data-library-item-kind="bundle" data-library-item-id="${escapeAttr(entry.id)}">Move down</button>
+      </div>
       <div class="library-popover-actions">
         <a class="home-doc-open" href="${escapeAttr(urlWithStorage('reader.html', { doc: doc.id }, storageMode))}">Open -&gt;</a>
         <button class="library-entry-replace" type="button" data-replace-source="${escapeAttr(doc.id)}" data-source-label="${escapeAttr(sourceTitle)}">Replace</button>
@@ -604,6 +645,25 @@ function libraryBundlePopoverMarkup({ doc, entry, entryTitle, sourceTitle }) {
       </div>
     </div>
   `;
+}
+
+function libraryBundlePopoverId(entryId) {
+  return `library-bundle-actions-${String(entryId || '').replace(/[^\w.-]+/g, '-')}`;
+}
+
+function folderMoveOptionsMarkup(folders, movedFolder) {
+  const disallowed = new Set([movedFolder.id]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const folder of folders || []) {
+      if (folder.parentId && disallowed.has(folder.parentId) && !disallowed.has(folder.id)) {
+        disallowed.add(folder.id);
+        changed = true;
+      }
+    }
+  }
+  return folderOptionsMarkup((folders || []).filter((folder) => !disallowed.has(folder.id)), movedFolder.parentId || '');
 }
 
 function folderOptionsMarkup(folders, selectedId = '') {
@@ -710,9 +770,48 @@ function setLibraryViewMode(mode) {
     };
     syncLibraryShellFromModel(libraryRenderModel);
     renderLibraryViewRegion(libraryRenderModel);
+    documentsEl.querySelector(`[data-library-view-mode="${mode}"]`)?.focus?.({ preventScroll: true });
     return;
   }
   loadDocuments({ showLoading: false }).catch(showError);
+}
+
+function captureLibraryFocus() {
+  const active = document.activeElement;
+  if (!active || !documentsEl?.contains(active)) return null;
+  const node = active.closest?.('[data-library-node-kind]');
+  return {
+    kind: node?.dataset?.libraryNodeKind || '',
+    id: node?.dataset?.libraryNodeId || '',
+    viewMode: active.dataset?.libraryViewMode || '',
+    toggleFolder: active.dataset?.toggleLibraryFolder || '',
+    selectBundle: active.dataset?.selectTreeBundle || '',
+    folderTitle: active.dataset?.libraryFolderTitle || '',
+    bundleTitle: active.dataset?.libraryBundleTitle || '',
+    sourceTitle: active.dataset?.sourceTitle || '',
+    moveDirection: active.dataset?.libraryMoveDirection || '',
+    itemKind: active.dataset?.libraryItemKind || '',
+    name: active.getAttribute?.('name') || '',
+    tagName: active.tagName || ''
+  };
+}
+
+function restoreLibraryFocus(snapshot) {
+  if (!snapshot) return;
+  let scope = documentsEl;
+  if (snapshot.kind) scope = findLibraryNode(snapshot.kind, snapshot.id) || documentsEl;
+  let target = null;
+  if (snapshot.viewMode) target = documentsEl.querySelector(`[data-library-view-mode="${snapshot.viewMode}"]`);
+  if (!target && snapshot.toggleFolder) target = scope.querySelector?.(`[data-toggle-library-folder="${snapshot.toggleFolder}"]`);
+  if (!target && snapshot.selectBundle) target = scope.querySelector?.(`[data-select-tree-bundle="${snapshot.selectBundle}"]`);
+  if (!target && snapshot.folderTitle) target = scope.querySelector?.(`[data-library-folder-title="${snapshot.folderTitle}"]`);
+  if (!target && snapshot.bundleTitle) target = scope.querySelector?.(`[data-library-bundle-title="${snapshot.bundleTitle}"]`);
+  if (!target && snapshot.sourceTitle) target = scope.querySelector?.(`[data-source-title="${snapshot.sourceTitle}"]`);
+  if (!target && snapshot.moveDirection) {
+    target = scope.querySelector?.(`[data-library-move-direction="${snapshot.moveDirection}"][data-library-item-kind="${snapshot.itemKind}"]`);
+  }
+  if (!target && snapshot.name) target = scope.querySelector?.(`[name="${snapshot.name}"]`);
+  target?.focus?.({ preventScroll: true });
 }
 
 function selectLibraryTreeBundle(entryId) {
@@ -728,7 +827,9 @@ function selectLibraryTreeBundle(entryId) {
   }
   shell.classList.add('is-selected');
   button.classList.add('is-selected');
-  button.setAttribute('aria-selected', 'true');
+  button.setAttribute('aria-pressed', 'true');
+  button.setAttribute('aria-expanded', 'true');
+  button.setAttribute('aria-controls', libraryBundlePopoverId(selectedTreeEntryId));
   shell.insertAdjacentHTML('beforeend', libraryBundlePopoverMarkup(libraryBundleDataFromShell(shell)));
 }
 
@@ -739,7 +840,9 @@ function clearLibraryBundleSelection() {
   });
   documentsEl?.querySelectorAll?.('[data-select-tree-bundle].is-selected').forEach((button) => {
     button.classList.remove('is-selected');
-    button.setAttribute('aria-selected', 'false');
+    button.setAttribute('aria-pressed', 'false');
+    button.setAttribute('aria-expanded', 'false');
+    button.removeAttribute('aria-controls');
   });
 }
 
@@ -750,7 +853,7 @@ function libraryBundleDataFromShell(shell) {
   const sourceTitle = shell?.dataset?.librarySourceTitle || 'source.html';
   return {
     doc: { id: docId },
-    entry: { id: entryId },
+    entry: { id: entryId, folderId: shell?.dataset?.libraryFolderId || null },
     entryTitle,
     sourceTitle
   };
@@ -792,7 +895,6 @@ function setLibraryFolderCollapsed(folderId, collapsed) {
   const toggle = folder?.querySelector('[data-toggle-library-folder]');
   const children = findLibraryChildrenContainer(folderId);
   folder?.classList.toggle('is-collapsed', collapsed);
-  row?.setAttribute('aria-expanded', String(!collapsed));
   toggle?.setAttribute('aria-expanded', String(!collapsed));
   if (toggle) {
     const title = row?.querySelector('[data-library-folder-title]')?.value || 'folder';
@@ -896,6 +998,65 @@ function previewLibraryDrop(payload, target, folderId) {
   return true;
 }
 
+async function moveLibraryItemFromForm(form) {
+  const kind = form?.dataset?.moveLibraryItem;
+  const id = form?.dataset?.libraryItemId;
+  const destination = form?.querySelector?.('[name="destination"]')?.value || null;
+  if (!id || !['folder', 'bundle'].includes(kind)) return;
+  if (kind === 'folder') await storage.moveLibraryFolder?.(id, destination);
+  else await storage.moveLibraryBundle?.(id, destination);
+  if (kind === 'bundle') selectedTreeEntryId = id;
+  await refreshLibraryViewFromStorage({ animateTree: libraryViewMode === 'tree' });
+  focusLibraryNode(kind, id);
+  appendLibraryLog(`Moved ${kind} with keyboard-accessible controls.`);
+}
+
+async function moveLibraryItemByDirection(button) {
+  const direction = button?.dataset?.libraryMoveDirection;
+  const kind = button?.dataset?.libraryItemKind;
+  const id = button?.dataset?.libraryItemId;
+  if (!id || !['folder', 'bundle'].includes(kind) || !['up', 'down'].includes(direction)) return;
+  const context = await storage.getCurrentLibraryContext?.();
+  if (!context) throw new Error('No current library is open.');
+  const collectionKey = kind === 'folder' ? 'folders' : 'entries';
+  const parentKey = kind === 'folder' ? 'parentId' : 'folderId';
+  const items = (context[collectionKey] || []).map((item) => ({ ...item }));
+  const current = items.find((item) => item.id === id);
+  if (!current) throw new Error(`${capitalize(kind)} not found.`);
+  const parentId = current[parentKey] || null;
+  const siblings = items
+    .filter((item) => (item[parentKey] || null) === parentId)
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0) || String(a.id).localeCompare(String(b.id)));
+  const index = siblings.findIndex((item) => item.id === id);
+  const swapIndex = direction === 'up' ? index - 1 : index + 1;
+  if (swapIndex < 0 || swapIndex >= siblings.length) {
+    appendLibraryLog(`${capitalize(kind)} is already ${direction === 'up' ? 'first' : 'last'} in this location.`);
+    button.focus({ preventScroll: true });
+    return;
+  }
+  [siblings[index], siblings[swapIndex]] = [siblings[swapIndex], siblings[index]];
+  const orderById = new Map(siblings.map((item, order) => [item.id, order]));
+  const nextContext = {
+    ...context,
+    [collectionKey]: items.map((item) => orderById.has(item.id) ? { ...item, order: orderById.get(item.id) } : item)
+  };
+  await storage.writeCurrentLibraryContext?.(nextContext);
+  if (kind === 'bundle') selectedTreeEntryId = id;
+  await refreshLibraryViewFromStorage({ animateTree: libraryViewMode === 'tree' });
+  focusLibraryNode(kind, id, direction);
+  appendLibraryLog(`Moved ${kind} ${direction}.`);
+}
+
+function focusLibraryNode(kind, id, direction = '') {
+  const node = findLibraryNode(kind, id);
+  const target = direction && kind === 'bundle'
+    ? node?.querySelector(`[data-library-move-direction="${direction}"]`)
+    : kind === 'bundle'
+      ? node?.querySelector('[data-select-tree-bundle]')
+      : node?.querySelector('[data-library-folder-title]');
+  target?.focus?.({ preventScroll: true });
+}
+
 function findLibraryNode(kind, id) {
   for (const node of documentsEl?.querySelectorAll?.('[data-library-node-kind][data-library-node-id]') || []) {
     if (node.dataset.libraryNodeKind === kind && node.dataset.libraryNodeId === String(id || '')) return node;
@@ -973,6 +1134,7 @@ async function renameCurrentLibraryFromInput(input) {
   const nextTitle = input.value.trim();
   if (!nextTitle) {
     input.value = previousTitle;
+    reportFieldError(input, 'Library name cannot be empty.');
     throw new Error('Library name cannot be empty.');
   }
   if (nextTitle === previousTitle) return;
@@ -981,9 +1143,11 @@ async function renameCurrentLibraryFromInput(input) {
     await storage.renameCurrentLibrary?.(nextTitle);
     input.dataset.originalTitle = nextTitle;
     input.value = nextTitle;
+    clearFieldError(input);
     appendLibraryLog(`Renamed library to "${nextTitle}".`);
   } catch (error) {
     input.value = previousTitle;
+    reportFieldError(input, error.message);
     throw error;
   } finally {
     input.disabled = false;
@@ -997,6 +1161,7 @@ async function renameLibraryBundleFromInput(input) {
   const nextTitle = input.value.trim();
   if (!nextTitle) {
     input.value = previousTitle;
+    reportFieldError(input, 'Bundle name cannot be empty.');
     throw new Error('Bundle name cannot be empty.');
   }
   if (nextTitle === previousTitle) return;
@@ -1006,11 +1171,13 @@ async function renameLibraryBundleFromInput(input) {
     await renameBundle?.call(storage, entryId, nextTitle);
     input.dataset.originalTitle = nextTitle;
     input.value = nextTitle;
+    clearFieldError(input);
     syncLibraryBundleTitleInDom(entryId, nextTitle);
     syncLibraryBundleTitleInModel(entryId, nextTitle);
     appendLibraryLog(`Renamed bundle to "${nextTitle}".`);
   } catch (error) {
     input.value = previousTitle;
+    reportFieldError(input, error.message);
     throw error;
   } finally {
     input.disabled = false;
@@ -1062,10 +1229,14 @@ async function createLibraryFolderFromForm(form) {
   const input = form.querySelector('input[name="folderTitle"]');
   const select = form.querySelector('select[name="parentFolder"]');
   const title = input?.value?.trim() || '';
-  if (!title) throw new Error('Folder name cannot be empty.');
+  if (!title) {
+    reportFieldError(input, 'Folder name cannot be empty.');
+    throw new Error('Folder name cannot be empty.');
+  }
   const parentId = select?.value || null;
   await storage.createLibraryFolder?.(title, parentId);
   if (input) input.value = '';
+  clearFieldError(input);
   await refreshLibraryViewFromStorage();
   appendLibraryLog(`Created folder "${title}".`);
 }
@@ -1077,6 +1248,7 @@ async function renameLibraryFolderFromInput(input) {
   const nextTitle = input.value.trim();
   if (!nextTitle) {
     input.value = previousTitle;
+    reportFieldError(input, 'Folder name cannot be empty.');
     throw new Error('Folder name cannot be empty.');
   }
   if (nextTitle === previousTitle) return;
@@ -1085,10 +1257,12 @@ async function renameLibraryFolderFromInput(input) {
     await storage.renameLibraryFolder?.(folderId, nextTitle);
     input.dataset.originalTitle = nextTitle;
     input.value = nextTitle;
+    clearFieldError(input);
     await refreshLibraryViewFromStorage({ animateTree: libraryViewMode === 'tree' });
     appendLibraryLog(`Renamed folder to "${nextTitle}".`);
   } catch (error) {
     input.value = previousTitle;
+    reportFieldError(input, error.message);
     throw error;
   } finally {
     input.disabled = false;
@@ -1121,6 +1295,7 @@ async function renameSourceFromInput(input) {
   const nextTitle = input.value.trim();
   if (!nextTitle) {
     input.value = previousTitle;
+    reportFieldError(input, 'Source name cannot be empty.');
     throw new Error('Source name cannot be empty.');
   }
   if (nextTitle === previousTitle) return;
@@ -1129,9 +1304,11 @@ async function renameSourceFromInput(input) {
     await storage.renameDocumentSource?.(docId, nextTitle);
     input.dataset.originalTitle = nextTitle;
     input.value = nextTitle;
+    clearFieldError(input);
     appendLibraryLog(`Renamed source to "${nextTitle}".`);
   } catch (error) {
     input.value = previousTitle;
+    reportFieldError(input, error.message);
     throw error;
   } finally {
     input.disabled = false;
@@ -1239,19 +1416,25 @@ async function updateInstalledApp() {
   appendLibraryLog(`Checking homepage for the latest Marginalia app. Current ${APP_VERSION_LABEL}.`);
   try {
     const networkVersion = availableNetworkVersion || await checkForAvailableAppUpdate();
-    const result = await updateAppFromNetwork();
-    if (result.updated) {
-      appendLibraryLog(successMessage('Update', `Updated Marginalia${networkVersion?.label ? ` to ${networkVersion.label}` : ''}. Reloading the app...`));
-      reloadForAppUpdate(networkVersion?.version);
+    if (!networkVersion) {
+      appendLibraryLog('Could not read the hosted Marginalia app version. Check the network connection and try again.', true);
       return;
     }
-    if (networkVersion && networkVersion.version !== APP_VERSION) {
-      appendLibraryLog(successMessage('Update', `Homepage has ${networkVersion.label}. Reloading this tab to refresh Marginalia.`));
+    const result = await updateAppFromNetwork({ expectedVersion: networkVersion.version });
+    if (result.status === 'activated') {
+      appendLibraryLog(successMessage('Update', `Updated Marginalia to ${networkVersion.label}. Reloading the app...`));
+      reloadForAppUpdate(result.version || networkVersion.version);
+      return;
+    }
+    if (result.status === 'already-current'
+      && result.version === networkVersion.version
+      && APP_VERSION !== networkVersion.version) {
+      appendLibraryLog(successMessage('Update', `${networkVersion.label} is active. Reloading this tab...`));
       reloadForAppUpdate(networkVersion.version);
       return;
     }
-    if (!networkVersion) {
-      appendLibraryLog('Could not read the hosted Marginalia app version. Check the network connection and try again.', true);
+    if (result.status === 'timed-out' || result.status === 'failed') {
+      appendLibraryLog(`Update did not activate. ${result.error || 'Keep this tab open and try again.'}`, true);
       return;
     }
     const latest = networkVersion?.label || 'the latest app version available from the homepage';
@@ -1349,7 +1532,7 @@ async function choosePackageOpenMode(importKind) {
 
 async function importBundleFolder(handle) {
   documentsEl.innerHTML = '<p class="small">Importing bundle folder...</p>';
-  const bytes = await bundleArchiveBytesFromFolderFiles(await readFilesFromDirectoryHandle(handle));
+  const bytes = await readArchiveBytesFromPackageDirectory(handle, 'bundle');
   const file = new File([bytes], `${handle.name || 'bundle'}.annotator.zip`, { type: 'application/zip' });
   await importBundleFile(file, handle);
 }
@@ -1391,7 +1574,7 @@ async function startLibraryImport() {
 
 async function importLibraryFolder(handle) {
   documentsEl.innerHTML = '<p class="small">Importing library folder...</p>';
-  const bytes = await libraryArchiveBytesFromFolderFiles(await readFilesFromDirectoryHandle(handle));
+  const bytes = await readArchiveBytesFromPackageDirectory(handle, 'library');
   const file = new File([bytes], `${handle.name || 'library'}.annotator-library.zip`, { type: 'application/zip' });
   await importLibraryFile(file, handle);
 }
@@ -1406,15 +1589,32 @@ async function importLibraryFile(file, fileHandle = null) {
   if (!isAnnotatorLibraryFilename(file?.name)) {
     throw new Error('Choose a .annotator-library.zip file.');
   }
-  documentsEl.innerHTML = '<p class="small">Importing library...</p>';
   try {
-    const result = await storage.importDocumentLibrary(file, { replaceCurrent: true });
+    const importOptions = await confirmLibraryReplacement();
+    if (!importOptions) return;
+    documentsEl.innerHTML = '<p class="small">Importing library...</p>';
+    const result = await storage.importDocumentLibrary(file, importOptions);
     if (fileHandle) await rememberCurrentLibraryHandle(fileHandle);
     await loadDocuments();
     appendLibraryLog(`Imported "${result.library?.title || file.name}".`);
   } finally {
     if (libraryFileInput) libraryFileInput.value = '';
   }
+}
+
+async function confirmLibraryReplacement() {
+  const currentLibrary = await storage.getCurrentLibraryContext?.();
+  if (!currentLibrary) return { replaceCurrent: true };
+  const confirmed = await showAppDialog({
+    title: 'Replace current library?',
+    body: `Importing a library package will close "${currentLibrary.title || 'the current library'}" and make the imported package current. Save first if you need a portable copy of unsaved browser-local changes.`,
+    actions: [
+      { value: false, label: 'Cancel', initialFocus: true },
+      { value: true, label: 'Replace library', className: 'danger' }
+    ],
+    cancelValue: false
+  });
+  return confirmed ? { replaceCurrent: true } : null;
 }
 
 function installFileDropImport() {
@@ -1552,7 +1752,7 @@ async function saveLibraryBytesWithLocalAccess(bytes, filename, library = null) 
   if (existingHandle) {
     try {
       if (existingHandle.kind === 'directory') {
-        await writeArchiveBytesToPackageFolder(existingHandle, bytes, 'library');
+        await writeArchiveBytesToPackageDirectory(existingHandle, bytes, 'library');
         return { name: existingHandle.name || folderName, handle: existingHandle, folder: true };
       }
       await writeBytesToFileHandle(existingHandle, bytes);
@@ -1566,7 +1766,7 @@ async function saveLibraryBytesWithLocalAccess(bytes, filename, library = null) 
       appendLibraryLog(`Choose or create the package folder "${folderName}". Do not choose its parent folder.`);
       const handle = await pickAnnotatorPackageDirectory('annotator-library-save');
       if (!handle) return null;
-      await writeArchiveBytesToPackageFolder(handle, bytes, 'library');
+      await writeArchiveBytesToPackageDirectory(handle, bytes, 'library');
       return { name: handle.name || folderName, handle, folder: true };
     } catch (error) {
       if (error.name === 'AbortError') return { cancelled: true };
@@ -1574,14 +1774,6 @@ async function saveLibraryBytesWithLocalAccess(bytes, filename, library = null) 
     }
   }
   return saveBytesWithFileSystemAccess(bytes, filename, null);
-}
-
-async function writeArchiveBytesToPackageFolder(handle, bytes, packageKind) {
-  await assertWritablePackageDirectory(handle, packageKind);
-  const files = packageKind === 'library'
-    ? await libraryFolderFilesFromArchiveBytes(bytes)
-    : await bundleFolderFilesFromArchiveBytes(bytes);
-  await writeFilesToDirectoryHandle(handle, files);
 }
 
 async function saveBytesWithFileSystemAccess(bytes, filename, existingHandle = null) {
@@ -1621,10 +1813,14 @@ async function clearBrowserLibrary() {
 
 function showAppDialog({ title, body, actions, cancelValue = null }) {
   if (!appDialog || !appDialogTitle || !appDialogBody || !appDialogActions) return Promise.resolve(cancelValue);
-  if (activeDialog) closeAppDialog(activeDialog.cancelValue);
-  const previousFocus = document.activeElement;
+  const previousFocus = activeDialog?.previousFocus || document.activeElement;
+  if (activeDialog) closeAppDialog(activeDialog.cancelValue, { restoreFocus: false });
   return new Promise((resolve) => {
-    activeDialog = { resolve, cancelValue, previousFocus };
+    const inertSiblings = Array.from(document.body.children)
+      .filter((element) => element !== appDialog)
+      .map((element) => ({ element, inert: element.inert }));
+    inertSiblings.forEach(({ element }) => { element.inert = true; });
+    activeDialog = { resolve, cancelValue, previousFocus, inertSiblings };
     appDialogTitle.textContent = title || '';
     appDialogBody.textContent = body || '';
     appDialogActions.innerHTML = '';
@@ -1633,32 +1829,115 @@ function showAppDialog({ title, body, actions, cancelValue = null }) {
       button.type = 'button';
       button.textContent = action.label;
       if (action.className) button.className = action.className;
+      if (action.initialFocus) button.dataset.initialFocus = 'true';
+      if (Object.is(action.value, cancelValue)) button.dataset.cancelAction = 'true';
       button.addEventListener('click', () => closeAppDialog(action.value));
       appDialogActions.append(button);
     }
     appDialog.hidden = false;
     appDialog.addEventListener('pointerdown', handleAppDialogBackdropPointerDown);
-    requestAnimationFrame(() => appDialogActions.querySelector('button')?.focus());
+    appDialog.addEventListener('keydown', handleAppDialogKeyDown);
+    requestAnimationFrame(() => safeDialogInitialFocus(appDialogActions)?.focus());
   });
 }
 
-function closeAppDialog(value) {
+function closeAppDialog(value, options = {}) {
   if (!activeDialog) return;
   const dialog = activeDialog;
   activeDialog = null;
   appDialog.hidden = true;
   appDialog.removeEventListener('pointerdown', handleAppDialogBackdropPointerDown);
+  appDialog.removeEventListener('keydown', handleAppDialogKeyDown);
+  dialog.inertSiblings?.forEach(({ element, inert }) => { element.inert = inert; });
   appDialogActions.innerHTML = '';
   dialog.resolve(value);
-  dialog.previousFocus?.focus?.();
+  if (options.restoreFocus !== false && isUsableFocusTarget(dialog.previousFocus)) {
+    dialog.previousFocus.focus({ preventScroll: true });
+  }
 }
 
 function handleAppDialogBackdropPointerDown(event) {
   if (event.target === appDialog && activeDialog) closeAppDialog(activeDialog.cancelValue);
 }
 
+function safeDialogInitialFocus(actionsElement) {
+  const buttons = Array.from(actionsElement?.querySelectorAll?.('button:not(:disabled)') || []);
+  const explicit = buttons.find((button) => button.dataset.initialFocus === 'true');
+  if (explicit) return explicit;
+  if (buttons.some((button) => button.classList.contains('danger'))) {
+    return buttons.find((button) => button.dataset.cancelAction === 'true')
+      || buttons.find((button) => !button.classList.contains('danger'))
+      || buttons[0]
+      || null;
+  }
+  return buttons[0] || null;
+}
+
+function handleAppDialogKeyDown(event) {
+  if (!activeDialog) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+    closeAppDialog(activeDialog.cancelValue);
+    return;
+  }
+  if (event.key !== 'Tab') return;
+  const focusable = Array.from(appDialog.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'))
+    .filter((element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true');
+  if (!focusable.length) {
+    event.preventDefault();
+    return;
+  }
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (event.shiftKey && (document.activeElement === first || !appDialog.contains(document.activeElement))) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function isUsableFocusTarget(element) {
+  return Boolean(element?.isConnected && !element.disabled && !element.inert && element.getAttribute?.('aria-hidden') !== 'true');
+}
+
 function showError(error) {
   appendLibraryLog(error?.message || String(error), true);
+}
+
+function reportFieldError(field, message) {
+  if (!field) return;
+  clearFieldError(field);
+  const container = field.closest('label, form') || field.parentElement;
+  if (!container) return;
+  const error = document.createElement('span');
+  const id = `library-field-error-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  error.id = id;
+  error.className = 'library-field-error';
+  error.setAttribute('role', 'alert');
+  error.textContent = message || 'This value is invalid.';
+  container.append(error);
+  const descriptions = new Set((field.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+  descriptions.add(id);
+  field.setAttribute('aria-describedby', [...descriptions].join(' '));
+  field.setAttribute('aria-errormessage', id);
+  field.setAttribute('aria-invalid', 'true');
+}
+
+function clearFieldError(target) {
+  const field = target?.closest?.('input, select, textarea') || target;
+  if (!field?.getAttribute) return;
+  const errorId = field.getAttribute('aria-errormessage');
+  if (errorId) document.getElementById(errorId)?.remove();
+  const descriptions = (field.getAttribute('aria-describedby') || '')
+    .split(/\s+/)
+    .filter((id) => id && id !== errorId);
+  if (descriptions.length) field.setAttribute('aria-describedby', descriptions.join(' '));
+  else field.removeAttribute('aria-describedby');
+  field.removeAttribute('aria-errormessage');
+  field.removeAttribute('aria-invalid');
 }
 
 function appendLibraryLog(message, isError = false) {

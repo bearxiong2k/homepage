@@ -3,22 +3,17 @@ import { createStorageAdapter } from './storage-adapter.js';
 import { bundleFilenameForDocument, downloadBytes } from './bundle.js';
 import { isAnnotatorLibraryFilename, libraryFilenameForTitle } from './library-package.js';
 import {
-  assertWritablePackageDirectory,
   canUseDirectoryAccess,
   canUseFileSystemAccess,
   pickAnnotatorBundleFile,
   pickAnnotatorBundleSaveHandle,
   pickAnnotatorPackageDirectory,
-  readFilesFromDirectoryHandle,
-  writeFilesToDirectoryHandle,
+  readArchiveBytesFromPackageDirectory,
+  writeArchiveBytesToPackageDirectory,
   writeBytesToFileHandle
 } from './file-access.js';
 import {
-  bundleArchiveBytesFromFolderFiles,
-  bundleFolderFilesFromArchiveBytes,
   bundleFolderNameForDocument,
-  libraryArchiveBytesFromFolderFiles,
-  libraryFolderFilesFromArchiveBytes,
   libraryFolderNameForTitle
 } from './folder-package.js';
 import { decodeInkForRuntime, encodeInkForStorage } from './ink-codec.js';
@@ -114,6 +109,7 @@ const state = {
   isApplyingHistory: false,
   quickMarks: [],
   quickMarkColorIndex: 0,
+  quickMarkSavePromise: Promise.resolve(),
   quickMarkDragSession: null,
   quickMarkDragRenderRaf: 0,
   suppressQuickMarkClickId: null,
@@ -127,6 +123,7 @@ const state = {
   lastReaderPosition: null,
   readerPositionSaveTimer: 0,
   annotationResolution: new Map(),
+  dismissedNoticeKey: '',
   appDialog: null,
   pendingImportKind: null,
   navigatorInkPreviewRenderRaf: 0,
@@ -185,7 +182,14 @@ const els = {
   saveToast: document.querySelector('#saveToast'),
   saveToastTitle: document.querySelector('#saveToastTitle'),
   saveToastClose: document.querySelector('#saveToastClose'),
-  saveToastBody: document.querySelector('#saveToastBody')
+  saveToastBody: document.querySelector('#saveToastBody'),
+  readerNotice: document.querySelector('#readerNotice'),
+  readerNoticeTitle: document.querySelector('#readerNoticeTitle'),
+  readerNoticeBody: document.querySelector('#readerNoticeBody'),
+  readerNoticeClose: document.querySelector('#readerNoticeClose'),
+  readerNoticeRetry: document.querySelector('#readerNoticeRetry'),
+  readerNoticeImport: document.querySelector('#readerNoticeImport'),
+  readerNoticeLibrary: document.querySelector('#readerNoticeLibrary')
 };
 
 els.importBundleBtn = document.querySelector('#importBundleBtn');
@@ -195,6 +199,7 @@ els.bundleFileInput = document.querySelector('#bundleFileInput');
 const ANCHOR_SELECTOR = '[data-anchor-id], h1[id], h2[id], h3[id], h4[id], h5[id], h6[id], p[id], li[id], blockquote[id], figure[id], figcaption[id], td[id], th[id], section[id], article[id]';
 const ATOMIC_HIGHLIGHT_SELECTOR = 'table[data-anchor-id], table[id], .formula[data-anchor-id], .formula[id], [data-reader-math-rendered="true"][data-anchor-id], [data-math-source="tex"][data-anchor-id]';
 const HIGHLIGHT_ROOT_SELECTOR = `${ATOMIC_HIGHLIGHT_SELECTOR}, ${ANCHOR_SELECTOR}`;
+const QUOTE_REPAIR_SELECTOR = 'h1, h2, h3, h4, h5, h6, p, li, blockquote, figcaption, td, th';
 const HEADING_SELECTOR = 'h1, h2, h3, h4, h5, h6';
 const INK_SPACE = { width: 1000, height: 562.5 };
 const INK_BACKING_SCALE = { min: 2, max: 3, multiplier: 1.5 };
@@ -269,10 +274,12 @@ function bindChromeEvents() {
   els.undoBtn.addEventListener('click', () => undoHistoryCommand().catch((error) => setStatus(error.message, true)));
   els.redoBtn.addEventListener('click', () => redoHistoryCommand().catch((error) => setStatus(error.message, true)));
   els.clipToolBtn.addEventListener('pointerdown', startQuickMarkToolDrag);
+  els.clipToolBtn.addEventListener('keydown', onQuickMarkToolKeyDown);
   els.splitNotesBtn?.addEventListener('click', () => toggleSplitNotesWindow().catch((error) => setStatus(error.message, true)));
   els.toggleNotesBtn.addEventListener('pointerdown', onNotesTabPointerDown);
   els.toggleNotesBtn.addEventListener('click', onNotesTabClick);
   els.notesPanelResizer?.addEventListener('pointerdown', onNotesPanelResizerPointerDown);
+  els.notesPanelResizer?.addEventListener('keydown', onNotesPanelResizerKeyDown);
   els.expandAllNotesBtn?.addEventListener('click', toggleExpandAllNotes);
   els.importSourceBtn?.addEventListener('click', () => startSourceImport().catch((error) => setStatus(error.message, true)));
   els.quickStartBtn?.addEventListener('click', () => startQuickStartImport().catch((error) => setStatus(error.message, true)));
@@ -287,6 +294,9 @@ function bindChromeEvents() {
   els.bundleFileInput?.addEventListener('change', () => importSelectedSourceFile(els.bundleFileInput).catch((error) => setStatus(error.message, true)));
   els.exportBundleBtn?.addEventListener('click', () => exportCurrentBundle().catch((error) => setSaveFailure(error)));
   els.saveToastClose?.addEventListener('click', hideSaveToast);
+  els.readerNoticeClose?.addEventListener('click', dismissReaderNotice);
+  els.readerNoticeRetry?.addEventListener('click', () => loadDocument(state.docId).catch((error) => showReaderLoadFailure(error)));
+  els.readerNoticeImport?.addEventListener('click', () => startSourceImport().catch((error) => setStatus(error.message, true)));
   installFileDropImport();
   installTooltipController(document);
   installNoteDrawerResizeObserver();
@@ -312,6 +322,7 @@ function bindChromeEvents() {
     flushReaderScrollPosition();
     closeSplitNotesSession({ notify: true });
   });
+  if (els.readerNoticeLibrary) els.readerNoticeLibrary.href = urlWithStorage('library.html', {}, state.storageMode);
   window.addEventListener('pagehide', () => {
     flushReaderScrollPosition();
   });
@@ -467,10 +478,7 @@ async function importPackageFolder(importKind) {
     throw error;
   }
   if (!handle) return;
-  const files = await readFilesFromDirectoryHandle(handle);
-  const bytes = importKind === 'library'
-    ? await libraryArchiveBytesFromFolderFiles(files)
-    : await bundleArchiveBytesFromFolderFiles(files);
+  const bytes = await readArchiveBytesFromPackageDirectory(handle, importKind);
   const filename = importKind === 'library'
     ? `${handle.name || 'library'}.annotator-library.zip`
     : `${handle.name || 'bundle'}.annotator.zip`;
@@ -685,7 +693,7 @@ async function confirmReplaceCurrentSource() {
     title: 'Replace current source?',
     body: 'The current source has notes, highlights, ink, or quick marks. Save first, or discard the current working source and import another one.',
     actions: [
-      { value: true, label: 'Discard and import', className: 'primary' },
+      { value: true, label: 'Discard and import', className: 'primary', destructive: true },
       { value: false, label: 'Cancel' }
     ],
     cancelValue: false
@@ -699,7 +707,7 @@ async function confirmLibraryImportOptions() {
     title: 'Replace current library?',
     body: `Importing this library package will close "${currentLibrary.title || 'the current library'}" and make the imported package the current library.`,
     actions: [
-      { value: 'replace', label: 'Replace library', className: 'primary' },
+      { value: 'replace', label: 'Replace library', className: 'primary', destructive: true },
       { value: 'cancel', label: 'Cancel' }
     ],
     cancelValue: 'cancel'
@@ -726,6 +734,7 @@ async function exportCurrentBundle() {
     setSaveNotice('No source is open.', { title: 'Save unavailable', state: 'error', autoHide: false });
     return;
   }
+  await flushQuickMarkSave();
   setSaveProgress('Preparing save...');
   const doc = state.documents.find((item) => item.id === state.docId) || await storage.getDocument(state.docId);
   const library = await storage.getCurrentLibraryContext?.();
@@ -807,16 +816,8 @@ async function saveBundleWithFileSystemAccess(bytes, filename) {
   if (existingHandle) {
     try {
       if (existingHandle.kind === 'directory') {
-        if (!packageHandleNameMatches(existingHandle, folderName)) {
-          setStatus(`Current source package was renamed. Choose or create the package folder "${folderName}" to update the local folder name.`);
-          throw new Error('Remembered bundle folder name does not match the current bundle name.');
-        }
-        await writeArchiveBytesToPackageFolder(existingHandle, bytes, 'bundle');
+        await writeArchiveBytesToPackageDirectory(existingHandle, bytes, 'bundle');
         return { name: existingHandle.name || folderName, handle: existingHandle, folder: true };
-      }
-      if (!packageHandleNameMatches(existingHandle, filename)) {
-        setSaveProgress(`Current source package was renamed. Choose a save location named "${filename}" to update the local file name.`);
-        throw new Error('Remembered bundle file name does not match the current bundle name.');
       }
       await writeBytesToFileHandle(existingHandle, bytes);
       return { name: existingHandle.name || filename };
@@ -922,7 +923,7 @@ async function saveLibraryBytesWithLocalAccess(bytes, filename, library = null, 
   if (existingHandle) {
     try {
       if (existingHandle.kind === 'directory') {
-        await writeArchiveBytesToPackageFolder(existingHandle, bytes, 'library');
+        await writeArchiveBytesToPackageDirectory(existingHandle, bytes, 'library');
         return { name: existingHandle.name || folderName, handle: existingHandle, folder: true };
       }
       await writeBytesToFileHandle(existingHandle, bytes);
@@ -933,9 +934,7 @@ async function saveLibraryBytesWithLocalAccess(bytes, filename, library = null, 
   }
   if (canUseDirectoryAccess()) {
     try {
-      return await saveArchiveBytesAsPackageFolder(bytes, folderName, 'library', 'annotator-library-save', {
-        allowMismatchedPackageName: true
-      });
+      return await saveArchiveBytesAsPackageFolder(bytes, folderName, 'library', 'annotator-library-save');
     } catch (error) {
       if (error.name === 'AbortError') {
         setSaveCancelled('Save cancelled.');
@@ -947,23 +946,12 @@ async function saveLibraryBytesWithLocalAccess(bytes, filename, library = null, 
   return saveBytesWithFileSystemAccess(bytes, filename, null, retryPrefix);
 }
 
-async function saveArchiveBytesAsPackageFolder(bytes, folderName, packageKind, pickerId, options = {}) {
+async function saveArchiveBytesAsPackageFolder(bytes, folderName, packageKind, pickerId) {
   setSaveProgress(`Choose or create the package folder "${folderName}". Do not choose its parent folder.`);
   const handle = await pickAnnotatorPackageDirectory(pickerId);
   if (!handle) return null;
-  if (!options.allowMismatchedPackageName && !packageHandleNameMatches(handle, folderName)) {
-    throw new Error(`Choose or create a package folder named "${folderName}".`);
-  }
-  await writeArchiveBytesToPackageFolder(handle, bytes, packageKind);
+  await writeArchiveBytesToPackageDirectory(handle, bytes, packageKind);
   return { name: handle.name || folderName, handle, folder: true };
-}
-
-async function writeArchiveBytesToPackageFolder(handle, bytes, packageKind) {
-  await assertWritablePackageDirectory(handle, packageKind);
-  const files = packageKind === 'library'
-    ? await libraryFolderFilesFromArchiveBytes(bytes)
-    : await bundleFolderFilesFromArchiveBytes(bytes);
-  await writeFilesToDirectoryHandle(handle, files);
 }
 
 async function saveBytesWithFileSystemAccess(bytes, filename, existingHandle = null, retryPrefix = 'Current file could not be written') {
@@ -978,9 +966,6 @@ async function saveBytesWithFileSystemAccess(bytes, filename, existingHandle = n
   try {
     const handle = await pickAnnotatorBundleSaveHandle(filename);
     if (!handle) return null;
-    if (!packageHandleNameMatches(handle, filename)) {
-      throw new Error(`Choose a save location named "${filename}".`);
-    }
     await writeBytesToFileHandle(handle, bytes);
     return { name: handle.name || filename, handle };
   } catch (error) {
@@ -1008,6 +993,7 @@ function readerUrlForDoc(docId) {
 async function loadDocument(docId) {
   if (!docId) return;
   if (state.docId && state.docId !== docId) closeSplitNotesSession({ notify: true });
+  if (state.docId && state.docId !== docId) await flushQuickMarkSave();
   if (state.iframeLoaded && state.docId) {
     await flushReaderScrollPosition();
   }
@@ -1077,7 +1063,7 @@ async function loadDocument(docId) {
   state.redoStack = [];
   syncHistoryControls();
   syncCompatibilityControls();
-  loadQuickMarks(docId);
+  await loadQuickMarks(docId);
   syncClipToolColor();
   renderQuickMarkStack();
   hideSelectionHighlightButton();
@@ -1090,24 +1076,46 @@ async function loadDocument(docId) {
   setReaderFrameRestoring(shouldHideFrameUntilRestored);
   const rememberOpenPromise = storage.rememberDocumentOpen?.(docId);
   const annotationsPromise = fetchAnnotations(docId);
-  const frameSrcPromise = storage.getDocumentHtmlUrl(docId);
-  await loadReaderFrame(await frameSrcPromise);
-  state.annotations = await annotationsPromise;
-  await rememberOpenPromise;
-  state.iframeLoaded = true;
-  await instrumentIframe();
-  await waitForFramePdfReadyIfNeeded();
-  renderAnnotations();
-  renderQuickMarks(getFrameDoc());
-  renderNoteList();
-  requestAnimationFrame(() => {
-    restoreReaderScrollPosition(getFrameDoc(), state.pendingReaderPosition)
-      .finally(() => requestAnimationFrame(() => setReaderFrameRestoring(false)));
-  });
-  if (!state.pendingPdfAnnotationJump && performance.now() >= state.pdfPendingJumpStatusUntil) {
-    setStatus('Ready. Select text in the document to highlight it.');
+  try {
+    const frameSrc = await documentRenderUrl(currentDocument);
+    configureReaderFrameSandbox(currentDocument.sourceType);
+    await loadReaderFrame(frameSrc);
+    state.annotations = await annotationsPromise;
+    await rememberOpenPromise;
+    state.iframeLoaded = true;
+    await instrumentIframe();
+    await waitForFramePdfReadyIfNeeded();
+    renderAnnotations();
+    renderQuickMarks(getFrameDoc());
+    renderNoteList();
+    requestAnimationFrame(() => {
+      restoreReaderScrollPosition(getFrameDoc(), state.pendingReaderPosition)
+        .finally(() => requestAnimationFrame(() => setReaderFrameRestoring(false)));
+    });
+    if (!state.pendingPdfAnnotationJump && performance.now() >= state.pdfPendingJumpStatusUntil) {
+      setStatus('Ready. Select text in the document to highlight it.');
+    }
+    hideReaderNotice();
+    syncReaderDocumentNotice();
+    history.replaceState(null, '', readerUrlForDoc(docId));
+  } catch (error) {
+    await Promise.allSettled([annotationsPromise, rememberOpenPromise]);
+    state.iframeLoaded = false;
+    setReaderFrameRestoring(false);
+    showReaderLoadFailure(error);
   }
-  history.replaceState(null, '', readerUrlForDoc(docId));
+}
+
+async function documentRenderUrl(documentRecord) {
+  return storage.getDocumentHtmlUrl(documentRecord.id);
+}
+
+function configureReaderFrameSandbox(sourceType) {
+  const tokens = sourceType === 'pdf'
+    ? ['allow-same-origin', 'allow-scripts']
+    : ['allow-same-origin'];
+  els.frame.setAttribute('sandbox', tokens.join(' '));
+  els.frame.title = sourceType === 'pdf' ? 'PDF source reader' : 'Static HTML source reader';
 }
 
 async function fetchAnnotations(docId) {
@@ -1236,6 +1244,7 @@ function waitForFramePdfReadyIfNeeded() {
 async function instrumentIframe() {
   const doc = getFrameDoc();
   injectReaderStyles(doc);
+  if (state.currentDocument?.sourceType !== 'pdf') installStaticHtmlSourceBehavior(doc);
   installSourcePageNavResizer(doc);
   installTooltipController(doc);
   doc.addEventListener('mouseup', onFrameMouseUp);
@@ -1266,6 +1275,43 @@ async function instrumentIframe() {
   syncFrameModeClass(doc);
   await renderLatexMath(doc);
   rebuildHtmlAnchorMetrics(doc);
+}
+
+function installStaticHtmlSourceBehavior(doc) {
+  if (doc.documentElement.dataset.readerStaticBehavior === 'true') return;
+  doc.documentElement.dataset.readerStaticBehavior = 'true';
+  doc.addEventListener('submit', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setStatus('Forms are disabled in static reading mode.', true);
+  }, true);
+  doc.addEventListener('click', (event) => {
+    const link = event.target?.closest?.('a[href]');
+    if (!link) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const rawHref = link.getAttribute('href') || '';
+    if (rawHref.startsWith('#')) {
+      const id = decodeURIComponent(rawHref.slice(1));
+      const target = id ? doc.getElementById(id) || doc.querySelector(`[data-anchor-id="${cssEscape(id)}"]`) : null;
+      target?.scrollIntoView?.({ block: 'start' });
+      if (!target) setStatus('The linked section is not available in this source.', true);
+      return;
+    }
+    let url;
+    try {
+      url = new URL(rawHref, link.baseURI);
+    } catch {
+      setStatus('This source link is invalid.', true);
+      return;
+    }
+    if (!['http:', 'https:', 'mailto:'].includes(url.protocol)) {
+      setStatus('This source link type is disabled in static reading mode.', true);
+      return;
+    }
+    const opened = window.open(url.href, '_blank', 'noopener,noreferrer');
+    if (!opened) setStatus('The browser blocked the source link. Allow a new tab and try again.', true);
+  }, true);
 }
 
 function scheduleFrameScrollWork(doc = getFrameDoc()) {
@@ -1518,6 +1564,8 @@ async function createPdfRectHighlight(page, rect) {
 }
 
 function onFrameKeyDown(event) {
+  if (handleSideNoteKeyboardAction(event)) return;
+  if (handleReaderPositionShortcut(event)) return;
   if (isFrameInteractiveControl(event?.target)) return;
   if (handleSaveBundleHotkey(event)) return;
   if (handleInkToolHotkey(event)) return;
@@ -1528,10 +1576,53 @@ function onFrameKeyDown(event) {
 }
 
 function handleDocumentKeyDown(event) {
+  if (handleReaderPositionShortcut(event)) return;
   if (handleSaveBundleHotkey(event)) return;
   if (handleInkToolHotkey(event)) return;
   if (handleHistoryHotkey(event)) return;
   if (event.key === 'Escape') handleEscapeKey(event);
+}
+
+function handleSideNoteKeyboardAction(event) {
+  const target = event.target;
+  const note = target?.closest?.('.reader-side-note');
+  if (!note || target?.isContentEditable) return false;
+  const annotationId = note.dataset.annotationId;
+  const blank = target.closest?.('.reader-side-note-blank');
+  if (blank && ['Enter', ' '].includes(event.key)) {
+    event.preventDefault();
+    event.stopPropagation();
+    convertBlankBlockToText(annotationId, Number(blank.dataset.blockIndex), { target: blank })
+      .catch((error) => setStatus(error.message, true));
+    return true;
+  }
+  const field = target.closest?.('.reader-side-note-title, .reader-side-note-body');
+  if (field && ['Enter', 'F2'].includes(event.key)) {
+    event.preventDefault();
+    event.stopPropagation();
+    beginInlineTextEdit(
+      annotationId,
+      note,
+      field.classList.contains('reader-side-note-title') ? 'title' : 'body'
+    );
+    return true;
+  }
+  return false;
+}
+
+function handleReaderPositionShortcut(event) {
+  if (!event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return false;
+  if (event.target?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return false;
+  const key = event.key?.toLowerCase?.();
+  if (key !== 'n' && key !== 'm') return false;
+  event.preventDefault();
+  event.stopPropagation();
+  if (key === 'n') {
+    createNoteAtReadingPosition().catch((error) => setStatus(error.message, true));
+  } else {
+    placeQuickMarkAtReadingPosition();
+  }
+  return true;
 }
 
 function handleSaveBundleHotkey(event) {
@@ -1887,10 +1978,13 @@ function syncReadingModeControls() {
   document.body.classList.toggle('is-reading-mode', state.readingMode);
   els.readingModeBtn.classList.toggle('is-active', state.readingMode);
   els.readingModeBtn.setAttribute('aria-pressed', String(state.readingMode));
+  els.readingModeBtn.setAttribute('aria-label', state.readingMode ? 'Exit pure reading mode' : 'Enter pure reading mode');
+  els.readingModeBtn.title = state.readingMode ? 'Exit pure reading mode' : 'Enter pure reading mode';
   els.readingHighlightBtn.hidden = !state.readingMode;
   els.readingHighlightBtn.classList.toggle('is-active', state.readingMode && state.readingShowHighlights);
   els.readingHighlightBtn.setAttribute('aria-pressed', String(state.readingShowHighlights));
   els.readingHighlightBtn.title = state.readingShowHighlights ? 'Hide highlights while reading' : 'Show highlights while reading';
+  els.readingHighlightBtn.setAttribute('aria-label', els.readingHighlightBtn.title);
   if (els.clipToolBtn) els.clipToolBtn.disabled = state.readingMode;
   if (state.iframeLoaded) syncFrameReadingMode(getFrameDoc());
   syncCompatibilityControls();
@@ -1913,7 +2007,9 @@ function syncCompatibilityControls() {
   const textHighlights = compatibilityFeatureEnabled('singleBlockTextHighlights');
   if (els.clipToolBtn) {
     els.clipToolBtn.disabled = state.readingMode || !blockNotes;
-    els.clipToolBtn.title = blockNotes ? 'Drag quick mark' : 'Quick marks unavailable for this document';
+    const label = blockNotes ? 'Drag quick mark or press Enter to place it at the reading position' : 'Quick marks unavailable for this document';
+    els.clipToolBtn.title = label;
+    els.clipToolBtn.setAttribute('aria-label', label);
   }
   if (els.highlightSelectionBtn && !textHighlights) hideSelectionHighlightButton();
 }
@@ -1949,7 +2045,9 @@ function setNotesPanelCollapsed(collapsed) {
 function syncNotesPanelControls() {
   const collapsed = els.rightPanel.classList.contains('is-collapsed');
   els.toggleNotesBtn.setAttribute('aria-expanded', String(!collapsed));
-  els.toggleNotesBtn.title = collapsed ? 'Open notes panel' : 'Close notes panel';
+  const label = collapsed ? 'Open notes navigator' : 'Close notes navigator';
+  els.toggleNotesBtn.title = label;
+  els.toggleNotesBtn.setAttribute('aria-label', label);
   const arrow = els.toggleNotesBtn.querySelector('.notes-tab-arrow');
   if (arrow) arrow.textContent = collapsed ? '‹' : '›';
 }
@@ -2525,6 +2623,27 @@ function onNotesPanelResizerPointerDown(event) {
   document.addEventListener('pointercancel', finishNotesPanelResize);
 }
 
+function onNotesPanelResizerKeyDown(event) {
+  if (state.splitNotesActive) return;
+  const step = event.shiftKey ? 48 : 12;
+  const current = currentNotesPanelWidth();
+  const max = notesPanelMaximumWidth();
+  let next = null;
+  if (event.key === 'ArrowLeft') next = current + step;
+  if (event.key === 'ArrowRight') next = current - step;
+  if (event.key === 'Home') next = NOTES_PANEL_WIDTH.min;
+  if (event.key === 'End') next = max;
+  if (event.key === '0') next = NOTES_PANEL_WIDTH.default;
+  if (next == null) return;
+  event.preventDefault();
+  event.stopPropagation();
+  state.notesPanelWidth = normalizeNotesPanelWidth(next);
+  applyNotesPanelWidth();
+  saveNotesPanelWidth();
+  requestNavigatorInkPreviewRedraw();
+  setStatus(`Notes navigator width ${Math.round(state.notesPanelWidth)} pixels.`);
+}
+
 function onNotesPanelResizeMove(event) {
   const session = state.notesPanelResizeSession;
   if (!session) return;
@@ -2555,6 +2674,16 @@ function applyNotesPanelWidth() {
   const width = normalizeNotesPanelWidth(state.notesPanelWidth);
   state.notesPanelWidth = width;
   document.documentElement.style.setProperty('--reader-notes-panel-width', `${Math.round(width)}px`);
+  if (els.notesPanelResizer) {
+    els.notesPanelResizer.setAttribute('aria-valuemin', String(NOTES_PANEL_WIDTH.min));
+    els.notesPanelResizer.setAttribute('aria-valuemax', String(Math.round(notesPanelMaximumWidth())));
+    els.notesPanelResizer.setAttribute('aria-valuenow', String(Math.round(width)));
+    els.notesPanelResizer.setAttribute('aria-valuetext', `${Math.round(width)} pixels wide`);
+  }
+}
+
+function notesPanelMaximumWidth() {
+  return Math.max(NOTES_PANEL_WIDTH.min, window.innerWidth - 52);
 }
 
 function currentNotesPanelWidth() {
@@ -2634,10 +2763,14 @@ function showAppDialog({ title, body, actions, cancelValue = null }) {
   if (!els.appDialog || !els.appDialogTitle || !els.appDialogBody || !els.appDialogActions) {
     return Promise.resolve(cancelValue);
   }
-  if (state.appDialog) closeAppDialog(state.appDialog.cancelValue);
-  const previousFocus = document.activeElement;
+  const previousFocus = state.appDialog?.previousFocus || document.activeElement;
+  if (state.appDialog) closeAppDialog(state.appDialog.cancelValue, { restoreFocus: false });
   return new Promise((resolve) => {
-    state.appDialog = { resolve, cancelValue, previousFocus };
+    const inertSiblings = Array.from(document.body.children)
+      .filter((element) => element !== els.appDialog)
+      .map((element) => ({ element, inert: element.inert }));
+    inertSiblings.forEach(({ element }) => { element.inert = true; });
+    state.appDialog = { resolve, cancelValue, previousFocus, inertSiblings };
     els.appDialogTitle.textContent = title || '';
     els.appDialogBody.textContent = body || '';
     els.appDialogActions.innerHTML = '';
@@ -2646,30 +2779,81 @@ function showAppDialog({ title, body, actions, cancelValue = null }) {
       button.type = 'button';
       button.textContent = action.label;
       if (action.className) button.className = action.className;
+      if (action.initialFocus) button.dataset.initialFocus = 'true';
+      if (action.destructive) button.dataset.destructive = 'true';
+      if (Object.is(action.value, cancelValue)) button.dataset.cancelAction = 'true';
       button.addEventListener('click', () => closeAppDialog(action.value));
       els.appDialogActions.append(button);
     }
     els.appDialog.hidden = false;
     els.appDialog.addEventListener('pointerdown', handleAppDialogBackdropPointerDown);
-    requestAnimationFrame(() => els.appDialogActions.querySelector('button')?.focus());
+    els.appDialog.addEventListener('keydown', handleAppDialogKeyDown);
+    requestAnimationFrame(() => safeDialogInitialFocus(els.appDialogActions)?.focus());
   });
 }
 
-function closeAppDialog(value) {
+function closeAppDialog(value, options = {}) {
   if (!state.appDialog) return;
   const dialog = state.appDialog;
   state.appDialog = null;
   if (els.appDialog) {
     els.appDialog.hidden = true;
     els.appDialog.removeEventListener('pointerdown', handleAppDialogBackdropPointerDown);
+    els.appDialog.removeEventListener('keydown', handleAppDialogKeyDown);
   }
+  dialog.inertSiblings?.forEach(({ element, inert }) => { element.inert = inert; });
   if (els.appDialogActions) els.appDialogActions.innerHTML = '';
   dialog.resolve(value);
-  dialog.previousFocus?.focus?.();
+  if (options.restoreFocus !== false && isUsableFocusTarget(dialog.previousFocus)) {
+    dialog.previousFocus.focus({ preventScroll: true });
+  }
 }
 
 function handleAppDialogBackdropPointerDown(event) {
   if (event.target === els.appDialog && state.appDialog) closeAppDialog(state.appDialog.cancelValue);
+}
+
+function safeDialogInitialFocus(actionsElement) {
+  const buttons = Array.from(actionsElement?.querySelectorAll?.('button:not(:disabled)') || []);
+  const explicit = buttons.find((button) => button.dataset.initialFocus === 'true');
+  if (explicit) return explicit;
+  const hasDestructive = buttons.some((button) => button.classList.contains('danger') || button.dataset.destructive === 'true');
+  if (hasDestructive) return buttons.find((button) => button.dataset.cancelAction === 'true') || buttons.find((button) => !button.classList.contains('danger')) || buttons[0] || null;
+  return buttons[0] || null;
+}
+
+function handleAppDialogKeyDown(event) {
+  if (!state.appDialog) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+    closeAppDialog(state.appDialog.cancelValue);
+    return;
+  }
+  if (event.key !== 'Tab') return;
+  const focusable = dialogFocusableElements(els.appDialog);
+  if (!focusable.length) {
+    event.preventDefault();
+    return;
+  }
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (event.shiftKey && (document.activeElement === first || !els.appDialog.contains(document.activeElement))) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function dialogFocusableElements(root) {
+  return Array.from(root?.querySelectorAll?.('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])') || [])
+    .filter((element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true');
+}
+
+function isUsableFocusTarget(element) {
+  return Boolean(element?.isConnected && !element.disabled && !element.inert && element.getAttribute?.('aria-hidden') !== 'true');
 }
 
 function installTooltipController(rootDoc) {
@@ -2707,6 +2891,12 @@ function tooltipText(trigger) {
   if (trigger.hasAttribute('title')) {
     const title = trigger.getAttribute('title') || '';
     trigger.dataset.readerTooltip = title;
+    if (title
+      && !trigger.hasAttribute('aria-label')
+      && !trigger.hasAttribute('aria-labelledby')
+      && !String(trigger.textContent || '').trim()) {
+      trigger.setAttribute('aria-label', title);
+    }
     trigger.removeAttribute('title');
   }
   return trigger.dataset.readerTooltip || '';
@@ -2717,8 +2907,13 @@ function showTooltip(trigger, text) {
   const doc = trigger.ownerDocument;
   const tooltip = doc.createElement('div');
   tooltip.className = 'reader-tooltip';
+  tooltip.id = `reader-tooltip-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  tooltip.setAttribute('role', 'tooltip');
   tooltip.textContent = text;
   doc.body.append(tooltip);
+  const descriptions = new Set((trigger.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+  descriptions.add(tooltip.id);
+  trigger.setAttribute('aria-describedby', [...descriptions].join(' '));
   positionTooltip(doc, tooltip, trigger);
   state.tooltip = tooltip;
   renderTooltipMath(doc, tooltip, text, trigger).catch(() => {
@@ -2765,6 +2960,14 @@ function closeTooltip() {
   if (state.tooltipTimer) {
     window.clearTimeout(state.tooltipTimer);
     state.tooltipTimer = null;
+  }
+  const tooltipId = state.tooltip?.id;
+  if (tooltipId && state.tooltipTarget?.isConnected) {
+    const descriptions = (state.tooltipTarget.getAttribute('aria-describedby') || '')
+      .split(/\s+/)
+      .filter((id) => id && id !== tooltipId);
+    if (descriptions.length) state.tooltipTarget.setAttribute('aria-describedby', descriptions.join(' '));
+    else state.tooltipTarget.removeAttribute('aria-describedby');
   }
   state.tooltip?.remove();
   state.tooltip = null;
@@ -2866,13 +3069,17 @@ function quickMarkStorageKey(docId = state.docId) {
   return `reader-quick-marks:${docId || 'default'}`;
 }
 
-function loadQuickMarks(docId) {
+async function loadQuickMarks(docId) {
   try {
-    const parsed = JSON.parse(localStorage.getItem(quickMarkStorageKey(docId)) || 'null');
+    const stored = await storage.getQuickMarks?.(docId);
+    const legacy = JSON.parse(localStorage.getItem(quickMarkStorageKey(docId)) || 'null');
+    const parsed = stored && Array.isArray(stored.marks) ? stored : legacy;
     state.quickMarks = Array.isArray(parsed?.marks)
       ? parsed.marks.map(normalizeQuickMark).filter(Boolean).slice(0, MAX_QUICK_MARKS)
       : [];
     state.quickMarkColorIndex = normalizeQuickMarkColorIndex(parsed?.colorIndex);
+    mirrorQuickMarksToLocalStorage(docId);
+    if (!stored && parsed) await storage.setQuickMarks?.(docId, parsed);
   } catch {
     state.quickMarks = [];
     state.quickMarkColorIndex = 0;
@@ -2881,10 +3088,35 @@ function loadQuickMarks(docId) {
 
 function saveQuickMarks() {
   if (!state.docId) return;
-  localStorage.setItem(quickMarkStorageKey(), JSON.stringify({
+  const docId = state.docId;
+  const record = {
+    marks: state.quickMarks,
+    colorIndex: state.quickMarkColorIndex
+  };
+  localStorage.setItem(quickMarkStorageKey(docId), JSON.stringify(record));
+  state.quickMarkSavePromise = state.quickMarkSavePromise
+    .catch(() => {})
+    .then(() => storage.setQuickMarks?.(docId, record))
+    .catch((error) => {
+      setStatus(`Quick marks are visible, but could not be saved (${error.message}).`, true);
+    });
+}
+
+function mirrorQuickMarksToLocalStorage(docId = state.docId) {
+  if (!docId) return;
+  localStorage.setItem(quickMarkStorageKey(docId), JSON.stringify({
     marks: state.quickMarks,
     colorIndex: state.quickMarkColorIndex
   }));
+}
+
+async function flushQuickMarkSave() {
+  await state.quickMarkSavePromise.catch(() => {});
+  if (!state.docId) return;
+  await storage.setQuickMarks?.(state.docId, {
+    marks: state.quickMarks,
+    colorIndex: state.quickMarkColorIndex
+  });
 }
 
 function normalizeQuickMark(mark) {
@@ -2924,6 +3156,53 @@ function setQuickMarkColorIndex(colorIndex) {
 
 function advanceQuickMarkColor() {
   setQuickMarkColorIndex(state.quickMarkColorIndex + 1);
+}
+
+function onQuickMarkToolKeyDown(event) {
+  if (!['Enter', ' '].includes(event.key)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  placeQuickMarkAtReadingPosition();
+}
+
+function placeQuickMarkAtReadingPosition() {
+  if (state.readingMode || !state.iframeLoaded) return;
+  if (!compatibilityFeatureEnabled('blockNotes')) {
+    setStatus('Quick marks are unavailable because this document has no stable block anchors.', true);
+    return;
+  }
+  if (state.quickMarks.length >= MAX_QUICK_MARKS) {
+    showQuickMarkLimitReminder();
+    setStatus(`Quick mark limit reached (${MAX_QUICK_MARKS}). Delete or recycle a clip first.`, true);
+    return;
+  }
+  const target = quickMarkTargetAtReadingPosition();
+  if (!target) {
+    setStatus('No anchorable content is visible at the current reading position.', true);
+    return;
+  }
+  const colorIndex = state.quickMarkColorIndex;
+  advanceQuickMarkColor();
+  addQuickMark(target, colorIndex);
+}
+
+function quickMarkTargetAtReadingPosition() {
+  const doc = getFrameDoc();
+  if (!doc) return null;
+  const documentY = doc.defaultView.scrollY + doc.defaultView.innerHeight * 0.34;
+  const anchor = nearestAnchorForDocumentY(doc, documentY);
+  return anchor ? quickMarkTargetForAnchor(doc, anchor, documentY) : null;
+}
+
+async function createNoteAtReadingPosition() {
+  if (!state.iframeLoaded) {
+    setStatus('Open a source before adding a note.', true);
+    return;
+  }
+  const doc = getFrameDoc();
+  const clientY = doc.defaultView.innerHeight * 0.34;
+  const clientX = Math.min(doc.defaultView.innerWidth * 0.5, Math.max(24, layoutMetrics(doc).sourceWidth * 0.5));
+  await createBlankSideNoteAt({ clientX, clientY });
 }
 
 function recycleQuickMarkColor(colorIndex) {
@@ -3192,9 +3471,17 @@ function quickMarkTargetFromPoint(clientX, clientY) {
   const main = element.closest?.('main') || doc.querySelector('main') || doc.body;
   const anchor = quickMarkAnchorAtPoint(doc, main, element, frameX, frameY);
   if (!anchor || anchor.closest?.('.reader-side-note-layer')) return null;
+  return quickMarkTargetForAnchor(doc, anchor, doc.defaultView.scrollY + frameY, doc.defaultView.scrollX + frameX);
+}
+
+function quickMarkTargetForAnchor(doc, anchor, documentY = null, documentX = null) {
   const anchorRect = anchor.getBoundingClientRect();
-  const documentY = doc.defaultView.scrollY + frameY;
-  const documentX = doc.defaultView.scrollX + frameX;
+  const resolvedDocumentY = Number.isFinite(documentY)
+    ? documentY
+    : doc.defaultView.scrollY + anchorRect.top + Math.min(16, anchorRect.height / 2);
+  const resolvedDocumentX = Number.isFinite(documentX)
+    ? documentX
+    : doc.defaultView.scrollX + anchorRect.left + Math.min(16, anchorRect.width / 2);
   return {
     target: {
       type: 'block',
@@ -3203,14 +3490,45 @@ function quickMarkTargetFromPoint(clientX, clientY) {
       domPath: getAnchorId(anchor) ? null : domPathFor(anchor),
       exact: '',
       clientHint: {
-        documentX,
-        documentY,
-        anchorOffsetX: documentX - (doc.defaultView.scrollX + anchorRect.left),
-        anchorOffsetY: documentY - (doc.defaultView.scrollY + anchorRect.top)
+        documentX: resolvedDocumentX,
+        documentY: resolvedDocumentY,
+        anchorOffsetX: resolvedDocumentX - (doc.defaultView.scrollX + anchorRect.left),
+        anchorOffsetY: resolvedDocumentY - (doc.defaultView.scrollY + anchorRect.top)
       }
     },
     label: readableSnippet(textContent(anchor), 90)
   };
+}
+
+function handleQuickMarkKeyDown(event, markId) {
+  if (event.key === 'Delete' || event.key === 'Backspace') {
+    event.preventDefault();
+    event.stopPropagation();
+    removeQuickMark(markId);
+    return;
+  }
+  if (!event.altKey || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const mark = state.quickMarks.find((item) => item.id === markId);
+  const doc = getFrameDoc();
+  const current = mark ? resolveTargetElement(doc, mark.target) : null;
+  if (!current) return;
+  const anchors = Array.from(doc.querySelectorAll(ANCHOR_SELECTOR))
+    .filter((anchor) => !anchor.closest('.reader-side-note-layer'));
+  const index = anchors.indexOf(current);
+  const nextIndex = event.key === 'ArrowUp' ? index - 1 : index + 1;
+  const nextAnchor = anchors[nextIndex];
+  if (!nextAnchor) {
+    setStatus('Quick mark is already at the first or last anchor.');
+    return;
+  }
+  moveQuickMark(markId, quickMarkTargetForAnchor(doc, nextAnchor));
+  requestAnimationFrame(() => {
+    const escaped = cssEscape(markId);
+    doc.querySelector(`.reader-quick-clip[data-quick-mark-id="${escaped}"]`)?.focus?.({ preventScroll: true });
+    document.querySelector(`.quick-mark-rail[data-quick-mark-id="${escaped}"]`)?.focus?.({ preventScroll: true });
+  });
 }
 
 function quickMarkAnchorAtPoint(doc, main, element, frameX, frameY) {
@@ -3331,6 +3649,7 @@ function renderQuickMarks(doc = getFrameDoc()) {
       jumpToQuickMark(mark.id);
     });
     button.addEventListener('pointerdown', (event) => startQuickMarkInlineDrag(event, mark.id));
+    button.addEventListener('keydown', (event) => handleQuickMarkKeyDown(event, mark.id));
     layer.append(button);
   }
   syncQuickMarkStack(doc);
@@ -3359,6 +3678,7 @@ function renderQuickMarkStack(doc = state.iframeLoaded ? getFrameDoc() : null) {
       jumpToQuickMark(item.mark.id);
     });
     button.addEventListener('pointerdown', (event) => startQuickMarkRailDrag(event, item.mark.id));
+    button.addEventListener('keydown', (event) => handleQuickMarkKeyDown(event, item.mark.id));
     els.quickMarkStack.append(button);
   }
 }
@@ -3485,6 +3805,7 @@ async function createAnnotationFromTarget(sourceTarget, options = {}) {
 function renderAnnotations() {
   if (!state.iframeLoaded) return;
   const doc = getFrameDoc();
+  const focusSnapshot = captureFrameNoteFocus(doc);
   state.pdfDirtyPageIndexes.clear();
   state.pdfNeedsFullRefresh = false;
   state.pdfDeferredRefreshEffects = false;
@@ -3509,7 +3830,7 @@ function renderAnnotations() {
   }
 
   if (sideNotesVisible) {
-    for (const annotation of state.annotations) {
+    for (const annotation of annotationsInResolvedDocumentOrder(doc)) {
       attachMarker(doc, annotation);
     }
   }
@@ -3520,6 +3841,62 @@ function renderAnnotations() {
   syncFrameNotesPanelOverlayState(doc);
   renderQuickMarks(doc);
   scheduleSplitNotesStateBroadcast(doc);
+  restoreFrameNoteFocus(doc, focusSnapshot);
+  syncReaderDocumentNotice();
+}
+
+function annotationsInResolvedDocumentOrder(doc) {
+  const storedIndex = new Map(state.annotations.map((annotation, index) => [annotation.id, index]));
+  return state.annotations.slice().sort((a, b) => {
+    const aTop = resolvedAnnotationDocumentTop(doc, a);
+    const bTop = resolvedAnnotationDocumentTop(doc, b);
+    const aResolved = Number.isFinite(aTop);
+    const bResolved = Number.isFinite(bTop);
+    if (aResolved !== bResolved) return aResolved ? -1 : 1;
+    if (aResolved && Math.abs(aTop - bTop) > 0.5) return aTop - bTop;
+    return (storedIndex.get(a.id) || 0) - (storedIndex.get(b.id) || 0)
+      || String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+  });
+}
+
+function resolvedAnnotationDocumentTop(doc, annotation) {
+  const primary = annotationResolution(annotation)?.targets?.find((target) => target.primary)
+    || annotationResolution(annotation)?.targets?.[0];
+  const element = primary?.element || primary?.anchorElement;
+  if (!element || primary?.status !== 'resolved') return NaN;
+  const rect = element.getBoundingClientRect();
+  const pointRatio = Number(annotation?.target?.y);
+  return doc.defaultView.scrollY + rect.top + (Number.isFinite(pointRatio) ? rect.height * pointRatio : 0);
+}
+
+function captureFrameNoteFocus(doc) {
+  const active = doc?.activeElement;
+  const note = active?.closest?.('.reader-side-note');
+  if (!note) return null;
+  const snapshot = {
+    annotationId: note.dataset.annotationId,
+    action: active.dataset?.sideNoteAction || '',
+    blockIndex: active.dataset?.blockIndex || '',
+    field: active.classList?.contains('reader-side-note-title') ? 'title'
+      : active.classList?.contains('reader-side-note-body') ? 'body'
+        : active.classList?.contains('reader-side-note-blank') ? 'blank'
+          : active.classList?.contains('reader-side-note-ink-resize-handle') ? 'ink-resize'
+            : ''
+  };
+  return snapshot.annotationId ? snapshot : null;
+}
+
+function restoreFrameNoteFocus(doc, snapshot) {
+  if (!snapshot?.annotationId) return;
+  const note = doc.querySelector(`.reader-side-note[data-annotation-id="${cssEscape(snapshot.annotationId)}"]`);
+  if (!note) return;
+  let target = null;
+  if (snapshot.action) target = note.querySelector(`[data-side-note-action="${cssEscape(snapshot.action)}"]`);
+  if (!target && snapshot.field === 'title') target = note.querySelector('.reader-side-note-title');
+  if (!target && snapshot.field === 'body') target = note.querySelector(`.reader-side-note-body[data-block-index="${cssEscape(snapshot.blockIndex)}"]`);
+  if (!target && snapshot.field === 'blank') target = note.querySelector(`.reader-side-note-blank[data-block-index="${cssEscape(snapshot.blockIndex)}"]`);
+  if (!target && snapshot.field === 'ink-resize') target = note.querySelector(`.reader-side-note-ink-resize-handle[data-block-index="${cssEscape(snapshot.blockIndex)}"]`);
+  target?.focus?.({ preventScroll: true });
 }
 
 function renderAnnotationsForPdfPageIndexes(doc, pageIndexes, options = {}) {
@@ -3636,6 +4013,7 @@ function applyPdfRectHighlight(doc, annotation, target = annotation.target, targ
   highlight.dataset.annotationId = annotation.id;
   highlight.dataset.targetIndex = String(targetIndex);
   highlight.title = 'PDF highlight';
+  highlight.setAttribute('aria-label', 'PDF highlight. Activate to open its note');
   highlight.style.left = `${clampNumber(rect.x, 0, 1, 0) * 100}%`;
   highlight.style.top = `${clampNumber(rect.y, 0, 1, 0) * 100}%`;
   highlight.style.width = `${clampNumber(rect.width, 0, 1, 0) * 100}%`;
@@ -3653,7 +4031,11 @@ function buildAnnotationResolutionMap(doc, annotations) {
 
 function resolveAnnotationTarget(doc, target, targetIndex = 0, primary = false) {
   if (!target) return unresolvedTarget(targetIndex, primary, 'missing-target');
-  const element = resolveTargetElement(doc, target);
+  let element = resolveTargetElement(doc, target);
+  const quoteRepair = !element && target.type === 'text'
+    ? uniqueQuoteRepairMatch(doc, target)
+    : null;
+  if (quoteRepair) element = quoteRepair.element;
   if (!element) return unresolvedTarget(targetIndex, primary, 'anchor-not-found');
   if (target.type !== 'text') {
     return {
@@ -3672,7 +4054,7 @@ function resolveAnnotationTarget(doc, target, targetIndex = 0, primary = false) 
     return pendingTarget(targetIndex, primary, element, target);
   }
   const text = annotationTextContent(element);
-  const offsets = resolveTextOffsets(text, target);
+  const offsets = quoteRepair || resolveTextOffsets(text, target);
   return {
     ...offsets,
     targetIndex,
@@ -3680,6 +4062,63 @@ function resolveAnnotationTarget(doc, target, targetIndex = 0, primary = false) 
     element: offsets.status === 'resolved' ? element : null,
     anchorElement: element,
     target
+  };
+}
+
+function uniqueQuoteRepairMatch(doc, target) {
+  const quote = targetQuoteParts(target);
+  if (!quote.exact) return null;
+  const page = target.pageId
+    ? doc.querySelector(`[data-page-id="${cssEscape(target.pageId)}"]`)
+    : null;
+  const scope = page || doc;
+  const candidates = Array.from(scope.querySelectorAll(QUOTE_REPAIR_SELECTOR))
+    .filter((element) => !element.closest('.reader-side-note-layer'));
+  const occurrences = [];
+  for (const element of candidates) {
+    const text = annotationTextContent(element);
+    let startOffset = text.indexOf(quote.exact);
+    while (startOffset !== -1) {
+      const endOffset = startOffset + quote.exact.length;
+      const prefixMatch = quote.prefix ? text.slice(0, startOffset).endsWith(quote.prefix) : false;
+      const suffixMatch = quote.suffix ? text.slice(endOffset).startsWith(quote.suffix) : false;
+      const contextScore = Number(prefixMatch) + Number(suffixMatch);
+      if ((!quote.prefix && !quote.suffix) || contextScore > 0) {
+        occurrences.push({
+          element,
+          startOffset,
+          endOffset,
+          contextScore,
+          status: 'resolved',
+          strategy: contextScore ? 'quote-block-repair-context' : 'quote-block-repair',
+          unresolvedReason: null
+        });
+      }
+      startOffset = text.indexOf(quote.exact, startOffset + Math.max(1, quote.exact.length));
+    }
+  }
+  const deepest = occurrences.filter((candidate) => !occurrences.some((other) => (
+    other !== candidate
+    && other.element !== candidate.element
+    && candidate.element.contains(other.element)
+    && other.startOffset >= 0
+  )));
+  if (!deepest.length) return null;
+  const bestScore = Math.max(...deepest.map((candidate) => candidate.contextScore));
+  const best = deepest.filter((candidate) => candidate.contextScore === bestScore);
+  if (best.length !== 1) return null;
+  if ((quote.prefix || quote.suffix) && bestScore < 1) return null;
+  return best[0];
+}
+
+function targetQuoteParts(target) {
+  const selector = Array.isArray(target?.selectors)
+    ? target.selectors.find((item) => item?.type === 'TextQuoteSelector')
+    : null;
+  return {
+    exact: String(target?.exact ?? selector?.exact ?? ''),
+    prefix: String(target?.prefix ?? selector?.prefix ?? ''),
+    suffix: String(target?.suffix ?? selector?.suffix ?? '')
   };
 }
 
@@ -3765,6 +4204,8 @@ function attachMarker(doc, annotation) {
   title.className = 'reader-side-note-title';
   title.dataset.placeholder = 'Title';
   title.textContent = sideNoteTitle(annotation);
+  title.tabIndex = 0;
+  title.setAttribute('aria-label', title.textContent ? `Note title: ${readableSnippet(title.textContent, 80)}` : 'Empty note title. Press Enter to edit');
 
   const tools = doc.createElement('div');
   tools.className = 'reader-side-note-tools';
@@ -3777,6 +4218,8 @@ function attachMarker(doc, annotation) {
     focusButton.className = `reader-side-note-tool ${annotation.id === state.focusModeAnnotationId ? 'is-active' : ''}`;
     focusButton.dataset.sideNoteAction = 'focus';
     focusButton.title = 'Focus mode';
+    focusButton.setAttribute('aria-label', annotation.id === state.focusModeAnnotationId ? 'Exit focus mode' : 'Enter focus mode');
+    focusButton.setAttribute('aria-pressed', String(annotation.id === state.focusModeAnnotationId));
     focusButton.textContent = 'F';
     tools.append(focusButton);
   }
@@ -3787,6 +4230,8 @@ function attachMarker(doc, annotation) {
     attachButton.className = `reader-side-note-tool ${isAttachingToNote ? 'is-active' : ''}`;
     attachButton.dataset.sideNoteAction = 'attach';
     attachButton.title = isAttachingToNote ? 'Adding highlights to this note' : 'Add highlight';
+    attachButton.setAttribute('aria-label', isAttachingToNote ? 'Finish adding highlights' : 'Add highlight to note');
+    attachButton.setAttribute('aria-pressed', String(isAttachingToNote));
     attachButton.textContent = '+';
   }
   const removeHighlightButton = canUseTextHighlights && hasHighlights ? doc.createElement('button') : null;
@@ -3796,6 +4241,8 @@ function attachMarker(doc, annotation) {
     removeHighlightButton.className = `reader-side-note-tool ${isRemovingFromNote ? 'is-active' : ''}`;
     removeHighlightButton.dataset.sideNoteAction = 'remove-highlight';
     removeHighlightButton.title = isRemovingFromNote ? 'Click a highlight to remove it' : 'Remove highlight';
+    removeHighlightButton.setAttribute('aria-label', isRemovingFromNote ? 'Finish removing highlights' : 'Remove highlight from note');
+    removeHighlightButton.setAttribute('aria-pressed', String(isRemovingFromNote));
     removeHighlightButton.textContent = '−';
   }
   const fullButton = doc.createElement('button');
@@ -3803,12 +4250,15 @@ function attachMarker(doc, annotation) {
   fullButton.className = `reader-side-note-tool ${isPinned ? 'is-active' : ''}`;
   fullButton.dataset.sideNoteAction = 'pin';
   fullButton.title = isPinned ? 'Unpin note editor' : 'Pin note editor';
+  fullButton.setAttribute('aria-label', isPinned ? 'Unpin note editor' : 'Pin note editor');
+  fullButton.setAttribute('aria-pressed', String(isPinned));
   fullButton.textContent = '「」';
   const deleteButton = doc.createElement('button');
   deleteButton.type = 'button';
   deleteButton.className = 'reader-side-note-tool reader-side-note-delete';
   deleteButton.dataset.sideNoteAction = 'delete';
   deleteButton.title = 'Delete note';
+  deleteButton.setAttribute('aria-label', 'Delete note');
   deleteButton.textContent = '×';
   tools.append(collapseButton);
   if (attachButton) tools.append(attachButton);
@@ -3829,6 +4279,7 @@ function attachMarker(doc, annotation) {
       blank.className = 'reader-side-note-blank';
       blank.dataset.blockIndex = String(index);
       blank.setAttribute('role', 'button');
+      blank.setAttribute('aria-label', 'Empty note block. Press Enter to add text');
       blank.tabIndex = 0;
       blank.addEventListener('pointerdown', onSideNoteBlankPointerDown);
       card.append(blank);
@@ -3842,6 +4293,8 @@ function attachMarker(doc, annotation) {
       const canvas = doc.createElement('canvas');
       canvas.className = 'reader-side-note-ink';
       canvas.dataset.blockIndex = String(index);
+      canvas.setAttribute('role', 'img');
+      canvas.setAttribute('aria-label', drawingCanvasLabel(annotation, block));
       if (doc.defaultView?.PointerEvent) {
         canvas.addEventListener('pointerdown', onSideInkPointerDown);
         canvas.addEventListener('onpointerrawupdate' in doc.defaultView ? 'pointerrawupdate' : 'pointermove', onSideInkPointerMove);
@@ -3871,6 +4324,10 @@ function attachMarker(doc, annotation) {
     body.dataset.blockIndex = String(index);
     body.dataset.placeholder = index === 0 ? 'Note' : 'Continue note';
     body.textContent = block.markdown;
+    body.tabIndex = 0;
+    body.setAttribute('aria-label', block.markdown?.trim()
+      ? `Note text: ${readableSnippet(block.markdown, 100)}`
+      : 'Empty note text. Press Enter to edit');
     card.append(body);
     if (isPinned) card.append(createPinnedBlockControls(doc, index));
   });
@@ -3883,8 +4340,8 @@ function createSideInkToolbar(doc, annotationId, blockIndex) {
   toolbar.className = 'reader-side-note-ink-toolbar';
   toolbar.dataset.blockIndex = String(blockIndex);
   toolbar.innerHTML = `
-    <button type="button" data-side-note-action="ink-tool-pen" class="${state.inkTool === 'pen' ? 'is-active' : ''}" title="Pen">Pen</button>
-    <button type="button" data-side-note-action="ink-tool-eraser" class="${state.inkTool === 'eraser' ? 'is-active' : ''}" title="Eraser">Eraser</button>
+    <button type="button" data-side-note-action="ink-tool-pen" class="${state.inkTool === 'pen' ? 'is-active' : ''}" title="Pen" aria-pressed="${state.inkTool === 'pen'}">Pen</button>
+    <button type="button" data-side-note-action="ink-tool-eraser" class="${state.inkTool === 'eraser' ? 'is-active' : ''}" title="Eraser" aria-pressed="${state.inkTool === 'eraser'}">Eraser</button>
     <label title="Line color"><span>Color</span><input type="color" value="${escapeAttr(state.inkColor)}" data-side-note-action="ink-color"></label>
     <label title="Line width"><span>Width</span><select data-side-note-action="ink-width">${inkWidthOptions(state.inkWidth)}</select></label>
     <label title="Pressure sensitivity"><input type="checkbox" ${state.inkPressureEnabled ? 'checked' : ''} data-side-note-action="ink-pressure"><span>Pressure</span></label>
@@ -3904,13 +4361,26 @@ function createSideInkToolbar(doc, annotationId, blockIndex) {
   return toolbar;
 }
 
+function drawingCanvasLabel(annotation, block) {
+  const strokeCount = Array.isArray(block?.ink?.strokes) ? block.ink.strokes.length : 0;
+  const noteLabel = readableSnippet(sideNoteTitle(annotation) || 'Untitled note', 72);
+  return `${noteLabel} drawing, ${strokeCount} stroke${strokeCount === 1 ? '' : 's'}. Use the drawing toolbar to choose pen or eraser.`;
+}
+
 function createSideInkResizeHandle(doc, annotationId, blockIndex, inkWrap) {
   const handle = doc.createElement('button');
   handle.type = 'button';
   handle.className = 'reader-side-note-ink-resize-handle';
   handle.title = 'Resize drawing';
   handle.setAttribute('aria-label', 'Resize drawing');
+  handle.dataset.blockIndex = String(blockIndex);
+  handle.setAttribute('role', 'slider');
+  handle.setAttribute('aria-orientation', 'vertical');
+  handle.setAttribute('aria-valuemin', String(INK_CANVAS_HEIGHT.min));
+  handle.setAttribute('aria-valuemax', String(INK_CANVAS_HEIGHT.max));
+  handle.setAttribute('aria-valuenow', String(Math.round(inkWrap.getBoundingClientRect().height || normalizeInkHeight(inkWrap.style.height))));
   handle.addEventListener('pointerdown', (event) => beginSideInkCanvasResize(event, annotationId, blockIndex, inkWrap));
+  handle.addEventListener('keydown', (event) => resizeSideInkCanvasFromKeyboard(event, annotationId, blockIndex, inkWrap));
   handle.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -3961,6 +4431,9 @@ function onSideInkCanvasResizeMove(event) {
   if (block?.type === 'ink') block.ink.height = height;
   const canvas = session.inkWrap.querySelector('.reader-side-note-ink');
   if (canvas) drawSideInkCanvas(canvas, session.annotationId, session.blockIndex);
+  const handle = session.inkWrap.querySelector('.reader-side-note-ink-resize-handle');
+  handle?.setAttribute('aria-valuemin', String(Math.round(session.minHeight)));
+  handle?.setAttribute('aria-valuenow', String(Math.round(height)));
   requestSideInkResizeLayout();
 }
 
@@ -3986,6 +4459,36 @@ function finishSideInkCanvasResize(event) {
   if (!annotation) return;
   queueSaveAnnotationBlocks(annotation, session.blocks, { render: false }).catch((error) => setStatus(error.message, true));
   requestAnimationFrame(() => layoutSideNotes(getFrameDoc()));
+}
+
+function resizeSideInkCanvasFromKeyboard(event, annotationId, blockIndex, inkWrap) {
+  const annotation = state.annotations.find((item) => item.id === annotationId);
+  if (!annotation || !Number.isInteger(blockIndex) || !inkWrap) return;
+  const blocks = sideNoteContentBlocks(annotation);
+  const block = blocks[blockIndex];
+  if (block?.type !== 'ink') return;
+  const minHeight = minimumInkCanvasHeight(block.ink, inkWrap, { refresh: true });
+  const current = normalizeInkHeight(inkWrap.getBoundingClientRect().height || block.ink?.height);
+  const step = event.shiftKey ? 48 : 12;
+  let next = null;
+  if (event.key === 'ArrowUp') next = current - step;
+  if (event.key === 'ArrowDown') next = current + step;
+  if (event.key === 'Home') next = minHeight;
+  if (event.key === 'End') next = INK_CANVAS_HEIGHT.max;
+  if (event.key === '0') next = INK_CANVAS_HEIGHT.default;
+  if (next == null) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const height = normalizeInkHeight(Math.max(minHeight, next));
+  inkWrap.style.height = `${height}px`;
+  block.ink.height = height;
+  event.currentTarget.setAttribute('aria-valuemin', String(Math.round(minHeight)));
+  event.currentTarget.setAttribute('aria-valuenow', String(height));
+  const canvas = inkWrap.querySelector('.reader-side-note-ink');
+  if (canvas) drawSideInkCanvas(canvas, annotationId, blockIndex);
+  queueSaveAnnotationBlocks(annotation, blocks, { render: false }).catch((error) => setStatus(error.message, true));
+  requestSideInkResizeLayout();
+  setStatus(`Drawing height ${height} pixels.`);
 }
 
 function toggleSideNoteCollapse(annotationId) {
@@ -4223,7 +4726,7 @@ function injectReaderStyles(doc) {
     .reader-side-note-ink-toolbar select { border: 1px solid #d8c7a8; border-radius: 3px; padding: .12rem .2rem; background: #fffdf8; color: #7a3d00; font: inherit; }
     .reader-layout-resizer { position: fixed; z-index: 79; top: 0; bottom: 0; width: 10px; margin-left: -5px; cursor: col-resize; user-select: none; touch-action: none; }
     .reader-layout-resizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 5px; border-left: 1px solid rgba(122, 61, 0, .42); }
-    .reader-layout-resizer:hover::after, .reader-layout-resizer.is-dragging::after { left: 4px; border-left-width: 3px; border-left-color: rgba(122, 61, 0, .76); }
+    .reader-layout-resizer:hover::after, .reader-layout-resizer:focus-visible::after, .reader-layout-resizer.is-dragging::after { left: 4px; border-left-width: 3px; border-left-color: rgba(122, 61, 0, .76); }
   `;
   doc.head.append(style);
 }
@@ -4246,7 +4749,6 @@ function documentHasLatexMath(doc) {
 }
 
 async function ensureKatex(doc) {
-  if (doc.defaultView.katex) return doc.defaultView.katex;
   if (!doc.getElementById('reader-katex-css')) {
     const link = doc.createElement('link');
     link.id = 'reader-katex-css';
@@ -4254,18 +4756,22 @@ async function ensureKatex(doc) {
     link.href = new URL('vendor/katex/katex.min.css', location.href).href;
     doc.head.append(link);
   }
-  if (!doc.getElementById('reader-katex-script')) {
-    const script = doc.createElement('script');
+  if (window.katex) return window.katex;
+  let script = document.getElementById('reader-katex-script');
+  if (!script) {
+    script = document.createElement('script');
     script.id = 'reader-katex-script';
     script.src = new URL('vendor/katex/katex.min.js', location.href).href;
     script.defer = true;
-    doc.head.append(script);
+    document.head.append(script);
+  }
+  if (!window.katex) {
     await new Promise((resolve, reject) => {
       script.addEventListener('load', resolve, { once: true });
       script.addEventListener('error', () => reject(new Error('Could not load local KaTeX renderer.')), { once: true });
     });
   }
-  return doc.defaultView.katex || null;
+  return window.katex || null;
 }
 
 function renderMathSourceElements(doc, katex) {
@@ -4940,9 +5446,40 @@ function renderLayoutResizers(doc) {
   handle.className = 'reader-layout-resizer';
   handle.dataset.layoutHandle = 'source-notes';
   handle.style.left = `${Math.round(metrics.sourceNoteX)}px`;
-  handle.title = 'Drag to resize source and notes';
+  handle.title = 'Resize source and side notes';
+  handle.setAttribute('role', 'separator');
+  handle.setAttribute('aria-label', 'Resize source and side notes');
+  handle.setAttribute('aria-orientation', 'vertical');
+  handle.setAttribute('aria-valuemin', '0');
+  handle.setAttribute('aria-valuemax', String(Math.round((1 - minimumNoteFraction(doc)) * 100)));
+  handle.setAttribute('aria-valuenow', String(Math.round(metrics.layout.sourceFraction * 100)));
+  handle.setAttribute('aria-valuetext', `${Math.round(metrics.layout.sourceFraction * 100)} percent source width`);
+  handle.tabIndex = 0;
   handle.addEventListener('pointerdown', onLayoutResizerPointerDown);
+  handle.addEventListener('keydown', onLayoutResizerKeyDown);
   doc.body.append(handle);
+}
+
+function onLayoutResizerKeyDown(event) {
+  const doc = event.currentTarget.ownerDocument;
+  const current = layoutMetrics(doc).layout.sourceFraction;
+  const step = event.shiftKey ? 0.05 : 0.01;
+  let next = null;
+  if (event.key === 'ArrowLeft') next = current - step;
+  if (event.key === 'ArrowRight') next = current + step;
+  if (event.key === 'Home') next = 0;
+  if (event.key === 'End') next = 1 - minimumNoteFraction(doc);
+  if (event.key === '0') next = 0.72;
+  if (next == null) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const anchor = captureViewportAnchor(doc);
+  updateLayoutFromDrag(doc, 'source-notes', Math.max(320, doc.defaultView.innerWidth) * next, anchor);
+  const metrics = layoutMetrics(doc);
+  event.currentTarget.style.left = `${Math.round(metrics.sourceNoteX)}px`;
+  event.currentTarget.setAttribute('aria-valuenow', String(Math.round(metrics.layout.sourceFraction * 100)));
+  event.currentTarget.setAttribute('aria-valuetext', `${Math.round(metrics.layout.sourceFraction * 100)} percent source width`);
+  setStatus(`Source width ${Math.round(metrics.layout.sourceFraction * 100)} percent.`);
 }
 
 function onLayoutResizerPointerDown(event) {
@@ -4988,6 +5525,8 @@ function updateLayoutFromDrag(doc, handle, clientX, anchor) {
   const handleElement = state.layoutDragSession?.handleElement;
   if (handleElement?.isConnected) {
     handleElement.style.left = `${Math.round(metrics.sourceNoteX)}px`;
+    handleElement.setAttribute('aria-valuenow', String(Math.round(metrics.layout.sourceFraction * 100)));
+    handleElement.setAttribute('aria-valuetext', `${Math.round(metrics.layout.sourceFraction * 100)} percent source width`);
   }
   syncJumpToNoteButton(doc);
 }
@@ -5130,8 +5669,7 @@ function saveNotesPanelWidth() {
 }
 
 function normalizeNotesPanelWidth(value) {
-  const viewportMax = Math.max(NOTES_PANEL_WIDTH.min, window.innerWidth - 52);
-  const max = Math.max(NOTES_PANEL_WIDTH.min, viewportMax);
+  const max = notesPanelMaximumWidth();
   return clampNumber(value, NOTES_PANEL_WIDTH.min, max, Math.min(NOTES_PANEL_WIDTH.default, max));
 }
 
@@ -5194,7 +5732,7 @@ function setSaveNotice(message, options = {}) {
   const text = String(message || 'Save status unavailable.').trim();
   const title = options.title || 'Save status';
   const noticeState = options.state || 'info';
-  setStatus(text, noticeState === 'error');
+  setStatus(text, noticeState === 'error', { visibleNotice: false });
   if (!els.saveToast || !els.saveToastBody || !els.saveToastTitle) return;
   window.clearTimeout(state.saveToastTimer);
   state.saveToastTimer = 0;
@@ -5845,20 +6383,11 @@ function requestClearSideInk(annotationId, blockIndex, anchorElement) {
   doc.body.append(popover);
   positionDeleteConfirmPopover(doc, popover, anchorElement);
 
-  const close = () => popover.remove();
-  cancel.addEventListener('click', close);
-  confirmButton.addEventListener('click', () => {
-    close();
-    clearSideInk(annotationId, blockIndex).catch((error) => setStatus(error.message, true));
+  installInlineConfirmPopover(popover, anchorElement, {
+    cancelButton: cancel,
+    confirmButton,
+    onConfirm: () => clearSideInk(annotationId, blockIndex)
   });
-  setTimeout(() => {
-    doc.addEventListener('pointerdown', function onPointerDown(event) {
-      if (!popover.contains(event.target)) {
-        close();
-        doc.removeEventListener('pointerdown', onPointerDown, true);
-      }
-    }, true);
-  }, 0);
 }
 
 async function saveAnnotationBlocks(annotation, blocks, options = {}) {
@@ -6317,10 +6846,12 @@ async function saveInlineNoteText(annotationId, note, title, bodies) {
 
 function renderNoteList(options = {}) {
   const scrollAnchor = captureNavigatorScrollAnchor(options.anchorAnnotationId);
+  const focusSnapshot = captureNavigatorFocus();
   els.noteCount.textContent = `${state.annotations.length} annotation${state.annotations.length === 1 ? '' : 's'} in this document.`;
   if (els.expandAllNotesBtn) {
     els.expandAllNotesBtn.textContent = state.noteNavigatorExpandAll ? 'Collapse all' : 'Expand all';
     els.expandAllNotesBtn.disabled = !state.annotations.length;
+    els.expandAllNotesBtn.setAttribute('aria-expanded', String(state.noteNavigatorExpandAll));
   }
   if (!state.annotations.length) {
     els.noteList.innerHTML = '<p class="small">No annotations yet.</p>';
@@ -6334,6 +6865,7 @@ function renderNoteList(options = {}) {
     els.noteList.append(createNavigatorNoteCard(annotation));
   }
   restoreNavigatorScrollAnchor(scrollAnchor);
+  restoreNavigatorFocus(focusSnapshot);
   requestNavigatorInkPreviewRedraw();
 }
 
@@ -6405,6 +6937,8 @@ function createNavigatorNoteCard(annotation) {
   expandButton.dataset.action = 'toggle-expand';
   expandButton.textContent = navigatorExpandButtonLabel(annotation.id);
   expandButton.title = expandButton.textContent;
+  expandButton.setAttribute('aria-expanded', String(isNavigatorNoteExpanded(annotation.id)));
+  expandButton.setAttribute('aria-controls', navigatorContentId(annotation.id));
 
   const actions = document.createElement('div');
   actions.className = 'note-card-actions';
@@ -6517,6 +7051,7 @@ async function saveNavigatorNoteTitle(annotationId, title) {
 function createNavigatorNoteContent(annotation) {
   const content = document.createElement('div');
   content.className = 'note-card-content';
+  content.id = navigatorContentId(annotation.id);
   const blocks = sideNoteContentBlocks(annotation);
   let hasContent = false;
   for (const [index, block] of blocks.entries()) {
@@ -6537,6 +7072,8 @@ function createNavigatorNoteContent(annotation) {
       canvas.className = 'note-card-ink';
       canvas.dataset.annotationId = annotation.id;
       canvas.dataset.blockIndex = String(index);
+      canvas.setAttribute('role', 'img');
+      canvas.setAttribute('aria-label', drawingCanvasLabel(annotation, block));
       wrap.append(canvas);
       content.append(wrap);
       requestAnimationFrame(() => drawInkPreview(canvas, block.ink));
@@ -6544,14 +7081,39 @@ function createNavigatorNoteContent(annotation) {
       continue;
     }
   }
-  if (!hasContent && sideNoteTitle(annotation).trim()) return null;
   if (!hasContent) {
     const empty = document.createElement('div');
     empty.className = 'note-card-content-empty';
-    empty.textContent = 'Empty note';
+    empty.textContent = sideNoteTitle(annotation).trim() ? 'No note body.' : 'Empty note';
     content.append(empty);
   }
   return content;
+}
+
+function navigatorContentId(annotationId) {
+  return `note-card-content-${String(annotationId || '').replace(/[^\w.-]+/g, '-')}`;
+}
+
+function captureNavigatorFocus() {
+  const active = document.activeElement;
+  const card = active?.closest?.('.note-card[data-annotation-id]');
+  if (!card || !els.noteList.contains(active)) return null;
+  return {
+    annotationId: card.dataset.annotationId,
+    action: active.dataset?.action || '',
+    title: active.classList?.contains('note-card-title') || false
+  };
+}
+
+function restoreNavigatorFocus(snapshot) {
+  if (!snapshot?.annotationId) return;
+  const card = els.noteList.querySelector(`.note-card[data-annotation-id="${cssEscape(snapshot.annotationId)}"]`);
+  const target = snapshot.title
+    ? card?.querySelector('.note-card-title')
+    : snapshot.action
+      ? card?.querySelector(`[data-action="${cssEscape(snapshot.action)}"]`)
+      : null;
+  target?.focus?.({ preventScroll: true });
 }
 
 function isNavigatorNoteExpanded(annotationId) {
@@ -7051,21 +7613,15 @@ function requestDeleteAnnotation(annotationId, anchorElement) {
   popover.append(message, actions);
   doc.body.append(popover);
   positionDeleteConfirmPopover(doc, popover, anchorElement);
-
-  const close = () => popover.remove();
-  cancel.addEventListener('click', close);
-  confirmButton.addEventListener('click', () => {
-    close();
-    deleteAnnotation(annotationId).catch((error) => setStatus(error.message, true));
+  const fallbackAnnotationId = neighboringAnnotationId(annotationId, doc);
+  installInlineConfirmPopover(popover, anchorElement, {
+    cancelButton: cancel,
+    confirmButton,
+    onConfirm: async () => {
+      await deleteAnnotation(annotationId);
+      focusSideNoteAfterDeletion(fallbackAnnotationId, doc);
+    }
   });
-  setTimeout(() => {
-    doc.addEventListener('pointerdown', function onPointerDown(event) {
-      if (!popover.contains(event.target)) {
-        close();
-        doc.removeEventListener('pointerdown', onPointerDown, true);
-      }
-    }, true);
-  }, 0);
 }
 
 function positionDeleteConfirmPopover(doc, popover, anchorElement) {
@@ -7082,15 +7638,86 @@ function positionDeleteConfirmPopover(doc, popover, anchorElement) {
   popover.style.top = `${top}px`;
 }
 
+function installInlineConfirmPopover(popover, trigger, options = {}) {
+  const doc = popover.ownerDocument;
+  const cancelButton = options.cancelButton || popover.querySelector('[data-delete-choice="cancel"]');
+  const confirmButton = options.confirmButton || popover.querySelector('[data-delete-choice="confirm"]');
+  let closed = false;
+  const onPointerDown = (event) => {
+    if (!popover.contains(event.target)) close({ restoreFocus: true });
+  };
+  const close = ({ restoreFocus = true } = {}) => {
+    if (closed) return;
+    closed = true;
+    doc.removeEventListener('pointerdown', onPointerDown, true);
+    popover.remove();
+    if (restoreFocus && isUsableFocusTarget(trigger)) trigger.focus({ preventScroll: true });
+  };
+  popover._closeConfirmPopover = close;
+  cancelButton?.addEventListener('click', () => close({ restoreFocus: true }));
+  confirmButton?.addEventListener('click', async () => {
+    close({ restoreFocus: false });
+    try {
+      await options.onConfirm?.();
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  });
+  popover.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      close({ restoreFocus: true });
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const buttons = Array.from(popover.querySelectorAll('button:not(:disabled)'));
+    if (!buttons.length) return;
+    const active = doc.activeElement;
+    const first = buttons[0];
+    const last = buttons.at(-1);
+    if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+  window.setTimeout(() => {
+    if (!closed) {
+      doc.addEventListener('pointerdown', onPointerDown, true);
+      cancelButton?.focus?.({ preventScroll: true });
+    }
+  }, 0);
+}
+
+function neighboringAnnotationId(annotationId, doc) {
+  const ordered = annotationsInResolvedDocumentOrder(doc);
+  const index = ordered.findIndex((annotation) => annotation.id === annotationId);
+  if (index < 0) return null;
+  return ordered[index + 1]?.id || ordered[index - 1]?.id || null;
+}
+
+function focusSideNoteAfterDeletion(annotationId, doc) {
+  if (!annotationId) return;
+  requestAnimationFrame(() => {
+    const note = doc.querySelector(`.reader-side-note[data-annotation-id="${cssEscape(annotationId)}"]`);
+    (note?.querySelector('.reader-side-note-title') || note?.querySelector('button'))?.focus?.({ preventScroll: true });
+  });
+}
+
 function closeDeleteConfirmPopovers() {
   let closed = false;
   document.querySelectorAll('.reader-delete-confirm-popover').forEach((popover) => {
-    popover.remove();
+    if (typeof popover._closeConfirmPopover === 'function') popover._closeConfirmPopover({ restoreFocus: true });
+    else popover.remove();
     closed = true;
   });
   if (state.iframeLoaded) {
     getFrameDoc()?.querySelectorAll('.reader-delete-confirm-popover').forEach((popover) => {
-      popover.remove();
+      if (typeof popover._closeConfirmPopover === 'function') popover._closeConfirmPopover({ restoreFocus: true });
+      else popover.remove();
       closed = true;
     });
   }
@@ -8558,18 +9185,102 @@ function capitalize(value) {
   return text ? text[0].toUpperCase() + text.slice(1) : text;
 }
 
-function packageHandleNameMatches(handle, expectedName) {
-  if (!handle?.name || !expectedName) return true;
-  return handle.name === expectedName;
-}
-
 function libraryFolderNameReminder(saved, library) {
   const expectedName = libraryFolderNameForTitle(library?.title || 'annotator-library');
   if (!saved?.folder || !saved?.name || saved.name === expectedName) return '';
   return 'Folder name is unchanged because the browser cannot rename the selected local folder automatically.';
 }
 
-function setStatus(message, isError = false) {
+function setStatus(message, isError = false, options = {}) {
   els.status.textContent = message || '';
   els.status.style.color = isError ? '#8f1f12' : '';
+  if (isError && options.visibleNotice !== false) {
+    showReaderNotice({
+      key: `error:${String(message || '')}`,
+      kind: 'error',
+      title: options.title || 'Reader needs attention',
+      body: message || 'An unknown reader error occurred.',
+      retry: Boolean(options.retry)
+    });
+  }
+}
+
+function showReaderLoadFailure(error) {
+  const message = error?.message || String(error || 'The source could not be opened.');
+  setReaderFrameRestoring(false);
+  setStatus(`Could not open this source: ${message}`, true, { visibleNotice: false });
+  showReaderNotice({
+    key: `load:${state.docId || ''}:${message}`,
+    kind: 'error',
+    title: 'Source could not be opened',
+    body: `${message}\nRetry the browser-local copy, reimport the source, or return to the library.`,
+    retry: true,
+    force: true
+  });
+}
+
+function syncReaderDocumentNotice() {
+  if (!state.currentDocument || !state.iframeLoaded) return;
+  const warnings = [...new Set(state.currentDocument.compatibility?.warnings || [])];
+  const staticInteractive = state.currentDocument.sourceType !== 'pdf'
+    && state.currentDocument.compatibility?.features?.interactiveSource;
+  const unresolvedCount = [...state.annotationResolution.values()]
+    .filter((resolution) => resolution?.status === 'unresolved').length;
+  const projectionWarnings = readerProjectionWarnings();
+  const details = [];
+  if (staticInteractive) details.push('Source scripts and forms are disabled in static reading mode.');
+  if (projectionWarnings.length) {
+    const examples = projectionWarnings.slice(0, 2).map((value) => `“${value}”`).join(', ');
+    details.push(`${projectionWarnings.length} source resource${projectionWarnings.length === 1 ? ' is' : 's are'} blocked or missing in static reading mode${examples ? `: ${examples}` : ''}. Reimport a bundle containing local assets if needed.`);
+  }
+  if (unresolvedCount) details.push(`${unresolvedCount} annotation target${unresolvedCount === 1 ? ' is' : 's are'} unresolved.`);
+  details.push(...warnings.slice(0, 3));
+  if (!details.length) {
+    if (els.readerNotice?.dataset.noticeKind === 'warning') hideReaderNotice();
+    return;
+  }
+  const body = [...new Set(details)].join('\n');
+  showReaderNotice({
+    key: `document:${state.docId}:${body}`,
+    kind: 'warning',
+    title: unresolvedCount ? 'Some annotations need attention' : 'Static reading safeguards are active',
+    body,
+    retry: false
+  });
+}
+
+function readerProjectionWarnings() {
+  const content = getFrameDoc()?.querySelector?.('meta[name="marginalia-projection-warnings"]')?.getAttribute('content');
+  if (!content) return [];
+  try {
+    const values = JSON.parse(content);
+    return Array.isArray(values) ? values.map(String).filter(Boolean).slice(0, 20) : [];
+  } catch {
+    return [];
+  }
+}
+
+function showReaderNotice({ key, kind = 'error', title, body, retry = false, force = false }) {
+  if (!els.readerNotice || !els.readerNoticeTitle || !els.readerNoticeBody) return;
+  const noticeKey = String(key || `${kind}:${title}:${body}`);
+  if (!force && state.dismissedNoticeKey === noticeKey) return;
+  els.readerNotice.dataset.noticeKey = noticeKey;
+  els.readerNotice.dataset.noticeKind = kind;
+  els.readerNoticeTitle.textContent = title || 'Reader notice';
+  els.readerNoticeBody.textContent = body || '';
+  if (els.readerNoticeRetry) els.readerNoticeRetry.hidden = !retry;
+  if (els.readerNoticeImport) els.readerNoticeImport.hidden = false;
+  if (els.readerNoticeLibrary) els.readerNoticeLibrary.hidden = false;
+  els.readerNotice.hidden = false;
+}
+
+function dismissReaderNotice() {
+  if (!els.readerNotice) return;
+  state.dismissedNoticeKey = els.readerNotice.dataset.noticeKey || '';
+  hideReaderNotice();
+}
+
+function hideReaderNotice() {
+  if (!els.readerNotice) return;
+  els.readerNotice.hidden = true;
 }

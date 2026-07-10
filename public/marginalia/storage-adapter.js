@@ -16,6 +16,7 @@ const APP_META_LAST_OPEN_DOCUMENT = 'lastOpenDocument';
 const APP_META_CURRENT_LIBRARY = 'currentLibrary';
 const APP_META_LOCAL_PROFILE = 'localProfile';
 const APP_META_READER_POSITION_PREFIX = 'readerPosition:';
+const APP_META_QUICK_MARKS_PREFIX = 'quickMarks:';
 const ANCHORABLE_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'li', 'figure', 'figcaption', 'td', 'th', 'section', 'article']);
 const TEXT_ANCHOR_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'li', 'figcaption', 'td', 'th']);
 let dbPromise = null;
@@ -48,28 +49,62 @@ export class IndexedDbStorageAdapter {
     return doc.sourceHtml || '';
   }
 
+  async getQuickMarks(docId) {
+    if (!docId) return normalizeQuickMarkRecord(null, docId);
+    const db = await openDb();
+    const stored = await readOne(db, 'appMeta', quickMarksKey(docId));
+    if (stored?.quickMarks) return normalizeQuickMarkRecord(stored.quickMarks, docId);
+    const legacy = readLegacyQuickMarks(docId);
+    if (!legacy) return normalizeQuickMarkRecord(null, docId);
+    await this.setQuickMarks(docId, legacy);
+    return normalizeQuickMarkRecord(legacy, docId);
+  }
+
+  async setQuickMarks(docId, value) {
+    if (!docId) return false;
+    const db = await openDb();
+    const record = normalizeQuickMarkRecord(value, docId);
+    await writeTransaction(db, ['appMeta'], (stores) => {
+      stores.appMeta.put({
+        key: quickMarksKey(docId),
+        quickMarks: {
+          ...record,
+          docId,
+          updatedAt: new Date().toISOString()
+        }
+      });
+    });
+    return true;
+  }
+
   async getDocumentHtmlUrl(docId) {
     const db = await openDb();
     const doc = normalizeStoredDocument(await readOne(db, 'documents', docId));
     if (!doc) throw new Error(`Document not found: ${docId}`);
-    const oldUrl = this.blobUrls.get(docId);
-    if (oldUrl) URL.revokeObjectURL(oldUrl);
+    for (const urls of this.blobUrls.values()) revokeBlobUrls(urls);
+    this.blobUrls.clear();
+    const urls = [];
     if (doc.sourceType === 'pdf') {
       const pdfUrl = URL.createObjectURL(new Blob([doc.sourceBytes || new Uint8Array()], { type: 'application/pdf' }));
+      urls.push(pdfUrl);
       const viewerUrl = new URL('pdf-viewer.html', location.href);
       viewerUrl.searchParams.set('file', pdfUrl);
       viewerUrl.searchParams.set('embedded', 'reader');
-      this.blobUrls.set(docId, pdfUrl);
+      this.blobUrls.set(docId, urls);
       return viewerUrl.href;
     }
     const html = doc.sourceHtml || '';
     if (looksLikePdfText(html)) {
       const url = URL.createObjectURL(new Blob([corruptPdfImportHtml(doc)], { type: 'text/html' }));
-      this.blobUrls.set(docId, url);
+      urls.push(url);
+      this.blobUrls.set(docId, urls);
       return url;
     }
-    const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
-    this.blobUrls.set(docId, url);
+    const assets = await readIndexAll(db, 'documentAssets', 'docId', docId);
+    const renderedHtml = htmlWithResolvedAssets(html, doc.sourcePath, assets, urls);
+    const url = URL.createObjectURL(new Blob([renderedHtml], { type: 'text/html' }));
+    urls.push(url);
+    this.blobUrls.set(docId, urls);
     return url;
   }
 
@@ -89,19 +124,33 @@ export class IndexedDbStorageAdapter {
   }
 
   async getAnnotation(docId, annotationId) {
-    const annotations = await this.getAnnotations(docId);
-    return annotations.find((annotation) => annotation.id === annotationId) || null;
+    const db = await openDb();
+    const [annotation, body] = await Promise.all([
+      readOne(db, 'annotations', annotationId),
+      readOne(db, 'annotationBodies', annotationId)
+    ]);
+    if (!annotation || String(annotation.docId || '') !== String(docId || '')) return null;
+    const note = body && String(body.docId || '') === String(docId || '') ? body.note : null;
+    return normalizeHydratedAnnotation({
+      ...annotation,
+      note: normalizeNoteForStorage(note)
+    });
   }
 
   async getDocumentNoteStats(docIds = null) {
     const db = await openDb();
-    const [annotations, bodies] = await Promise.all([
-      readAll(db, 'annotations'),
-      readAll(db, 'annotationBodies')
-    ]);
-    const allowedDocIds = Array.isArray(docIds) && docIds.length
+    const allowedDocIds = Array.isArray(docIds)
       ? new Set(docIds.map((docId) => String(docId)))
       : null;
+    const [annotations, bodies] = allowedDocIds
+      ? await Promise.all([
+        Promise.all([...allowedDocIds].map((docId) => readIndexAll(db, 'annotations', 'docId', docId))).then((groups) => groups.flat()),
+        Promise.all([...allowedDocIds].map((docId) => readIndexAll(db, 'annotationBodies', 'docId', docId))).then((groups) => groups.flat())
+      ])
+      : await Promise.all([
+        readAll(db, 'annotations'),
+        readAll(db, 'annotationBodies')
+      ]);
     const bodiesById = new Map(bodies.map((body) => [body.id, body]));
     const statsByDocId = new Map();
     for (const annotation of annotations) {
@@ -150,8 +199,10 @@ export class IndexedDbStorageAdapter {
     return annotation;
   }
 
-  async deleteAnnotation(_docId, annotationId) {
+  async deleteAnnotation(docId, annotationId) {
     const db = await openDb();
+    const existing = await readOne(db, 'annotations', annotationId);
+    if (!existing || String(existing.docId || '') !== String(docId || '')) return false;
     await writeTransaction(db, ['annotations', 'annotationBodies'], (stores) => {
       stores.annotations.delete(annotationId);
       stores.annotationBodies.delete(annotationId);
@@ -325,6 +376,8 @@ export class IndexedDbStorageAdapter {
     ], (stores) => {
       for (const store of Object.values(stores)) store.clear();
     });
+    for (const urls of this.blobUrls.values()) revokeBlobUrls(urls);
+    this.blobUrls.clear();
     clearBrowserStateKeys(localStorage, ['reader-quick-marks:', 'reader-layout:']);
     clearBrowserStateKeys(sessionStorage, ['reader-scroll:']);
     return true;
@@ -580,29 +633,29 @@ export class IndexedDbStorageAdapter {
     if (!document) throw new Error(`Document not found: ${docId}`);
     const annotations = await this.getAnnotations(docId);
     const assets = await readIndexAll(db, 'documentAssets', 'docId', docId);
+    const quickMarks = await this.getQuickMarks(docId);
     return createAnnotatorBundleArchive({
       document,
       sourceHtml: document.sourceHtml || '',
       sourceBytes: document.sourceBytes || null,
       annotations,
-      assets
+      assets,
+      quickMarks
     });
   }
 
   async importDocument(file) {
     const sourceBytes = new Uint8Array(await file.arrayBuffer());
     if (isPdfFile(file) || looksLikePdfBytes(sourceBytes)) return this.importPdfDocument(file, sourceBytes);
-    const library = await this.getCurrentLibraryContext();
     const sourceHtml = new TextDecoder().decode(sourceBytes);
     const normalized = await normalizeHtmlForBrowserImport(sourceHtml, {
       filename: file.name || 'document.html',
       title: file.name ? file.name.replace(/\.html?$/i, '') : ''
     });
     const db = await openDb();
-    const documents = await this.listDocuments();
     const now = new Date().toISOString();
     const document = {
-      id: uniqueDocumentId(normalized.id, documents),
+      id: normalized.id,
       title: normalized.title,
       sourceType: 'html',
       sourcePath: sourceFilename(file.name || 'source.html', 'html'),
@@ -613,19 +666,17 @@ export class IndexedDbStorageAdapter {
       createdAt: now,
       updatedAt: now
     };
-    await writeTransaction(db, ['documents', 'documentMetadata'], (stores) => {
-      putDocumentRecord(stores, document);
+    return writeImportTransaction(db, ({ stores, storedDocumentIds, currentLibrary }) => {
+      const imported = { ...document, id: uniqueDocumentId(document.id, storedDocumentIds) };
+      putDocumentRecord(stores, imported);
+      addImportedDocumentToCurrentLibrary(stores, currentLibrary, imported);
+      return imported;
     });
-    if (library) await this.addDocumentToLibraryContext(library, document);
-    return document;
   }
 
   async importDocumentBundle(file) {
     const bundle = await readAnnotatorBundleArchive(file);
-    const library = await this.getCurrentLibraryContext();
-    const document = await this.importBundleData(bundle);
-    if (library) await this.addDocumentToLibraryContext(library, document);
-    return document;
+    return this.importBundleData(bundle, { addToCurrentLibrary: true });
   }
 
   async importDocumentLibrary(file, options = {}) {
@@ -636,38 +687,63 @@ export class IndexedDbStorageAdapter {
       }
     }
     const library = await readAnnotatorLibraryArchive(file);
-    const entries = [];
+    const parsedBundles = [];
     for (const entry of library.entries) {
-      const bundle = await readAnnotatorBundleArchive(entry.data);
-      const document = await this.importBundleData(bundle);
-      entries.push({
-        id: entry.id || document.id,
-        docId: document.id,
-        title: entry.title || document.title,
-        folderId: entry.folderId || null,
-        order: Number.isFinite(Number(entry.order)) ? Number(entry.order) : entries.length,
-        lastOpenedAt: entry.lastOpenedAt || ''
-      });
+      parsedBundles.push({ entry, bundle: await readAnnotatorBundleArchive(entry.data) });
     }
-    const activeEntryId = library.manifest.activeEntryId && entries.some((entry) => entry.id === library.manifest.activeEntryId)
-      ? library.manifest.activeEntryId
-      : entries[0]?.id || null;
-    const context = {
-      id: library.manifest.id || `library-${crypto.randomUUID()}`,
-      title: library.manifest.title || 'Annotator library',
-      createdAt: library.manifest.createdAt || new Date().toISOString(),
-      packageUpdatedAt: library.manifest.updatedAt || library.manifest.createdAt || '',
-      activeEntryId,
-      folders: library.manifest.folders || [],
-      entries,
-      updatedAt: new Date().toISOString()
-    };
-    await this.writeCurrentLibraryContext(context);
-    const activeEntry = entries.find((entry) => entry.id === activeEntryId) || entries[0];
-    return {
-      document: activeEntry ? await this.getDocument(activeEntry.docId) : null,
-      library: context
-    };
+    const db = await openDb();
+    return writeImportTransaction(db, ({ stores, storedDocumentIds, storedAnnotationIds, currentLibrary }) => {
+      if (currentLibrary && !options.replaceCurrent) {
+        throw new Error('Close or replace the current library before importing another library package.');
+      }
+      const usedDocumentIds = new Set(storedDocumentIds.map(String));
+      const usedAnnotationIds = new Set(storedAnnotationIds.map(String));
+      const plans = parsedBundles.map(({ bundle }) => planBundleImport(bundle, usedDocumentIds, usedAnnotationIds));
+      const entries = [];
+      const importedEntryIds = new Map();
+      for (let index = 0; index < parsedBundles.length; index += 1) {
+        const entry = parsedBundles[index].entry;
+        const document = plans[index].document;
+        const entryId = uniqueLibraryEntryId(entry.id || document.id, entries);
+        importedEntryIds.set(String(entry.id || ''), entryId);
+        entries.push({
+          id: entryId,
+          docId: document.id,
+          title: entry.title || document.title,
+          folderId: entry.folderId || null,
+          order: Number.isFinite(Number(entry.order)) ? Number(entry.order) : entries.length,
+          lastOpenedAt: entry.lastOpenedAt || ''
+        });
+      }
+      const requestedActiveEntryId = importedEntryIds.get(String(library.manifest.activeEntryId || '')) || '';
+      const activeEntryId = requestedActiveEntryId && entries.some((entry) => entry.id === requestedActiveEntryId)
+        ? requestedActiveEntryId
+        : entries[0]?.id || null;
+      const normalizedContext = normalizeCurrentLibraryContext({
+        id: library.manifest.id || `library-${crypto.randomUUID()}`,
+        title: library.manifest.title || 'Annotator library',
+        createdAt: library.manifest.createdAt || new Date().toISOString(),
+        packageUpdatedAt: library.manifest.updatedAt || library.manifest.createdAt || '',
+        activeEntryId,
+        folders: library.manifest.folders || [],
+        entries,
+        updatedAt: new Date().toISOString()
+      });
+      for (const plan of plans) writeBundleImportPlan(stores, plan);
+      stores.appMeta.put({
+        key: APP_META_CURRENT_LIBRARY,
+        library: {
+          ...normalizedContext,
+          updatedAt: new Date().toISOString()
+        }
+      });
+      const activeEntry = entries.find((entry) => entry.id === activeEntryId) || entries[0];
+      const activePlan = plans.find((plan) => plan.document.id === activeEntry?.docId) || null;
+      return {
+        document: activePlan?.document || null,
+        library: normalizedContext
+      };
+    });
   }
 
   async exportCurrentLibraryPackage() {
@@ -781,11 +857,14 @@ export class IndexedDbStorageAdapter {
       for (const annotation of annotations) stores.annotations.delete(annotation.id);
       for (const body of bodies) stores.annotationBodies.delete(body.id);
       for (const asset of assets) stores.documentAssets.delete(asset.id);
+      stores.appMeta.delete(quickMarksKey(docId));
       if (lastOpen?.docId === docId) stores.appMeta.delete(APP_META_LAST_OPEN_DOCUMENT);
       stores.appMeta.delete(readerPositionKey(docId));
     });
     clearBrowserStateKeys(localStorage, [`reader-quick-marks:${docId}`, `reader-layout:${docId}`]);
     clearBrowserStateKeys(sessionStorage, [`reader-scroll:${docId}`]);
+    revokeBlobUrls(this.blobUrls.get(docId));
+    this.blobUrls.delete(docId);
     return true;
   }
 
@@ -803,58 +882,35 @@ export class IndexedDbStorageAdapter {
     });
   }
 
-  async addDocumentToLibraryContext(library, document) {
-    const entries = [...(library.entries || [])];
-    const id = uniqueLibraryEntryId(document.id, entries);
-    entries.push({
-      id,
-      docId: document.id,
-      title: document.title || document.id,
-      folderId: null,
-      order: entries.length
-    });
-    await this.writeCurrentLibraryContext({
-      ...library,
-      activeEntryId: id,
-      entries
-    });
-  }
-
-  async importBundleData(bundle) {
-    const document = normalizeDocumentFromBundle(bundle.document, bundle.sourceHtml, bundle.sourceBytes);
-    const annotations = hydratedAnnotationsFromBundle(bundle).map((annotation) => normalizeHydratedAnnotation({
-      ...annotation,
-      docId: document.id
-    }));
-    const assets = (bundle.assets || []).map((asset) => ({
-      id: `${document.id}:${asset.path}`,
-      docId: document.id,
-      path: asset.path,
-      data: asset.data,
-      mimeType: asset.mimeType || 'application/octet-stream'
-    }));
+  async importBundleData(bundle, options = {}) {
     const db = await openDb();
-    await writeTransaction(db, ['documents', 'documentMetadata', 'annotations', 'annotationBodies', 'documentAssets'], (stores) => {
-      putDocumentRecord(stores, document);
-      for (const annotation of annotations) {
-        const { note, ...metadata } = annotation;
-        stores.annotations.put({
-          ...metadata,
-          noteRef: {
-            storage: 'indexeddb',
-            version: 1
-          }
+    return writeImportTransaction(db, ({ stores, storedDocumentIds, storedAnnotationIds, currentLibrary }) => {
+      const plan = planBundleImport(
+        bundle,
+        new Set(storedDocumentIds.map(String)),
+        new Set(storedAnnotationIds.map(String))
+      );
+      writeBundleImportPlan(stores, plan);
+      if (options.addToCurrentLibrary && currentLibrary) {
+        const entries = [...(currentLibrary.entries || [])];
+        const id = uniqueLibraryEntryId(plan.document.id, entries);
+        entries.push({
+          id,
+          docId: plan.document.id,
+          title: plan.document.title || plan.document.id,
+          folderId: null,
+          order: entries.length
         });
-        stores.annotationBodies.put({
-          id: annotation.id,
-          docId: document.id,
-          note: normalizeNoteForStorage(note),
-          updatedAt: annotation.updatedAt || new Date().toISOString()
+        const nextLibrary = normalizeCurrentLibraryContext({
+          ...currentLibrary,
+          activeEntryId: id,
+          entries,
+          updatedAt: new Date().toISOString()
         });
+        stores.appMeta.put({ key: APP_META_CURRENT_LIBRARY, library: nextLibrary });
       }
-      for (const asset of assets) stores.documentAssets.put(asset);
+      return plan.document;
     });
-    return document;
   }
 
   async writeHydratedAnnotation(annotation) {
@@ -878,14 +934,12 @@ export class IndexedDbStorageAdapter {
   }
 
   async importPdfDocument(file, bytes = null) {
-    const library = await this.getCurrentLibraryContext();
     const sourceBytes = bytes || new Uint8Array(await file.arrayBuffer());
     const metadata = await pdfMetadataFromBytes(sourceBytes);
-    const documents = await this.listDocuments();
     const now = new Date().toISOString();
     const title = file.name ? file.name.replace(/\.pdf$/i, '') : 'Imported PDF';
     const document = {
-      id: uniqueDocumentId(safeId(title), documents),
+      id: safeId(title),
       title,
       sourceType: 'pdf',
       sourcePath: sourceFilename(file.name || 'source.pdf', 'pdf'),
@@ -899,11 +953,12 @@ export class IndexedDbStorageAdapter {
       updatedAt: now
     };
     const db = await openDb();
-    await writeTransaction(db, ['documents', 'documentMetadata'], (stores) => {
-      putDocumentRecord(stores, document);
+    return writeImportTransaction(db, ({ stores, storedDocumentIds, currentLibrary }) => {
+      const imported = { ...document, id: uniqueDocumentId(document.id, storedDocumentIds) };
+      putDocumentRecord(stores, imported);
+      addImportedDocumentToCurrentLibrary(stores, currentLibrary, imported);
+      return imported;
     });
-    if (library) await this.addDocumentToLibraryContext(library, document);
-    return document;
   }
 
   async rebuildDocumentMetadata() {
@@ -917,6 +972,82 @@ export class IndexedDbStorageAdapter {
     }
     return metadata.map(normalizeStoredDocument);
   }
+}
+
+export function planBundleImport(bundle, usedDocumentIds = new Set(), usedAnnotationIds = new Set()) {
+  const documentIds = usedDocumentIds instanceof Set ? usedDocumentIds : new Set(usedDocumentIds || []);
+  const annotationIds = usedAnnotationIds instanceof Set ? usedAnnotationIds : new Set(usedAnnotationIds || []);
+  const portableDocumentId = safeId(bundle?.document?.id || bundle?.document?.title || 'document');
+  const documentId = uniqueIdFromSet(portableDocumentId, documentIds, safeId);
+  const document = normalizeDocumentFromBundle(bundle?.document, bundle?.sourceHtml, bundle?.sourceBytes, documentId);
+  const annotations = hydratedAnnotationsFromBundle(bundle || {}).map((annotation, index) => {
+    const baseId = String(annotation?.id || `annotation-${index + 1}`);
+    const id = uniqueIdFromSet(baseId, annotationIds, importedAnnotationId);
+    return normalizeHydratedAnnotation({
+      ...annotation,
+      id,
+      docId: document.id
+    });
+  });
+  const assets = (bundle?.assets || []).map((asset) => ({
+    id: `${document.id}:${asset.path}`,
+    docId: document.id,
+    path: asset.path,
+    data: asset.data,
+    mimeType: asset.mimeType || 'application/octet-stream'
+  }));
+  return {
+    document,
+    annotations,
+    assets,
+    quickMarks: normalizeQuickMarkRecord(bundle?.quickMarks, document.id)
+  };
+}
+
+function writeBundleImportPlan(stores, plan) {
+  putDocumentRecord(stores, plan.document);
+  for (const annotation of plan.annotations) {
+    const { note, ...metadata } = annotation;
+    stores.annotations.put({
+      ...metadata,
+      noteRef: {
+        storage: 'indexeddb',
+        version: 1
+      }
+    });
+    stores.annotationBodies.put({
+      id: annotation.id,
+      docId: plan.document.id,
+      note: normalizeNoteForStorage(note),
+      updatedAt: annotation.updatedAt || new Date().toISOString()
+    });
+  }
+  for (const asset of plan.assets) stores.documentAssets.put(asset);
+  stores.appMeta.put({
+    key: quickMarksKey(plan.document.id),
+    quickMarks: {
+      ...plan.quickMarks,
+      docId: plan.document.id,
+      updatedAt: new Date().toISOString()
+    }
+  });
+}
+
+function uniqueIdFromSet(value, used, normalize) {
+  const base = normalize(value);
+  let candidate = base;
+  let suffix = 2;
+  while (used.has(candidate)) {
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  used.add(candidate);
+  return candidate;
+}
+
+function importedAnnotationId(value) {
+  const normalized = String(value || 'annotation').trim();
+  return normalized || 'annotation';
 }
 
 function normalizeCurrentLibraryContext(context) {
@@ -1003,14 +1134,14 @@ function safeLibraryId(value, fallback = 'item') {
     || fallback;
 }
 
-function normalizeDocumentFromBundle(document, sourceHtml, sourceBytes = null) {
+function normalizeDocumentFromBundle(document, sourceHtml, sourceBytes = null, localId = null) {
   const now = new Date().toISOString();
   const sourceType = document?.sourceType || 'html';
   const compatibility = sourceType === 'pdf'
     ? normalizePdfCompatibility(document?.compatibility, document?.pages)
     : document?.compatibility || null;
   return {
-    id: safeId(document?.id || document?.title || 'document'),
+    id: localId || safeId(document?.id || document?.title || 'document'),
     title: document?.title || document?.id || 'Untitled document',
     sourceType,
     sourcePath: sourcePathForDocument(document, sourceType),
@@ -1061,6 +1192,27 @@ function putDocumentRecord(stores, document) {
   stores.documentMetadata?.put(documentMetadataFromStoredDocument(document));
 }
 
+function addImportedDocumentToCurrentLibrary(stores, currentLibrary, document) {
+  if (!currentLibrary) return null;
+  const entries = [...(currentLibrary.entries || [])];
+  const id = uniqueLibraryEntryId(document.id, entries);
+  entries.push({
+    id,
+    docId: document.id,
+    title: document.title || document.id,
+    folderId: null,
+    order: entries.length
+  });
+  const library = normalizeCurrentLibraryContext({
+    ...currentLibrary,
+    activeEntryId: id,
+    entries,
+    updatedAt: new Date().toISOString()
+  });
+  stores.appMeta.put({ key: APP_META_CURRENT_LIBRARY, library });
+  return library;
+}
+
 function deleteDocumentRecord(stores, docId) {
   stores.documents.delete(docId);
   stores.documentMetadata?.delete(docId);
@@ -1068,6 +1220,10 @@ function deleteDocumentRecord(stores, docId) {
 
 function readerPositionKey(docId) {
   return `${APP_META_READER_POSITION_PREFIX}${docId}`;
+}
+
+function quickMarksKey(docId) {
+  return `${APP_META_QUICK_MARKS_PREFIX}${docId}`;
 }
 
 function normalizeReaderPosition(position) {
@@ -1249,6 +1405,305 @@ function corruptPdfImportHtml(document) {
 `;
 }
 
+function normalizeQuickMarkRecord(value, docId = '') {
+  const source = Array.isArray(value) ? { marks: value } : value || {};
+  const marks = Array.isArray(source.marks)
+    ? source.marks.map((mark, index) => normalizeStoredQuickMark(mark, index)).filter(Boolean).slice(0, 8)
+    : [];
+  const colorIndex = Number(source.colorIndex);
+  return {
+    docId: String(docId || source.docId || ''),
+    marks,
+    colorIndex: Number.isInteger(colorIndex) && colorIndex >= 0 ? colorIndex % 5 : 0,
+    updatedAt: source.updatedAt || ''
+  };
+}
+
+function normalizeStoredQuickMark(mark, index) {
+  if (!mark?.target || typeof mark.target !== 'object') return null;
+  const colorIndex = Number(mark.colorIndex);
+  return {
+    id: String(mark.id || `mark-${index + 1}`),
+    target: { ...mark.target },
+    colorIndex: Number.isInteger(colorIndex) && colorIndex >= 0 ? colorIndex % 5 : 0,
+    label: String(mark.label || 'Quick mark').slice(0, 240)
+  };
+}
+
+function readLegacyQuickMarks(docId) {
+  try {
+    const raw = globalThis.localStorage?.getItem?.(`reader-quick-marks:${docId}`);
+    if (!raw) return null;
+    return normalizeQuickMarkRecord(JSON.parse(raw), docId);
+  } catch {
+    return null;
+  }
+}
+
+function revokeBlobUrls(urls) {
+  for (const url of Array.isArray(urls) ? urls : urls ? [urls] : []) {
+    try {
+      URL.revokeObjectURL(url);
+    } catch {
+      // Blob URL cleanup is best effort during page teardown.
+    }
+  }
+}
+
+function htmlWithResolvedAssets(sourceHtml, sourcePath, assets, createdUrls) {
+  if (typeof DOMParser !== 'function') return sourceHtml;
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(sourceHtml || '<!doctype html><html><head></head><body></body></html>', 'text/html');
+  const projectionWarnings = [];
+  prepareStaticReaderDocument(doc, projectionWarnings);
+  const assetUrls = new Map();
+  const preparedAssets = (Array.isArray(assets) ? assets : [])
+    .map((asset) => ({ ...asset, normalizedPath: normalizeAssetPath(asset.path) }))
+    .filter((asset) => asset.normalizedPath && !isScriptAsset(asset));
+
+  for (const asset of preparedAssets.filter((item) => !isCssAsset(item))) {
+    registerAssetBlobUrl(assetUrls, asset, asset.data, createdUrls);
+  }
+  prepareCssAssetUrls(preparedAssets.filter(isCssAsset), assetUrls, projectionWarnings);
+
+  const htmlBasePath = normalizeAssetPath(sourcePath || 'source.html');
+  for (const element of doc.querySelectorAll('[src], [href], [poster]')) {
+    for (const attribute of ['src', 'href', 'poster']) {
+      if (!element.hasAttribute(attribute)) continue;
+      if (element.localName === 'script' && attribute === 'src') continue;
+      const value = element.getAttribute(attribute);
+      const resolved = resolvedAssetUrl(value, htmlBasePath, assetUrls);
+      if (resolved) element.setAttribute(attribute, resolved);
+      else if (isAutomaticResourceAttribute(element, attribute) && shouldReportResourceReference(value)) {
+        recordProjectionWarning(projectionWarnings, value);
+        element.removeAttribute(attribute);
+      }
+    }
+  }
+  for (const element of doc.querySelectorAll('[srcset]')) {
+    const rewritten = String(element.getAttribute('srcset') || '')
+      .split(',')
+      .map((candidate) => {
+        const match = /^\s*(\S+)([\s\S]*)$/.exec(candidate);
+        if (!match) return candidate;
+        const resolved = resolvedAssetUrl(match[1], htmlBasePath, assetUrls);
+        if (resolved) return `${resolved}${match[2]}`;
+        if (shouldReportResourceReference(match[1])) {
+          recordProjectionWarning(projectionWarnings, match[1]);
+          return '';
+        }
+        return candidate;
+      })
+      .filter(Boolean)
+      .join(',');
+    if (rewritten) element.setAttribute('srcset', rewritten);
+    else element.removeAttribute('srcset');
+  }
+  for (const element of doc.querySelectorAll('[style]')) {
+    element.setAttribute('style', rewriteCssAssetUrls(
+      element.getAttribute('style') || '',
+      htmlBasePath,
+      assetUrls,
+      null,
+      (value) => recordProjectionWarning(projectionWarnings, value)
+    ));
+  }
+  for (const style of doc.querySelectorAll('style')) {
+    style.textContent = rewriteCssAssetUrls(
+      style.textContent || '',
+      htmlBasePath,
+      assetUrls,
+      null,
+      (value) => recordProjectionWarning(projectionWarnings, value)
+    );
+  }
+  if (projectionWarnings.length) {
+    const meta = doc.createElement('meta');
+    meta.setAttribute('name', 'marginalia-projection-warnings');
+    meta.setAttribute('content', JSON.stringify([...new Set(projectionWarnings)].slice(0, 20)));
+    doc.head.append(meta);
+  }
+  return `<!doctype html>\n${doc.documentElement.outerHTML}\n`;
+}
+
+function prepareStaticReaderDocument(doc, projectionWarnings = []) {
+  for (const meta of doc.querySelectorAll('meta[http-equiv]')) {
+    const directive = String(meta.getAttribute('http-equiv') || '').toLowerCase();
+    if (directive === 'content-security-policy' || directive === 'refresh') meta.remove();
+  }
+  doc.querySelectorAll('script').forEach((script) => script.remove());
+  for (const element of doc.querySelectorAll('*')) {
+    for (const attribute of Array.from(element.attributes)) {
+      const name = attribute.name.toLowerCase();
+      if (/^on/.test(name)) {
+        element.removeAttribute(attribute.name);
+        continue;
+      }
+      if (['href', 'src', 'action', 'formaction', 'poster', 'xlink:href'].includes(name)
+        && /^\s*(?:javascript|vbscript):/i.test(attribute.value)) {
+        element.removeAttribute(attribute.name);
+        continue;
+      }
+      if (isAutomaticResourceAttribute(element, name) && isBlockedSourceResource(attribute.value)) {
+        recordProjectionWarning(projectionWarnings, attribute.value);
+        element.removeAttribute(attribute.name);
+      }
+    }
+  }
+  const csp = doc.createElement('meta');
+  csp.setAttribute('http-equiv', 'Content-Security-Policy');
+  csp.setAttribute('content', [
+    "default-src 'none'",
+    "img-src 'self' data: blob:",
+    "media-src 'self' data: blob:",
+    "style-src 'self' 'unsafe-inline' data: blob:",
+    "font-src 'self' data: blob:",
+    "frame-src 'none'",
+    "script-src 'none'",
+    "connect-src 'none'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'"
+  ].join('; '));
+  doc.head.prepend(csp);
+}
+
+function registerAssetBlobUrl(assetUrls, asset, data, createdUrls, mimeType = null) {
+  const url = URL.createObjectURL(new Blob([data], { type: mimeType || asset.mimeType || 'application/octet-stream' }));
+  createdUrls.push(url);
+  registerAssetUrl(assetUrls, asset.normalizedPath, url);
+}
+
+function registerAssetUrl(assetUrls, path, url) {
+  assetUrls.set(path, url);
+  assetUrls.set(`assets/${path}`, url);
+}
+
+function prepareCssAssetUrls(cssAssets, assetUrls, projectionWarnings = []) {
+  const assetsByPath = new Map();
+  for (const asset of cssAssets) {
+    assetsByPath.set(asset.normalizedPath, asset);
+    assetsByPath.set(`assets/${asset.normalizedPath}`, asset);
+  }
+  const resolving = new Set();
+  const ensureCssUrl = (asset) => {
+    const existing = assetUrls.get(asset.normalizedPath);
+    if (existing) return existing;
+    if (resolving.has(asset.normalizedPath)) return '';
+    resolving.add(asset.normalizedPath);
+    const css = new TextDecoder().decode(asset.data instanceof Uint8Array ? asset.data : new Uint8Array(asset.data || []));
+    const rewritten = rewriteCssAssetUrls(
+      css,
+      asset.normalizedPath,
+      assetUrls,
+      (path) => {
+        const dependency = assetsByPath.get(path) || assetsByPath.get(path.replace(/^assets\//, ''));
+        return dependency ? ensureCssUrl(dependency) : '';
+      },
+      (value) => recordProjectionWarning(projectionWarnings, value)
+    );
+    const url = `data:text/css;charset=utf-8,${encodeURIComponent(rewritten)}`;
+    registerAssetUrl(assetUrls, asset.normalizedPath, url);
+    resolving.delete(asset.normalizedPath);
+    return url;
+  };
+  for (const asset of cssAssets) ensureCssUrl(asset);
+}
+
+function isCssAsset(asset) {
+  return asset.mimeType === 'text/css' || /\.css$/i.test(asset.normalizedPath || asset.path || '');
+}
+
+function isScriptAsset(asset) {
+  return /(?:javascript|ecmascript)/i.test(asset.mimeType || '') || /\.(?:m?js|cjs)$/i.test(asset.normalizedPath || asset.path || '');
+}
+
+export function rewriteCssAssetUrls(css, basePath, assetUrls, resolveMissing = null, onUnresolved = null) {
+  const rewriteReference = (value) => {
+    const resolved = resolvedAssetUrl(value, basePath, assetUrls, resolveMissing);
+    if (resolved) return `url("${resolved}")`;
+    if (shouldReportResourceReference(value)) {
+      onUnresolved?.(value);
+      return 'url("data:,")';
+    }
+    return '';
+  };
+  return String(css || '')
+    .replace(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*?))\s*\)/gi, (match, doubleQuoted, singleQuoted, unquoted) => {
+      const value = doubleQuoted ?? singleQuoted ?? String(unquoted || '').trim();
+      return rewriteReference(value) || match;
+    })
+    .replace(/@import\s+(["'])([^"']+)\1/gi, (match, quote, value) => {
+      const rewritten = rewriteReference(value);
+      return rewritten ? `@import ${rewritten}` : match;
+    });
+}
+
+function resolvedAssetUrl(reference, basePath, assetUrls, resolveMissing = null) {
+  const value = String(reference || '').trim();
+  if (!isRelativeAssetUrl(value)) return '';
+  const suffixIndex = value.search(/[?#]/);
+  let pathPart = suffixIndex >= 0 ? value.slice(0, suffixIndex) : value;
+  const suffix = suffixIndex >= 0 ? value.slice(suffixIndex) : '';
+  try {
+    pathPart = decodeURIComponent(pathPart);
+  } catch {
+    return '';
+  }
+  const normalized = resolveRelativeAssetPath(basePath, pathPart);
+  if (!normalized) return '';
+  const direct = assetUrls.get(normalized)
+    || assetUrls.get(normalized.replace(/^assets\//, ''))
+    || resolveMissing?.(normalized)
+    || resolveMissing?.(normalized.replace(/^assets\//, ''));
+  return direct ? `${direct}${suffix.startsWith('#') ? suffix : ''}` : '';
+}
+
+function isAutomaticResourceAttribute(element, attribute) {
+  const name = String(attribute || '').toLowerCase();
+  if (name === 'src' || name === 'poster' || name === 'srcset' || name === 'xlink:href') return true;
+  return name === 'href' && ['link', 'image', 'use'].includes(element?.localName);
+}
+
+function isBlockedSourceResource(value) {
+  const reference = String(value || '').trim();
+  if (!reference || reference.startsWith('#') || /^(?:data|blob):/i.test(reference)) return false;
+  return !isRelativeAssetUrl(reference);
+}
+
+function shouldReportResourceReference(value) {
+  const reference = String(value || '').trim();
+  return Boolean(reference && !reference.startsWith('#') && !/^(?:data|blob):/i.test(reference));
+}
+
+function recordProjectionWarning(warnings, value) {
+  const label = String(value || '').trim().replace(/\s+/g, ' ').slice(0, 160);
+  if (label) warnings.push(label);
+}
+
+export function resolveRelativeAssetPath(basePath, reference) {
+  const referencePath = String(reference || '').replaceAll('\\', '/');
+  const base = normalizeAssetPath(basePath);
+  const baseParts = base ? base.split('/').slice(0, -1) : [];
+  const parts = referencePath.startsWith('/') ? [] : baseParts;
+  for (const part of referencePath.replace(/^\/+/, '').split('/')) {
+    if (!part || part === '.') continue;
+    if (part === '..') {
+      if (!parts.length) return '';
+      parts.pop();
+      continue;
+    }
+    parts.push(part);
+  }
+  return normalizeAssetPath(parts.join('/'));
+}
+
+function normalizeAssetPath(value) {
+  const path = String(value || '').replaceAll('\\', '/').replace(/^\/+/, '').replace(/\/+/g, '/');
+  if (!path || path.split('/').some((part) => !part || part === '.' || part === '..')) return '';
+  return path;
+}
+
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;',
@@ -1321,7 +1776,6 @@ function ensureBrowserMeta(doc) {
 function ensureBrowserAnchors(doc, baseId) {
   const seen = new Set();
   const warnings = [];
-  let index = 0;
   let anchorCount = 0;
   let textAnchorCount = 0;
   for (const element of doc.querySelectorAll('*')) {
@@ -1332,7 +1786,6 @@ function ensureBrowserAnchors(doc, baseId) {
       if (unique !== existing) warnings.push(`Duplicate anchor "${existing}" was renamed to "${unique}".`);
       if (ANCHORABLE_TAGS.has(tagName)) {
         element.setAttribute('data-anchor-id', unique);
-        if (!element.id || element.id !== unique) element.id = unique;
         anchorCount += 1;
         if (TEXT_ANCHOR_TAGS.has(tagName)) textAnchorCount += 1;
       }
@@ -1341,8 +1794,7 @@ function ensureBrowserAnchors(doc, baseId) {
     if (!ANCHORABLE_TAGS.has(tagName)) continue;
     const text = element.textContent.replace(/\s+/g, ' ').trim();
     if (!text) continue;
-    index += 1;
-    const anchorId = uniqueAnchorId(`${baseId}-${tagName}-${safeId(text).slice(0, 48) || 'block'}-${shortHash(`${tagName}\n${text}\n${index}`)}`, seen);
+    const anchorId = uniqueAnchorId(`${baseId}-${tagName}-${safeAnchorSlug(text).slice(0, 48) || 'block'}-${shortHash(`${tagName}\n${text}`)}`, seen);
     element.setAttribute('data-anchor-id', anchorId);
     element.id = anchorId;
     anchorCount += 1;
@@ -1375,7 +1827,7 @@ function browserCompatibilityReport(anchorReport, warnings, options = {}) {
 }
 
 function uniqueDocumentId(baseId, documents) {
-  const used = new Set((documents || []).map((doc) => doc.id));
+  const used = new Set((documents || []).map((doc) => typeof doc === 'string' ? doc : doc.id));
   let candidate = safeId(baseId);
   let suffix = 2;
   while (used.has(candidate)) {
@@ -1386,14 +1838,24 @@ function uniqueDocumentId(baseId, documents) {
 }
 
 function uniqueAnchorId(base, seen) {
-  let candidate = safeId(base);
+  const normalized = String(base || 'anchor').trim() || 'anchor';
+  let candidate = normalized;
   let suffix = 2;
   while (seen.has(candidate)) {
-    candidate = `${safeId(base)}-${suffix}`;
+    candidate = `${normalized}-${suffix}`;
     suffix += 1;
   }
   seen.add(candidate);
   return candidate;
+}
+
+function safeAnchorSlug(value) {
+  return String(value || 'block')
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}._-]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+    || 'block';
 }
 
 function uniqueLibraryEntryId(base, entries) {
@@ -1561,6 +2023,62 @@ function readIndexAll(db, storeName, indexName, key) {
   });
 }
 
+function writeImportTransaction(db, callback) {
+  const storeNames = [
+    'documents',
+    'documentMetadata',
+    'annotations',
+    'annotationBodies',
+    'documentAssets',
+    'appMeta'
+  ];
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeNames, 'readwrite');
+    const stores = Object.fromEntries(storeNames.map((name) => [name, tx.objectStore(name)]));
+    const documentIdsRequest = stores.documents.getAllKeys();
+    const annotationIdsRequest = stores.annotations.getAllKeys();
+    const libraryRequest = stores.appMeta.get(APP_META_CURRENT_LIBRARY);
+    let ready = 0;
+    let result;
+    let callbackError = null;
+    let settled = false;
+    const rejectOnce = (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error || new Error('The import transaction failed.'));
+    };
+    const planAndWrite = () => {
+      ready += 1;
+      if (ready !== 3) return;
+      try {
+        result = callback({
+          stores,
+          storedDocumentIds: documentIdsRequest.result || [],
+          storedAnnotationIds: annotationIdsRequest.result || [],
+          currentLibrary: libraryRequest.result?.library || null
+        });
+      } catch (error) {
+        callbackError = error;
+        try {
+          tx.abort();
+        } catch {
+          rejectOnce(error);
+        }
+      }
+    };
+    documentIdsRequest.onsuccess = planAndWrite;
+    annotationIdsRequest.onsuccess = planAndWrite;
+    libraryRequest.onsuccess = planAndWrite;
+    tx.onerror = () => rejectOnce(callbackError || tx.error);
+    tx.onabort = () => rejectOnce(callbackError || tx.error);
+    tx.oncomplete = () => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+  });
+}
+
 function writeTransaction(db, storeNames, callback) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(storeNames, 'readwrite');
@@ -1568,7 +2086,16 @@ function writeTransaction(db, storeNames, callback) {
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(tx.error);
     tx.oncomplete = () => resolve();
-    callback(stores);
+    try {
+      callback(stores);
+    } catch (error) {
+      try {
+        tx.abort();
+      } catch {
+        // The transaction may already have failed; reject with the original cause.
+      }
+      reject(error);
+    }
   });
 }
 

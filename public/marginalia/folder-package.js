@@ -9,12 +9,15 @@ import {
 } from './library-package.js';
 
 const TEXT_ENCODER = new TextEncoder();
-const TEXT_DECODER = new TextDecoder();
+const TEXT_DECODER = new TextDecoder('utf-8', { fatal: true });
 const BUNDLE_FOLDER_SUFFIX = '.annotator-bundle';
 const LIBRARY_FOLDER_SUFFIX = '.annotator-library';
 export const PACKAGE_LOCK_PATH = '.marginalia-package-lock.json';
 const PACKAGE_LOCK_FORMAT = 'marginalia-package-lock';
-const PACKAGE_LOCK_VERSION = 1;
+const PACKAGE_LOCK_VERSION = 2;
+const LEGACY_PACKAGE_LOCK_VERSION = 1;
+const MAX_FOLDER_FILES = 4096;
+const MAX_FOLDER_TOTAL_BYTES = 1024 * 1024 * 1024;
 
 export function bundleFolderNameForDocument(documentMeta) {
   return `${safeName(documentMeta?.title || documentMeta?.id || 'document')}${BUNDLE_FOLDER_SUFFIX}`;
@@ -74,7 +77,6 @@ export async function bundleArchiveBytesFromFolderFiles(files) {
 
 export async function libraryArchiveBytesFromFolderFiles(files) {
   const cleanFiles = normalizeFolderFiles(files);
-  validatePackageLock(cleanFiles, 'library');
   const packageFiles = cleanFiles.filter((file) => file.path !== PACKAGE_LOCK_PATH);
   for (const file of packageFiles) {
     if (file.path === 'library.json') continue;
@@ -85,6 +87,10 @@ export async function libraryArchiveBytesFromFolderFiles(files) {
   if (manifest?.format !== 'annotator-library' || Number(manifest.formatVersion) !== 1) {
     throw new Error('Unsupported annotator library folder format.');
   }
+  if (!Array.isArray(manifest.entries) || (manifest.folders !== undefined && !Array.isArray(manifest.folders))) {
+    throw new Error('Library folder manifest has an invalid schema.');
+  }
+  validatePackageLock(cleanFiles, 'library', manifest);
   const groups = groupBundleDirectories(packageFiles);
   const folders = foldersWithBundleDirectories(
     normalizeLibraryFolders(manifest.folders || []),
@@ -95,12 +101,20 @@ export async function libraryArchiveBytesFromFolderFiles(files) {
   const manifestEntries = Array.isArray(manifest.entries) ? manifest.entries : [];
   const orderedDirectories = [];
   const seenDirectories = new Set();
+  const seenEntryIds = new Set();
   for (const entry of manifestEntries) {
+    if (!entry || typeof entry !== 'object' || !String(entry.id || '').trim()) {
+      throw new Error('Library folder contains an entry without a valid id.');
+    }
+    const id = String(entry.id);
+    if (seenEntryIds.has(id)) throw new Error(`Library folder contains duplicate entry id: ${id}.`);
+    seenEntryIds.add(id);
     const directory = normalizeLibraryBundleDirectory(entry.filename || '');
     if (!directory) {
       throw new Error(`Library entry points to an unsupported bundle folder: ${entry.filename || ''}`);
     }
     if (!groups.has(directory)) throw new Error(`Library folder is missing ${directory}.`);
+    if (seenDirectories.has(directory)) throw new Error(`Library folder contains duplicate entry path: ${directory}.`);
     orderedDirectories.push({ entry, directory });
     seenDirectories.add(directory);
   }
@@ -137,14 +151,14 @@ export async function libraryArchiveBytesFromFolderFiles(files) {
 
 async function validateBundleFolderFiles(files) {
   const cleanFiles = normalizeFolderFiles(files);
-  validatePackageLock(cleanFiles, 'bundle');
   const packageFiles = cleanFiles.filter((file) => file.path !== PACKAGE_LOCK_PATH);
   const manifest = readJsonFile(packageFiles, 'manifest.json');
   if (manifest?.format !== 'annotator-bundle' || Number(manifest.formatVersion) !== 1) {
     throw new Error('Unsupported annotator bundle folder format.');
   }
+  validatePackageLock(cleanFiles, 'bundle', manifest);
   const sourcePath = normalizePackagePath(manifest.document?.sourcePath || 'source.html');
-  const allowedFixed = new Set(['manifest.json', 'annotations.json', sourcePath]);
+  const allowedFixed = new Set(['manifest.json', 'annotations.json', 'quick-marks.json', sourcePath]);
   for (const file of packageFiles) {
     if (allowedFixed.has(file.path)) continue;
     if (/^notes\/[^/]+\.note\.json$/.test(file.path)) continue;
@@ -177,16 +191,23 @@ function groupBundleDirectories(files) {
 }
 
 function normalizeFolderFiles(files) {
+  if (!Array.isArray(files)) throw new Error('Package folder files must be an array.');
+  if (files.length > MAX_FOLDER_FILES) throw new Error(`Package folder contains too many files (maximum ${MAX_FOLDER_FILES}).`);
   const seen = new Set();
   const cleanFiles = [];
+  let totalBytes = 0;
   for (const file of files || []) {
     const path = normalizePackagePath(file.path);
     if (!path || ignoredPath(path)) continue;
-    if (seen.has(path)) throw new Error(`Package folder contains duplicate file: ${path}`);
-    seen.add(path);
+    const pathKey = path.normalize('NFC');
+    if (seen.has(pathKey)) throw new Error(`Package folder contains duplicate file: ${path}`);
+    seen.add(pathKey);
+    const data = file.data instanceof Uint8Array ? file.data : new Uint8Array(file.data || []);
+    totalBytes += data.length;
+    if (totalBytes > MAX_FOLDER_TOTAL_BYTES) throw new Error('Package folder data exceeds the supported size limit.');
     cleanFiles.push({
       path,
-      data: file.data instanceof Uint8Array ? file.data : new Uint8Array(file.data || []),
+      data,
       lastModified: file.lastModified || new Date()
     });
   }
@@ -194,9 +215,10 @@ function normalizeFolderFiles(files) {
 }
 
 function normalizePackagePath(value) {
-  const path = String(value || '').replaceAll('\\', '/').replace(/^\/+/, '').replace(/\/+/g, '/');
-  if (!path || path === '.' || path.includes('/../') || path.startsWith('../') || path.endsWith('/..')) return '';
-  if (path.split('/').some((part) => !part || part === '.' || part === '..')) return '';
+  if (typeof value !== 'string' || !value || value.includes('\\') || value.startsWith('/') || value.endsWith('/')) return '';
+  const path = value;
+  if (path === '.' || path.includes('/../') || path.startsWith('../') || path.endsWith('/..')) return '';
+  if (path.split('/').some((part) => !part || part === '.' || part === '..' || /[\u0000-\u001f\u007f]/.test(part))) return '';
   return path;
 }
 
@@ -209,10 +231,14 @@ function ignoredPath(path) {
 function readJsonFile(files, path) {
   const file = files.find((entry) => entry.path === path);
   if (!file) throw new Error(`Package folder is missing ${path}.`);
-  return JSON.parse(TEXT_DECODER.decode(file.data));
+  try {
+    return JSON.parse(TEXT_DECODER.decode(file.data));
+  } catch (error) {
+    throw new Error(`${path} is not valid JSON.`, { cause: error });
+  }
 }
 
-function validatePackageLock(files, packageKind) {
+function validatePackageLock(files, packageKind, manifest) {
   const file = files.find((entry) => entry.path === PACKAGE_LOCK_PATH);
   if (!file) return;
   let lock = null;
@@ -221,22 +247,64 @@ function validatePackageLock(files, packageKind) {
   } catch {
     throw new Error('Package folder lock file is not valid JSON.');
   }
-  if (lock?.format !== PACKAGE_LOCK_FORMAT || Number(lock.formatVersion) !== PACKAGE_LOCK_VERSION) {
+  const version = Number(lock?.formatVersion);
+  if (lock?.format !== PACKAGE_LOCK_FORMAT
+    || (version !== LEGACY_PACKAGE_LOCK_VERSION && version !== PACKAGE_LOCK_VERSION)) {
     throw new Error('Package folder lock file is unsupported.');
   }
   if (lock.packageKind !== packageKind) {
     throw new Error(`Package folder lock is for ${lock.packageKind || 'another package kind'}, not ${packageKind}.`);
   }
+  if (version === LEGACY_PACKAGE_LOCK_VERSION) return;
+  const expectedFormat = packageKind === 'library' ? 'annotator-library' : 'annotator-bundle';
+  const packageId = packageIdFromManifest(manifest, packageKind);
+  if (lock.packageFormat !== expectedFormat
+    || !String(lock.packageId || '').trim()
+    || String(lock.packageId) !== packageId
+    || !Array.isArray(lock.managedPaths)) {
+    throw new Error('Package folder lock does not match its package marker.');
+  }
+  const managedPaths = normalizeManagedPaths(lock.managedPaths);
+  const markerPath = packageKind === 'library' ? 'library.json' : 'manifest.json';
+  if (!managedPaths.includes(markerPath)) {
+    throw new Error('Package folder lock does not manage its package marker.');
+  }
+}
+
+function normalizeManagedPaths(paths) {
+  const seen = new Set();
+  const normalized = [];
+  for (const value of paths) {
+    const path = normalizePackagePath(value);
+    if (!path || path !== value || path === PACKAGE_LOCK_PATH) {
+      throw new Error('Package folder lock contains an invalid managed path.');
+    }
+    const key = path.normalize('NFC');
+    if (seen.has(key)) throw new Error(`Package folder lock contains duplicate managed path: ${path}.`);
+    seen.add(key);
+    normalized.push(path);
+  }
+  return normalized.sort();
+}
+
+function packageIdFromManifest(manifest, packageKind) {
+  const value = packageKind === 'library' ? manifest?.id : manifest?.document?.id;
+  if (!String(value || '').trim()) throw new Error('Package marker is missing a stable package id.');
+  return String(value);
 }
 
 function withPackageLock(files, packageKind) {
-  const cleanFiles = files.filter((file) => file.path !== PACKAGE_LOCK_PATH);
+  const cleanFiles = normalizeFolderFiles(files.filter((file) => file.path !== PACKAGE_LOCK_PATH));
+  const markerPath = packageKind === 'library' ? 'library.json' : 'manifest.json';
+  const manifest = readJsonFile(cleanFiles, markerPath);
   return [
     textFile(PACKAGE_LOCK_PATH, JSON.stringify({
       format: PACKAGE_LOCK_FORMAT,
       formatVersion: PACKAGE_LOCK_VERSION,
       packageKind,
       packageFormat: packageKind === 'library' ? 'annotator-library' : 'annotator-bundle',
+      packageId: packageIdFromManifest(manifest, packageKind),
+      managedPaths: cleanFiles.map((file) => file.path),
       createdBy: 'Marginalia',
       updatedAt: new Date().toISOString()
     }, null, 2) + '\n'),

@@ -349,12 +349,12 @@
     <button id="toolbarToggleBtn" type="button" title="Collapse PDF controls" aria-label="Collapse PDF controls" aria-expanded="true">◀</button>
     <div class="pdf-toolbar-main">
       <button id="zoomOutBtn" type="button" title="Zoom out" aria-label="Zoom out">−</button>
-      <input id="zoomInput" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="100%" aria-label="PDF zoom percent relative to fit width">
+      <input id="zoomInput" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="100%" aria-label="PDF zoom percent relative to fit width" aria-describedby="pdfStatus" aria-errormessage="pdfStatus">
       <button id="zoomInBtn" type="button" title="Zoom in" aria-label="Zoom in">+</button>
       <button id="fitWidthBtn" type="button" title="Fit width" aria-label="Fit width">Fit</button>
       <label class="pdf-page-control" title="Go to page">
         <span>Page</span>
-        <input id="pageNumberInput" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" value="1" aria-label="PDF page number">
+        <input id="pageNumberInput" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" value="1" aria-label="PDF page number" aria-describedby="pdfStatus" aria-errormessage="pdfStatus">
         <span id="pageTotalLabel" class="pdf-page-total">/ -</span>
       </label>
       <button id="horizontalPanLockBtn" class="pdf-pan-lock-button" type="button" title="Lock horizontal movement" aria-label="Lock horizontal movement" aria-pressed="false"><span class="pdf-lock-mark" aria-hidden="true"></span><span class="pdf-pan-mark" aria-hidden="true">↔</span></button>

@@ -113,6 +113,7 @@ function applySourceState(payload) {
 }
 
 function renderSideNotes() {
+  const focusSnapshot = captureSplitSideNoteFocus();
   els.canvas.style.height = `${Math.max(window.innerHeight, Math.ceil(state.sourceScrollHeight || window.innerHeight))}px`;
   els.canvas.textContent = '';
   if (!state.annotations.length) {
@@ -121,7 +122,7 @@ function renderSideNotes() {
   }
   const currentIds = new Set(state.annotations.map((annotation) => annotation.id));
   state.collapsedSideNoteIds = new Set([...state.collapsedSideNoteIds].filter((id) => currentIds.has(id)));
-  for (const annotation of state.annotations) {
+  for (const annotation of orderedSplitAnnotations()) {
     const metric = state.metricsById.get(annotation.id);
     const isCollapsed = state.collapsedSideNoteIds.has(annotation.id);
     const note = document.createElement('article');
@@ -138,6 +139,20 @@ function renderSideNotes() {
     els.canvas.append(note);
     renderSplitInkCanvases(note, annotation);
   }
+  restoreSplitSideNoteFocus(focusSnapshot);
+}
+
+function orderedSplitAnnotations() {
+  const storedIndex = new Map(state.annotations.map((annotation, index) => [annotation.id, index]));
+  return state.annotations.slice().sort((a, b) => {
+    const aTop = Number(state.metricsById.get(a.id)?.top);
+    const bTop = Number(state.metricsById.get(b.id)?.top);
+    const aResolved = Number.isFinite(aTop);
+    const bResolved = Number.isFinite(bTop);
+    if (aResolved !== bResolved) return aResolved ? -1 : 1;
+    if (aResolved && Math.abs(aTop - bTop) > 0.5) return aTop - bTop;
+    return (storedIndex.get(a.id) || 0) - (storedIndex.get(b.id) || 0);
+  });
 }
 
 function renderEmptyState(message) {
@@ -160,7 +175,7 @@ function sideNoteHtml(annotation, metric) {
   return `
     <div class="split-side-note-card">
       <div class="split-side-note-tools">
-        <button type="button" class="split-side-note-tool" data-split-note-action="toggle-collapse" title="${isCollapsed ? 'Expand note' : 'Collapse note'}" aria-expanded="${String(!isCollapsed)}">${isCollapsed ? '▼' : '▲'}</button>
+        <button type="button" class="split-side-note-tool" data-split-note-action="toggle-collapse" title="${isCollapsed ? 'Expand note' : 'Collapse note'}" aria-label="${isCollapsed ? 'Expand note' : 'Collapse note'}" aria-expanded="${String(!isCollapsed)}">${isCollapsed ? '▼' : '▲'}</button>
         <button type="button" data-split-note-action="goto">Go to</button>
         <button type="button" data-split-note-action="add-text">Text</button>
         <button type="button" data-split-note-action="add-ink">Draw</button>
@@ -181,9 +196,9 @@ function sideNoteBlocksHtml(annotation) {
       const height = normalizeInkHeight(block.ink?.height);
       return `
         <div class="split-side-note-ink-wrap" style="height:${height}px">
-          <canvas class="split-side-note-ink" data-block-index="${index}"></canvas>
+          <canvas class="split-side-note-ink" data-block-index="${index}" role="img" aria-label="${escapeHtml(splitDrawingLabel(annotation, block))}"></canvas>
           <div class="split-side-note-ink-tools">
-            <button type="button" data-split-note-action="ink-tool-pen" class="${state.inkTool === 'pen' ? 'is-active' : ''}">Pen</button>
+            <button type="button" data-split-note-action="ink-tool-pen" class="${state.inkTool === 'pen' ? 'is-active' : ''}" aria-pressed="${state.inkTool === 'pen'}">Pen</button>
             <label title="Line color"><span>Color</span><input type="color" value="${escapeHtml(state.inkColor)}" data-split-note-action="ink-color"></label>
             <label title="Line width"><span>Width</span><select data-split-note-action="ink-width">${inkWidthOptions(state.inkWidth)}</select></label>
             <label title="Pressure sensitivity"><input type="checkbox" ${state.inkPressureEnabled ? 'checked' : ''} data-split-note-action="ink-pressure"><span>Pressure</span></label>
@@ -211,12 +226,42 @@ function blockControlHtml(index) {
   `;
 }
 
+function splitDrawingLabel(annotation, block) {
+  const count = Array.isArray(block?.ink?.strokes) ? block.ink.strokes.length : 0;
+  const title = readableSnippet(sideNoteTitle(annotation) || 'Untitled note', 72);
+  return `${title} drawing, ${count} stroke${count === 1 ? '' : 's'}.`;
+}
+
+function captureSplitSideNoteFocus() {
+  const active = document.activeElement;
+  const note = active?.closest?.('.split-side-note[data-annotation-id]');
+  if (!note || !els.canvas.contains(active)) return null;
+  return {
+    annotationId: note.dataset.annotationId,
+    action: active.dataset?.splitNoteAction || '',
+    field: active.dataset?.splitNoteField || '',
+    blockIndex: active.dataset?.blockIndex || ''
+  };
+}
+
+function restoreSplitSideNoteFocus(snapshot) {
+  if (!snapshot?.annotationId) return;
+  const note = els.canvas.querySelector(`.split-side-note[data-annotation-id="${cssEscape(snapshot.annotationId)}"]`);
+  let target = null;
+  if (snapshot.action) target = note?.querySelector(`[data-split-note-action="${cssEscape(snapshot.action)}"][data-block-index="${cssEscape(snapshot.blockIndex)}"], [data-split-note-action="${cssEscape(snapshot.action)}"]`);
+  if (!target && snapshot.field) target = note?.querySelector(`[data-split-note-field="${cssEscape(snapshot.field)}"]`);
+  if (!target && snapshot.blockIndex) target = note?.querySelector(`[data-block-index="${cssEscape(snapshot.blockIndex)}"]`);
+  target?.focus?.({ preventScroll: true });
+}
+
 function renderNavigator() {
+  const focusSnapshot = captureSplitNavigatorFocus();
   const count = state.annotations.length;
   els.noteCount.textContent = `${count} annotation${count === 1 ? '' : 's'} in this document.`;
   if (els.expandAllNotesBtn) {
     els.expandAllNotesBtn.textContent = state.noteNavigatorExpandAll ? 'Collapse all' : 'Expand all';
     els.expandAllNotesBtn.disabled = !count;
+    els.expandAllNotesBtn.setAttribute('aria-expanded', String(state.noteNavigatorExpandAll));
   }
   els.noteList.textContent = '';
   if (!count) {
@@ -231,6 +276,7 @@ function renderNavigator() {
   for (const annotation of state.annotations) {
     els.noteList.append(createNavigatorCard(annotation));
   }
+  restoreSplitNavigatorFocus(focusSnapshot);
 }
 
 function createNavigatorCard(annotation) {
@@ -248,7 +294,7 @@ function createNavigatorCard(annotation) {
   card.innerHTML = `
     <div class="note-card-header">
       <div class="note-card-actions">
-        <button type="button" class="note-card-expand" data-action="toggle-expand">${escapeHtml(navigatorExpandButtonLabel(annotation.id))}</button>
+        <button type="button" class="note-card-expand" data-action="toggle-expand" aria-expanded="${expanded}" aria-controls="${splitNavigatorContentId(annotation.id)}">${escapeHtml(navigatorExpandButtonLabel(annotation.id))}</button>
         <button type="button" data-action="goto">Go to</button>
         <button type="button" class="danger" data-action="delete">Delete</button>
       </div>
@@ -275,7 +321,25 @@ function navigatorContentHtml(annotation) {
     }
   }
   if (!parts.length && !sideNoteTitle(annotation).trim()) parts.push('<div class="note-card-content-empty">Empty note</div>');
-  return parts.length ? `<div class="note-card-content">${parts.join('')}</div>` : '';
+  if (!parts.length) parts.push('<div class="note-card-content-empty">No note body.</div>');
+  return `<div id="${splitNavigatorContentId(annotation.id)}" class="note-card-content">${parts.join('')}</div>`;
+}
+
+function splitNavigatorContentId(annotationId) {
+  return `split-note-card-content-${String(annotationId || '').replace(/[^\w.-]+/g, '-')}`;
+}
+
+function captureSplitNavigatorFocus() {
+  const active = document.activeElement;
+  const card = active?.closest?.('.note-card[data-annotation-id]');
+  if (!card || !els.noteList.contains(active)) return null;
+  return { annotationId: card.dataset.annotationId, action: active.dataset?.action || '' };
+}
+
+function restoreSplitNavigatorFocus(snapshot) {
+  if (!snapshot?.annotationId || !snapshot.action) return;
+  const card = els.noteList.querySelector(`.note-card[data-annotation-id="${cssEscape(snapshot.annotationId)}"]`);
+  card?.querySelector(`[data-action="${cssEscape(snapshot.action)}"]`)?.focus?.({ preventScroll: true });
 }
 
 function navigatorMeta(annotation, metric) {
@@ -461,7 +525,9 @@ function toggleNavigator() {
   const collapsed = !els.rightPanel.classList.contains('is-collapsed');
   els.rightPanel.classList.toggle('is-collapsed', collapsed);
   els.toggleNotesBtn.setAttribute('aria-expanded', String(!collapsed));
-  els.toggleNotesBtn.title = collapsed ? 'Open notes navigator' : 'Close notes navigator';
+  const label = collapsed ? 'Open notes navigator' : 'Close notes navigator';
+  els.toggleNotesBtn.title = label;
+  els.toggleNotesBtn.setAttribute('aria-label', label);
   const arrow = els.toggleNotesBtn.querySelector('.notes-tab-arrow');
   if (arrow) arrow.textContent = collapsed ? '‹' : '›';
 }
@@ -517,26 +583,72 @@ function requestDeleteAnnotation(annotationId, anchorElement) {
   `;
   document.body.append(popover);
   positionDeleteConfirmPopover(popover, anchorElement);
-  popover.addEventListener('click', (event) => {
-    const choice = event.target?.closest?.('[data-delete-choice]')?.dataset?.deleteChoice;
-    if (choice === 'cancel') popover.remove();
-    if (choice === 'confirm') {
-      popover.remove();
-      state.channel?.post('delete-annotation', { annotationId });
+  const cancel = popover.querySelector('[data-delete-choice="cancel"]');
+  const confirm = popover.querySelector('[data-delete-choice="confirm"]');
+  const fallbackId = neighboringSplitAnnotationId(annotationId);
+  let closed = false;
+  const onPointerDown = (event) => {
+    if (!popover.contains(event.target)) close(true);
+  };
+  const close = (restoreFocus = true) => {
+    if (closed) return;
+    closed = true;
+    document.removeEventListener('pointerdown', onPointerDown, true);
+    popover.remove();
+    if (restoreFocus && anchorElement.isConnected) anchorElement.focus({ preventScroll: true });
+  };
+  popover._closeConfirmPopover = close;
+  cancel?.addEventListener('click', () => close(true));
+  confirm?.addEventListener('click', () => {
+    close(false);
+    focusSplitSideNote(fallbackId);
+    state.channel?.post('delete-annotation', { annotationId });
+  });
+  popover.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      close(true);
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const buttons = Array.from(popover.querySelectorAll('button:not(:disabled)'));
+    const first = buttons[0];
+    const last = buttons.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
     }
   });
   setTimeout(() => {
-    document.addEventListener('pointerdown', function onPointerDown(event) {
-      if (!popover.contains(event.target)) {
-        popover.remove();
-        document.removeEventListener('pointerdown', onPointerDown, true);
-      }
-    }, true);
+    if (closed) return;
+    document.addEventListener('pointerdown', onPointerDown, true);
+    cancel?.focus?.({ preventScroll: true });
   }, 0);
 }
 
 function closeDeleteConfirmPopovers() {
-  document.querySelectorAll('.split-delete-confirm-popover').forEach((popover) => popover.remove());
+  document.querySelectorAll('.split-delete-confirm-popover').forEach((popover) => {
+    if (typeof popover._closeConfirmPopover === 'function') popover._closeConfirmPopover(true);
+    else popover.remove();
+  });
+}
+
+function neighboringSplitAnnotationId(annotationId) {
+  const ordered = orderedSplitAnnotations();
+  const index = ordered.findIndex((annotation) => annotation.id === annotationId);
+  return index < 0 ? null : ordered[index + 1]?.id || ordered[index - 1]?.id || null;
+}
+
+function focusSplitSideNote(annotationId) {
+  if (!annotationId) return;
+  requestAnimationFrame(() => {
+    const note = els.canvas.querySelector(`.split-side-note[data-annotation-id="${cssEscape(annotationId)}"]`);
+    (note?.querySelector('[data-split-note-action="toggle-collapse"]') || note?.querySelector('[contenteditable]'))?.focus?.({ preventScroll: true });
+  });
 }
 
 function positionDeleteConfirmPopover(popover, anchorElement) {
@@ -762,4 +874,9 @@ function escapeHtml(value) {
     '"': '&quot;',
     "'": '&#39;'
   })[char]);
+}
+
+function cssEscape(value) {
+  if (globalThis.CSS?.escape) return globalThis.CSS.escape(String(value));
+  return String(value).replace(/[^a-zA-Z0-9_-]/g, (char) => `\\${char.codePointAt(0).toString(16)} `);
 }

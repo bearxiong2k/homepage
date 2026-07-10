@@ -1,28 +1,39 @@
-import { createStoredZip, readStoredZip } from './bundle.js';
+import { createStoredZip, readAnnotatorBundleArchive, readStoredZip } from './bundle.js';
 
 const LIBRARY_FORMAT = 'annotator-library';
 const LIBRARY_VERSION = 1;
 const LIBRARY_BUNDLE_ROOT = 'bundles';
 const TEXT_ENCODER = new TextEncoder();
-const TEXT_DECODER = new TextDecoder();
+const STRICT_TEXT_DECODER = new TextDecoder('utf-8', { fatal: true });
 
 export async function createAnnotatorLibraryArchive(libraryData = {}) {
   const now = new Date().toISOString();
   const folders = normalizeLibraryFolders(libraryData.folders || []);
   const folderIds = new Set(folders.map((folder) => folder.id));
   const folderPathById = libraryFolderPathMap(folders);
-  const entries = [];
-  const files = [];
+  const preparedEntries = [];
+  const usedEntryIds = new Set();
   for (const [index, entry] of (libraryData.entries || []).entries()) {
     const bytes = bytesFromBundleEntry(entry);
     if (!bytes.length) continue;
+    await readAnnotatorBundleArchive(bytes);
     const id = safeName(entry.id || entry.document?.id || `source-${index + 1}`);
+    if (usedEntryIds.has(id)) throw new Error(`Library contains duplicate entry id: ${id}.`);
+    usedEntryIds.add(id);
     const bundleName = safeName(entry.title || entry.document?.title || entry.id || entry.document?.id || `source-${index + 1}`);
     const folderId = folderIds.has(entry.folderId) ? entry.folderId : null;
     const folderPath = folderId ? folderPathById.get(folderId) : '';
-    const path = [LIBRARY_BUNDLE_ROOT, folderPath, safeZipFilename(entry.filename || `${bundleName}.annotator.zip`)]
+    const candidatePath = [LIBRARY_BUNDLE_ROOT, folderPath, safeZipFilename(entry.filename || `${bundleName}.annotator.zip`)]
       .filter(Boolean)
       .join('/');
+    preparedEntries.push({ entry, index, bytes, id, folderId, candidatePath });
+  }
+  const allocatedPaths = allocateLibraryBundlePaths(preparedEntries);
+  const entries = [];
+  const files = [];
+  for (const prepared of preparedEntries) {
+    const { entry, index, bytes, id, folderId } = prepared;
+    const path = allocatedPaths.get(prepared);
     const manifestEntry = {
       id,
       title: entry.title || entry.document?.title || id,
@@ -34,12 +45,13 @@ export async function createAnnotatorLibraryArchive(libraryData = {}) {
     entries.push(manifestEntry);
     files.push({ path, data: bytes, lastModified: new Date() });
   }
+  const requestedActiveId = libraryData.activeEntryId ? safeName(libraryData.activeEntryId) : null;
   const manifest = {
     format: LIBRARY_FORMAT,
     formatVersion: LIBRARY_VERSION,
     id: safeName(libraryData.id || libraryData.title || 'library'),
     title: libraryData.title || 'Annotator library',
-    activeEntryId: libraryData.activeEntryId || entries[0]?.id || null,
+    activeEntryId: entries.some((entry) => entry.id === requestedActiveId) ? requestedActiveId : entries[0]?.id || null,
     createdAt: libraryData.createdAt || now,
     updatedAt: now,
     folders,
@@ -58,15 +70,30 @@ export async function readAnnotatorLibraryArchive(input) {
   if (manifest?.format !== LIBRARY_FORMAT || Number(manifest.formatVersion) !== LIBRARY_VERSION) {
     throw new Error('Unsupported annotator library format.');
   }
+  validateLibraryManifest(manifest);
+  const seenEntryIds = new Set();
+  const seenEntryPaths = new Set();
+  const preliminaryEntries = manifest.entries.map((entry, index) => {
+    const id = String(entry.id);
+    if (seenEntryIds.has(id)) throw new Error(`Library contains duplicate entry id: ${id}.`);
+    seenEntryIds.add(id);
+    const filename = normalizePackagePath(entry.filename || '');
+    if (!filename || filename !== entry.filename || !isLibraryBundlePath(filename)) {
+      throw new Error(`Library entry ${entry.id || index + 1} has an invalid filename.`);
+    }
+    const pathKey = filename.normalize('NFC');
+    if (seenEntryPaths.has(pathKey)) throw new Error(`Library contains duplicate entry path: ${filename}.`);
+    seenEntryPaths.add(pathKey);
+    return { ...entry, filename };
+  });
   const folders = foldersWithEntryPaths(
     normalizeLibraryFolders(manifest.folders || []),
-    manifest.entries || []
+    preliminaryEntries
   );
   const folderIds = new Set(folders.map((folder) => folder.id));
   const folderIdByPath = invertMap(libraryFolderPathMap(folders));
-  const manifestEntries = (manifest.entries || []).map((entry, index) => {
-    const filename = normalizePackagePath(entry.filename || '');
-    if (!filename) throw new Error(`Library entry ${entry.id || index + 1} has an invalid filename.`);
+  const manifestEntries = preliminaryEntries.map((entry, index) => {
+    const filename = entry.filename;
     const inferredFolderId = folderIdByPath.get(entryFolderPath(filename)) || null;
     const folderId = folderIds.has(entry.folderId) ? entry.folderId : inferredFolderId;
     const normalizedEntry = {
@@ -83,14 +110,21 @@ export async function readAnnotatorLibraryArchive(input) {
     folders,
     entries: manifestEntries
   };
-  const entries = manifestEntries.map((entry) => {
-    const file = files.find((item) => item.path === entry.filename);
+  const filesByPath = new Map(files.map((file) => [file.path, file]));
+  const allowedFiles = new Set(['library.json', ...manifestEntries.map((entry) => entry.filename)]);
+  for (const file of files) {
+    if (!allowedFiles.has(file.path)) throw new Error(`Library package contains unsupported file: ${file.path}.`);
+  }
+  const entries = [];
+  for (const entry of manifestEntries) {
+    const file = filesByPath.get(entry.filename);
     if (!file) throw new Error(`Library package is missing ${entry.filename}.`);
-    return {
+    await readAnnotatorBundleArchive(file.data);
+    entries.push({
       ...entry,
       data: file.data
-    };
-  });
+    });
+  }
   return {
     manifest: normalizedManifest,
     entries
@@ -108,7 +142,11 @@ export function libraryFilenameForTitle(value) {
 function readJsonFile(files, path) {
   const file = files.find((entry) => entry.path === path);
   if (!file) throw new Error(`Library package is missing ${path}.`);
-  return JSON.parse(TEXT_DECODER.decode(file.data));
+  try {
+    return JSON.parse(STRICT_TEXT_DECODER.decode(file.data));
+  } catch (error) {
+    throw new Error(`${path} is not valid JSON.`, { cause: error });
+  }
 }
 
 function textFile(path, text) {
@@ -119,6 +157,79 @@ function bytesFromBundleEntry(entry) {
   if (entry?.data instanceof Uint8Array) return entry.data;
   if (entry?.bytes instanceof Uint8Array) return entry.bytes;
   return new Uint8Array();
+}
+
+function allocateLibraryBundlePaths(preparedEntries) {
+  const candidateCounts = new Map();
+  for (const item of preparedEntries) {
+    const key = item.candidatePath.normalize('NFC');
+    candidateCounts.set(key, (candidateCounts.get(key) || 0) + 1);
+  }
+  const allocated = new Map();
+  const used = new Set();
+  const ordered = [...preparedEntries].sort((a, b) => a.candidatePath.localeCompare(b.candidatePath)
+    || a.id.localeCompare(b.id)
+    || a.index - b.index);
+  for (const item of ordered) {
+    const collides = candidateCounts.get(item.candidatePath.normalize('NFC')) > 1;
+    let path = collides ? bundlePathWithSuffix(item.candidatePath, item.id) : item.candidatePath;
+    let suffix = 2;
+    while (used.has(path.normalize('NFC'))) {
+      path = bundlePathWithSuffix(item.candidatePath, `${item.id}-${suffix}`);
+      suffix += 1;
+    }
+    used.add(path.normalize('NFC'));
+    allocated.set(item, path);
+  }
+  return allocated;
+}
+
+function bundlePathWithSuffix(path, suffix) {
+  const safeSuffix = safeName(suffix || 'entry');
+  return path.replace(/\.annotator\.zip$/i, `--${safeSuffix}.annotator.zip`);
+}
+
+function validateLibraryManifest(manifest) {
+  if (!isPlainObject(manifest)
+    || !nonEmptyString(manifest.id)
+    || !nonEmptyString(manifest.title)
+    || !Array.isArray(manifest.entries)
+    || (manifest.folders !== undefined && !Array.isArray(manifest.folders))) {
+    throw new Error('Library manifest has an invalid schema.');
+  }
+  const normalizedEntryIds = new Set();
+  for (const [index, entry] of manifest.entries.entries()) {
+    if (!isPlainObject(entry) || !nonEmptyString(entry.id) || !nonEmptyString(entry.filename)) {
+      throw new Error(`Library entry ${index + 1} has an invalid schema.`);
+    }
+    const normalizedId = safeName(entry.id);
+    if (normalizedEntryIds.has(normalizedId)) {
+      throw new Error(`Library contains colliding entry id: ${entry.id}.`);
+    }
+    normalizedEntryIds.add(normalizedId);
+  }
+  const folderIds = new Set();
+  for (const [index, folder] of (manifest.folders || []).entries()) {
+    if (!isPlainObject(folder) || !nonEmptyString(folder.id) || !nonEmptyString(folder.title)) {
+      throw new Error(`Library folder ${index + 1} has an invalid schema.`);
+    }
+    const normalizedId = safeName(folder.id);
+    if (folderIds.has(normalizedId)) throw new Error(`Library contains duplicate folder id: ${folder.id}.`);
+    folderIds.add(normalizedId);
+  }
+  if (manifest.activeEntryId !== null
+    && manifest.activeEntryId !== undefined
+    && !manifest.entries.some((entry) => entry.id === manifest.activeEntryId)) {
+    throw new Error('Library activeEntryId does not identify a manifest entry.');
+  }
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function nonEmptyString(value) {
+  return typeof value === 'string' && Boolean(value.trim());
 }
 
 function normalizeLibraryFolders(rawFolders = []) {
@@ -221,6 +332,13 @@ function entryFolderPath(filename) {
   const parts = path.split('/');
   if (parts[0] !== LIBRARY_BUNDLE_ROOT || parts.length <= 2) return '';
   return parts.slice(1, -1).join('/');
+}
+
+function isLibraryBundlePath(filename) {
+  const parts = filename.split('/');
+  return parts[0] === LIBRARY_BUNDLE_ROOT
+    && parts.length >= 2
+    && /\.annotator\.zip$/i.test(parts.at(-1));
 }
 
 function normalizePackagePath(value) {

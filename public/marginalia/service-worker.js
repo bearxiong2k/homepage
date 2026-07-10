@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'marginalia-static-';
-const APP_VERSION = '20260710-175526';
+const APP_VERSION = '20260710-214542';
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 const PDFJS_CMAP_ASSETS = [
   '78-EUC-H.bcmap',
@@ -194,8 +194,37 @@ const PDFJS_ICC_ASSETS = [
   'CGATS001Compat-v2-micro.icc',
   'LICENSE'
 ];
+const KATEX_FONT_ASSETS = [
+  'KaTeX_AMS-Regular.woff2',
+  'KaTeX_Caligraphic-Bold.woff2',
+  'KaTeX_Caligraphic-Regular.woff2',
+  'KaTeX_Fraktur-Bold.woff2',
+  'KaTeX_Fraktur-Regular.woff2',
+  'KaTeX_Main-Bold.woff2',
+  'KaTeX_Main-BoldItalic.woff2',
+  'KaTeX_Main-Italic.woff2',
+  'KaTeX_Main-Regular.woff2',
+  'KaTeX_Math-BoldItalic.woff2',
+  'KaTeX_Math-Italic.woff2',
+  'KaTeX_SansSerif-Bold.woff2',
+  'KaTeX_SansSerif-Italic.woff2',
+  'KaTeX_SansSerif-Regular.woff2',
+  'KaTeX_Script-Regular.woff2',
+  'KaTeX_Size1-Regular.woff2',
+  'KaTeX_Size2-Regular.woff2',
+  'KaTeX_Size3-Regular.woff2',
+  'KaTeX_Size4-Regular.woff2',
+  'KaTeX_Typewriter-Regular.woff2'
+];
+const APP_SHELLS = new Set([
+  'index.html',
+  'library.html',
+  'reader.html',
+  'reader-notes.html',
+  'pdf-viewer.html',
+  'quick-start.html'
+]);
 const STATIC_ASSETS = [
-  './',
   './index.html',
   './library.html',
   './reader.html',
@@ -217,6 +246,7 @@ const STATIC_ASSETS = [
   './library-package.js',
   './pdf-targets.js',
   './scroll-position.js',
+  './ink-codec.js',
   './ink-eraser.js',
   './target-resolution.js',
   './manifest.webmanifest',
@@ -229,6 +259,7 @@ const STATIC_ASSETS = [
   './assets/padlock-lock.png',
   './vendor/katex/katex.min.css',
   './vendor/katex/katex.min.js',
+  ...KATEX_FONT_ASSETS.map((name) => `./vendor/katex/fonts/${name}`),
   './vendor/pdfjs/pdf.mjs',
   './vendor/pdfjs/pdf.worker.mjs',
   './vendor/pdfjs/wasm/jbig2.wasm',
@@ -245,7 +276,6 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(STATIC_ASSETS.map((asset) => new URL(asset, self.registration.scope))))
-      .then(() => self.skipWaiting())
   );
 });
 
@@ -257,12 +287,18 @@ self.addEventListener('activate', (event) => {
           .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
           .map((key) => caches.delete(key))
       ))
-      .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('message', (event) => {
-  if (event.data?.type === 'MARGINALIA_SKIP_WAITING') self.skipWaiting();
+  if (event.data?.type === 'MARGINALIA_GET_VERSION') {
+    event.ports?.[0]?.postMessage?.({ type: 'MARGINALIA_VERSION', version: APP_VERSION });
+    return;
+  }
+  if (event.data?.type === 'MARGINALIA_SKIP_WAITING') {
+    const activation = self.skipWaiting();
+    event.waitUntil?.(activation);
+  }
 });
 
 self.addEventListener('fetch', (event) => {
@@ -270,42 +306,78 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== location.origin) return;
   if (event.request.method !== 'GET') return;
 
-  if (event.request.mode === 'navigate') {
-    event.respondWith(networkFirst(event.request, fallbackForNavigation(url)));
+  if (isVersionCheck(url)) {
+    event.respondWith(fetch(event.request, { cache: 'no-store' }));
     return;
   }
 
-  event.respondWith(shouldRefreshFromNetwork(url) ? networkFirst(event.request, url) : cacheFirst(event.request));
+  if (event.request.mode === 'navigate') {
+    const shellKey = canonicalShellUrl(url);
+    event.respondWith(networkFirst(event.request, {
+      cacheKey: shellKey,
+      fallbackKey: shellKey || fallbackForNavigation(url)
+    }));
+    return;
+  }
+
+  const cacheKey = canonicalAssetUrl(url);
+  event.respondWith(shouldRefreshFromNetwork(url)
+    ? networkFirst(event.request, { cacheKey })
+    : cacheFirst(event.request, cacheKey));
 });
 
-async function cacheFirst(request) {
-  const cached = await caches.match(request);
+async function cacheFirst(request, cacheKey = canonicalAssetUrl(new URL(request.url))) {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(cacheKey);
   if (cached) return cached;
   const response = await fetch(request);
   if (response.ok) {
-    const cache = await caches.open(CACHE_NAME);
-    cache.put(request, response.clone());
+    await cache.put(cacheKey, response.clone());
   }
   return response;
 }
 
-async function networkFirst(request, fallbackUrl) {
+async function networkFirst(request, options = {}) {
+  const cache = await caches.open(CACHE_NAME);
+  const cacheKey = options.cacheKey || null;
+  const fallbackKey = options.fallbackKey || null;
+  const cached = cacheKey ? await cache.match(cacheKey) : null;
   try {
     const response = await fetch(request, { cache: 'reload' });
     if (response.ok) {
-      const cache = await caches.open(CACHE_NAME);
-      cache.put(request, response.clone());
+      if (cacheKey) await cache.put(cacheKey, response.clone());
+      return response;
     }
-    return response;
-  } catch {
-    return caches.match(fallbackUrl) || caches.match(new URL('./index.html', self.registration.scope));
+    return cached || (fallbackKey ? await cache.match(fallbackKey) : null) || response;
+  } catch (error) {
+    const fallback = cached || (fallbackKey ? await cache.match(fallbackKey) : null);
+    if (fallback) return fallback;
+    throw error;
   }
 }
 
 function fallbackForNavigation(url) {
-  const path = url.pathname.endsWith('/') ? 'index.html' : url.pathname.split('/').pop();
-  if (path === 'reader.html') return new URL('./reader.html', self.registration.scope);
-  return new URL('./index.html', self.registration.scope);
+  return canonicalShellUrl(url) || new URL('./index.html', self.registration.scope).href;
+}
+
+function canonicalShellUrl(url) {
+  const scope = new URL(self.registration.scope);
+  if (!url.pathname.startsWith(scope.pathname)) return null;
+  const relativePath = url.pathname.slice(scope.pathname.length);
+  const shell = relativePath === '' ? 'index.html' : relativePath;
+  if (!APP_SHELLS.has(shell)) return null;
+  return new URL(`./${shell}`, scope).href;
+}
+
+function canonicalAssetUrl(url) {
+  const canonical = new URL(url.href);
+  canonical.search = '';
+  canonical.hash = '';
+  return canonical.href;
+}
+
+function isVersionCheck(url) {
+  return url.pathname.endsWith('/app-version.js') && url.searchParams.has('version-check');
 }
 
 function shouldRefreshFromNetwork(url) {

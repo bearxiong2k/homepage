@@ -565,6 +565,83 @@ body.has-pinned-note .notes-tab-arrow {
   box-shadow: var(--shadow);
 }
 
+.reader-notice {
+  position: absolute;
+  z-index: 24;
+  top: 16px;
+  left: 50%;
+  width: min(660px, calc(100% - 32px));
+  border: 1px solid #b65043;
+  border-radius: 8px;
+  padding: 16px 48px 16px 16px;
+  background: rgba(255, 253, 248, 0.98);
+  box-shadow: var(--shadow);
+  transform: translateX(-50%);
+}
+
+.reader-notice[data-notice-kind="warning"] {
+  border-color: #ad6a23;
+}
+
+.reader-notice h2 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.reader-notice p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.reader-notice-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.reader-notice-actions a {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.48rem 0.72rem;
+  background: var(--panel);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.reader-notice-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+}
+
+.notes-panel-resizer:focus-visible::after {
+  left: 4px;
+  border-left-width: 3px;
+  border-left-color: rgba(122, 61, 0, 0.9);
+}
+
+.library-field-error {
+  display: block;
+  grid-column: 1 / -1;
+  margin-top: 3px;
+  color: #8f1f12;
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+
+[aria-invalid="true"] {
+  border-color: #b65043 !important;
+  outline: 2px solid rgba(182, 80, 67, 0.18) !important;
+  outline-offset: 1px;
+}
+
 .split-notes-body {
   --split-notes-drawer-margin: 42px;
   --reader-notes-panel-width: min(420px, calc(100vw - var(--split-notes-drawer-margin)));
@@ -1461,6 +1538,85 @@ textarea {
   border-color: var(--border);
   background: var(--panel);
   outline: none;
+}
+
+.library-folder-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.library-organize-menu {
+  position: relative;
+}
+
+.library-organize-menu summary {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.25rem 0.45rem;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.library-organize-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.library-organize-popover {
+  position: absolute;
+  z-index: 12;
+  top: calc(100% + 5px);
+  right: 0;
+  width: 280px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.library-organize-popover form,
+.library-popover-move {
+  display: flex;
+  align-items: end;
+  gap: 6px;
+}
+
+.library-organize-popover label,
+.library-popover-move label {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 3px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.library-organize-popover select,
+.library-popover-move select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.3rem;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.library-order-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.library-order-actions button {
+  padding: 0.28rem 0.45rem;
+  font-size: 0.78rem;
 }
 
 .home-doc {

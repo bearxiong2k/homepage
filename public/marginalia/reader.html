@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Reader - Marginalia</title>
-  <link rel="manifest" href="manifest.webmanifest?v=20260710-175526">
+  <link rel="manifest" href="manifest.webmanifest?v=20260710-214542">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -53,7 +53,17 @@
           <div id="libraryChooserList" class="library-chooser-list"></div>
         </div>
       </section>
-      <iframe id="readerFrame" title="Source HTML reader"></iframe>
+      <iframe id="readerFrame" title="Source reader" sandbox="allow-same-origin"></iframe>
+      <section id="readerNotice" class="reader-notice" role="region" aria-live="polite" aria-labelledby="readerNoticeTitle" hidden>
+        <button id="readerNoticeClose" class="reader-notice-close" type="button" title="Dismiss reader notice" aria-label="Dismiss reader notice">x</button>
+        <h2 id="readerNoticeTitle">Reader notice</h2>
+        <p id="readerNoticeBody" class="small"></p>
+        <div class="reader-notice-actions">
+          <button id="readerNoticeRetry" type="button">Retry</button>
+          <button id="readerNoticeImport" type="button">Reimport</button>
+          <a id="readerNoticeLibrary" href="library.html">Open library</a>
+        </div>
+      </section>
       <input id="sourceFileInput" type="file" accept=".html,.htm,text/html,.pdf,application/pdf,.annotator.zip,.annotator-library.zip,.zip,application/zip" hidden>
     </main>
 
@@ -63,7 +73,7 @@
     </button>
 
     <aside id="rightPanel" class="right-panel is-collapsed" aria-label="Notes navigator">
-      <div id="notesPanelResizer" class="notes-panel-resizer" role="separator" aria-orientation="vertical" title="Resize notes navigator"></div>
+      <div id="notesPanelResizer" class="notes-panel-resizer" role="separator" aria-orientation="vertical" aria-label="Resize notes navigator" aria-controls="rightPanel" tabindex="0" title="Resize notes navigator"></div>
       <div id="noteDrawerBody" class="note-drawer-body">
         <div class="drawer-head">
           <div>
@@ -87,7 +97,7 @@
     </div>
   </section>
 
-  <section id="appDialog" class="app-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle" hidden>
+  <section id="appDialog" class="app-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle" aria-describedby="appDialogBody" hidden>
     <div class="app-dialog">
       <h2 id="appDialogTitle"></h2>
       <p id="appDialogBody" class="small"></p>
