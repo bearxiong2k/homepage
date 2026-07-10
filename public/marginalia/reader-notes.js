@@ -88,6 +88,9 @@ function handleSessionMessage(envelope) {
   }
   if (type === 'close-source') {
     setStatus('Reader window closed the split session.');
+    state.channel?.close();
+    state.channel = null;
+    window.close();
   }
 }
 

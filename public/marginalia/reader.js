@@ -269,7 +269,7 @@ function bindChromeEvents() {
   els.undoBtn.addEventListener('click', () => undoHistoryCommand().catch((error) => setStatus(error.message, true)));
   els.redoBtn.addEventListener('click', () => redoHistoryCommand().catch((error) => setStatus(error.message, true)));
   els.clipToolBtn.addEventListener('pointerdown', startQuickMarkToolDrag);
-  els.splitNotesBtn?.addEventListener('click', () => openSplitNotesWindow().catch((error) => setStatus(error.message, true)));
+  els.splitNotesBtn?.addEventListener('click', () => toggleSplitNotesWindow().catch((error) => setStatus(error.message, true)));
   els.toggleNotesBtn.addEventListener('pointerdown', onNotesTabPointerDown);
   els.toggleNotesBtn.addEventListener('click', onNotesTabClick);
   els.notesPanelResizer?.addEventListener('pointerdown', onNotesPanelResizerPointerDown);
@@ -1980,6 +1980,15 @@ async function openSplitNotesWindow() {
   setStatus('Split notes window opened.');
 }
 
+async function toggleSplitNotesWindow() {
+  if (state.splitNotesActive) {
+    closeSplitNotesSession({ notify: true, closeWindow: true });
+    setStatus('Split notes window closed.');
+    return;
+  }
+  await openSplitNotesWindow();
+}
+
 function measureSplitSourceWindowTarget(doc = state.iframeLoaded ? getFrameDoc() : null) {
   const frameView = doc?.defaultView;
   if (!frameView) return null;
@@ -2120,6 +2129,10 @@ function setSplitNotesActive(active, options = {}) {
   document.body.classList.toggle('reader-split-notes-source', next);
   els.splitNotesBtn?.classList.toggle('is-active', next);
   els.splitNotesBtn?.setAttribute('aria-pressed', String(next));
+  if (els.splitNotesBtn) {
+    els.splitNotesBtn.title = next ? 'Close split notes window' : 'Open split notes window';
+    els.splitNotesBtn.setAttribute('aria-label', next ? 'Close split notes window' : 'Open split notes window');
+  }
   if (state.iframeLoaded) {
     const doc = getFrameDoc();
     doc?.body?.classList.toggle('reader-split-notes-source', next);
@@ -2130,7 +2143,15 @@ function setSplitNotesActive(active, options = {}) {
 
 function closeSplitNotesSession(options = {}) {
   const channel = state.splitChannel;
+  const notesWindow = state.splitNotesWindow;
   if (options.notify && channel) channel.post('close-source');
+  if (options.closeWindow && notesWindow && !notesWindow.closed) {
+    try {
+      notesWindow.close();
+    } catch {
+      // Some browsers may reject scripted window closing; the channel message is the fallback.
+    }
+  }
   if (state.splitStateRaf) {
     cancelAnimationFrame(state.splitStateRaf);
     state.splitStateRaf = 0;

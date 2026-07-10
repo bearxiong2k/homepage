@@ -335,6 +335,38 @@ body.is-file-dragging .file-drop-catcher {
   display: none;
 }
 
+.split-notes-button {
+  display: grid;
+  place-items: center;
+}
+
+.split-notes-icon {
+  position: relative;
+  display: block;
+  width: 22px;
+  height: 15px;
+}
+
+.split-notes-icon::before,
+.split-notes-icon::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 8px;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+  background: rgba(255, 253, 248, 0.7);
+}
+
+.split-notes-icon::before {
+  left: 1px;
+}
+
+.split-notes-icon::after {
+  right: 1px;
+}
+
 .left-panel, .right-panel {
   min-width: 0;
   background: var(--panel-2);
