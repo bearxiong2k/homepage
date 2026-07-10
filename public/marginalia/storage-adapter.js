@@ -11,12 +11,14 @@ import {
 import { encodeInkForStorage } from './ink-codec.js';
 
 const DB_NAME = 'annotator-reader';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
+const DOCUMENT_NOTE_STATS_VERSION = 1;
 const APP_META_LAST_OPEN_DOCUMENT = 'lastOpenDocument';
 const APP_META_CURRENT_LIBRARY = 'currentLibrary';
 const APP_META_LOCAL_PROFILE = 'localProfile';
 const APP_META_READER_POSITION_PREFIX = 'readerPosition:';
 const APP_META_QUICK_MARKS_PREFIX = 'quickMarks:';
+const IMPORT_PREFIX_QUERY_LIMIT = 32;
 const ANCHORABLE_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'li', 'figure', 'figcaption', 'td', 'th', 'section', 'article']);
 const TEXT_ANCHOR_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'li', 'figcaption', 'td', 'th']);
 let dbPromise = null;
@@ -77,9 +79,13 @@ export class IndexedDbStorageAdapter {
     return true;
   }
 
-  async getDocumentHtmlUrl(docId) {
+  async getDocumentHtmlUrl(docId, documentRecord = null) {
     const db = await openDb();
-    const doc = normalizeStoredDocument(await readOne(db, 'documents', docId));
+    const doc = await resolveDocumentRenderRecord(
+      docId,
+      documentRecord,
+      (id) => readOne(db, 'documents', id)
+    );
     if (!doc) throw new Error(`Document not found: ${docId}`);
     for (const urls of this.blobUrls.values()) revokeBlobUrls(urls);
     this.blobUrls.clear();
@@ -139,37 +145,10 @@ export class IndexedDbStorageAdapter {
 
   async getDocumentNoteStats(docIds = null) {
     const db = await openDb();
-    const allowedDocIds = Array.isArray(docIds)
-      ? new Set(docIds.map((docId) => String(docId)))
+    const requestedDocIds = Array.isArray(docIds)
+      ? [...new Set(docIds.map(String).filter(Boolean))]
       : null;
-    const [annotations, bodies] = allowedDocIds
-      ? await Promise.all([
-        Promise.all([...allowedDocIds].map((docId) => readIndexAll(db, 'annotations', 'docId', docId))).then((groups) => groups.flat()),
-        Promise.all([...allowedDocIds].map((docId) => readIndexAll(db, 'annotationBodies', 'docId', docId))).then((groups) => groups.flat())
-      ])
-      : await Promise.all([
-        readAll(db, 'annotations'),
-        readAll(db, 'annotationBodies')
-      ]);
-    const bodiesById = new Map(bodies.map((body) => [body.id, body]));
-    const statsByDocId = new Map();
-    for (const annotation of annotations) {
-      const docId = String(annotation?.docId || '');
-      if (!docId || (allowedDocIds && !allowedDocIds.has(docId))) continue;
-      const note = normalizeNoteForStorage(bodiesById.get(annotation.id)?.note);
-      const stats = statsByDocId.get(docId) || {
-        notes: 0,
-        highlights: 0,
-        ink: 0,
-        lastEditAt: ''
-      };
-      if (annotation.highlight?.enabled) stats.highlights += 1;
-      if (noteHasContent(note)) stats.notes += 1;
-      if (noteHasInk(note)) stats.ink += 1;
-      stats.lastEditAt = maxIsoDate(stats.lastEditAt, annotation.updatedAt || annotation.createdAt || '');
-      statsByDocId.set(docId, stats);
-    }
-    return statsByDocId;
+    return readAndBackfillDocumentNoteStats(db, requestedDocIds);
   }
 
   async createAnnotation(docId, payload) {
@@ -201,13 +180,11 @@ export class IndexedDbStorageAdapter {
 
   async deleteAnnotation(docId, annotationId) {
     const db = await openDb();
-    const existing = await readOne(db, 'annotations', annotationId);
-    if (!existing || String(existing.docId || '') !== String(docId || '')) return false;
-    await writeTransaction(db, ['annotations', 'annotationBodies'], (stores) => {
-      stores.annotations.delete(annotationId);
-      stores.annotationBodies.delete(annotationId);
+    return mutateHydratedAnnotation(db, {
+      docId: String(docId || ''),
+      annotationId: String(annotationId || ''),
+      nextAnnotation: null
     });
-    return true;
   }
 
   async upsertAnnotation(docId, annotation, exists) {
@@ -370,6 +347,7 @@ export class IndexedDbStorageAdapter {
       'documentMetadata',
       'annotations',
       'annotationBodies',
+      'documentNoteStats',
       'documentAssets',
       'appMeta',
       'documentFileHandles'
@@ -671,7 +649,7 @@ export class IndexedDbStorageAdapter {
       putDocumentRecord(stores, imported);
       addImportedDocumentToCurrentLibrary(stores, currentLibrary, imported);
       return imported;
-    });
+    }, { documentIds: [document.id] });
   }
 
   async importDocumentBundle(file) {
@@ -686,10 +664,20 @@ export class IndexedDbStorageAdapter {
         throw new Error('Close or replace the current library before importing another library package.');
       }
     }
-    const library = await readAnnotatorLibraryArchive(file);
-    const parsedBundles = [];
-    for (const entry of library.entries) {
-      parsedBundles.push({ entry, bundle: await readAnnotatorBundleArchive(entry.data) });
+    const library = await readAnnotatorLibraryArchive(file, {
+      retainParsedBundles: true,
+      retainBundleBytes: false
+    });
+    return this.importLibraryData(library, options);
+  }
+
+  async importLibraryData(library, options = {}) {
+    if (!library?.manifest || !Array.isArray(library.entries)) {
+      throw new Error('Parsed library data has an invalid schema.');
+    }
+    const parsedBundles = library.entries.map((entry) => ({ entry, bundle: entry.bundle }));
+    if (parsedBundles.some(({ bundle }) => !bundle?.document)) {
+      throw new Error('Parsed library data is missing a validated bundle.');
     }
     const db = await openDb();
     return writeImportTransaction(db, ({ stores, storedDocumentIds, storedAnnotationIds, currentLibrary }) => {
@@ -743,7 +731,7 @@ export class IndexedDbStorageAdapter {
         document: activePlan?.document || null,
         library: normalizedContext
       };
-    });
+    }, bundleImportIdentityHints(parsedBundles.map(({ bundle }) => bundle)));
   }
 
   async exportCurrentLibraryPackage() {
@@ -848,11 +836,13 @@ export class IndexedDbStorageAdapter {
       'documentMetadata',
       'annotations',
       'annotationBodies',
+      'documentNoteStats',
       'documentAssets',
       'documentFileHandles',
       'appMeta'
     ], (stores) => {
       deleteDocumentRecord(stores, docId);
+      stores.documentNoteStats.delete(docId);
       stores.documentFileHandles.delete(docId);
       for (const annotation of annotations) stores.annotations.delete(annotation.id);
       for (const body of bodies) stores.annotationBodies.delete(body.id);
@@ -910,26 +900,15 @@ export class IndexedDbStorageAdapter {
         stores.appMeta.put({ key: APP_META_CURRENT_LIBRARY, library: nextLibrary });
       }
       return plan.document;
-    });
+    }, bundleImportIdentityHints([bundle]));
   }
 
   async writeHydratedAnnotation(annotation) {
     const db = await openDb();
-    const { note, ...metadata } = annotation;
-    await writeTransaction(db, ['annotations', 'annotationBodies'], (stores) => {
-      stores.annotations.put({
-        ...metadata,
-        noteRef: {
-          storage: 'indexeddb',
-          version: 1
-        }
-      });
-      stores.annotationBodies.put({
-        id: annotation.id,
-        docId: annotation.docId,
-        note: normalizeNoteForStorage(note),
-        updatedAt: annotation.updatedAt || new Date().toISOString()
-      });
+    await mutateHydratedAnnotation(db, {
+      docId: annotation.docId,
+      annotationId: annotation.id,
+      nextAnnotation: annotation
     });
   }
 
@@ -958,7 +937,7 @@ export class IndexedDbStorageAdapter {
       putDocumentRecord(stores, imported);
       addImportedDocumentToCurrentLibrary(stores, currentLibrary, imported);
       return imported;
-    });
+    }, { documentIds: [document.id] });
   }
 
   async rebuildDocumentMetadata() {
@@ -1004,6 +983,45 @@ export function planBundleImport(bundle, usedDocumentIds = new Set(), usedAnnota
   };
 }
 
+export function bundleImportIdentityHints(bundles = []) {
+  const documentIds = new Set();
+  const annotationIds = new Set();
+  for (const bundle of bundles || []) {
+    documentIds.add(safeId(bundle?.document?.id || bundle?.document?.title || 'document'));
+    for (const [index, annotation] of (bundle?.annotations || []).entries()) {
+      annotationIds.add(importedAnnotationId(annotation?.id || `annotation-${index + 1}`));
+    }
+  }
+  return {
+    documentIds: [...documentIds],
+    annotationIds: [...annotationIds]
+  };
+}
+
+export function documentNoteStatsFromStoredRecords(docId, annotations = [], bodies = []) {
+  const normalizedDocId = String(docId || '');
+  const bodiesById = new Map((bodies || []).map((body) => [String(body?.id || ''), body]));
+  const stats = emptyDocumentNoteStats(normalizedDocId);
+  for (const annotation of annotations || []) {
+    if (String(annotation?.docId || '') !== normalizedDocId) continue;
+    const body = bodiesById.get(String(annotation?.id || ''));
+    const note = Object.hasOwn(annotation || {}, 'note') ? annotation.note : body?.note;
+    addAnnotationStatsContribution(stats, annotation, note, 1);
+  }
+  return stats;
+}
+
+export function documentNoteStatsAfterReplacement(current, previous = null, next = null) {
+  const docId = String(next?.docId || previous?.docId || current?.docId || '');
+  const stats = normalizeDocumentNoteStats(current, docId);
+  if (previous) addAnnotationStatsContribution(stats, previous, previous.note, -1);
+  if (next) addAnnotationStatsContribution(stats, next, next.note, 1);
+  stats.notes = Math.max(0, stats.notes);
+  stats.highlights = Math.max(0, stats.highlights);
+  stats.ink = Math.max(0, stats.ink);
+  return stats;
+}
+
 function writeBundleImportPlan(stores, plan) {
   putDocumentRecord(stores, plan.document);
   for (const annotation of plan.annotations) {
@@ -1022,6 +1040,10 @@ function writeBundleImportPlan(stores, plan) {
       updatedAt: annotation.updatedAt || new Date().toISOString()
     });
   }
+  stores.documentNoteStats.put(documentNoteStatsFromStoredRecords(
+    plan.document.id,
+    plan.annotations
+  ));
   for (const asset of plan.assets) stores.documentAssets.put(asset);
   stores.appMeta.put({
     key: quickMarksKey(plan.document.id),
@@ -1170,6 +1192,24 @@ function normalizeStoredDocument(document) {
   };
 }
 
+export async function resolveDocumentRenderRecord(docId, documentRecord, loadDocument) {
+  const expectedId = String(docId || '');
+  const suppliedRecord = documentRecord
+    && String(documentRecord.id || '') === expectedId
+    && storedDocumentHasSourcePayload(documentRecord)
+    ? documentRecord
+    : null;
+  const record = suppliedRecord || await loadDocument(expectedId);
+  return normalizeStoredDocument(record);
+}
+
+function storedDocumentHasSourcePayload(document) {
+  if (!document || typeof document !== 'object') return false;
+  return document.sourceType === 'pdf'
+    ? Object.hasOwn(document, 'sourceBytes')
+    : Object.hasOwn(document, 'sourceHtml');
+}
+
 export function documentMetadataFromStoredDocument(document) {
   if (!document?.id) return null;
   const normalized = normalizeStoredDocument(document);
@@ -1190,6 +1230,7 @@ export function documentMetadataFromStoredDocument(document) {
 function putDocumentRecord(stores, document) {
   stores.documents.put(document);
   stores.documentMetadata?.put(documentMetadataFromStoredDocument(document));
+  stores.documentNoteStats?.put(emptyDocumentNoteStats(document.id));
 }
 
 function addImportedDocumentToCurrentLibrary(stores, currentLibrary, document) {
@@ -1969,6 +2010,9 @@ function openDb() {
         const store = db.createObjectStore('annotationBodies', { keyPath: 'id' });
         store.createIndex('docId', 'docId', { unique: false });
       }
+      if (!db.objectStoreNames.contains('documentNoteStats')) {
+        db.createObjectStore('documentNoteStats', { keyPath: 'docId' });
+      }
       if (!db.objectStoreNames.contains('documentAssets')) {
         const store = db.createObjectStore('documentAssets', { keyPath: 'id' });
         store.createIndex('docId', 'docId', { unique: false });
@@ -2023,22 +2067,227 @@ function readIndexAll(db, storeName, indexName, key) {
   });
 }
 
-function writeImportTransaction(db, callback) {
+async function readAndBackfillDocumentNoteStats(db, requestedDocIds = null) {
+  const docIds = requestedDocIds
+    ? [...new Set(requestedDocIds.map(String).filter(Boolean))]
+    : (await readStoreKeys(db, 'documents')).map(String).filter(Boolean);
+  if (!docIds.length) return new Map();
+
+  // Warm Library enrichment is a readonly lookup against one small store. It
+  // must not take write locks on Reader source or annotation data.
+  const statsByDocId = await readCachedDocumentNoteStats(db, docIds);
+  const missingDocIds = docIds.filter((docId) => !statsByDocId.has(docId));
+  if (!missingDocIds.length) return statsByDocId;
+
+  // A v3 -> v4 migration scans bodies only for cache misses, after first paint.
+  // Keep that one-time write transaction scoped to annotation data and stats.
+  const backfilled = await backfillDocumentNoteStats(db, missingDocIds);
+  for (const [docId, stats] of backfilled) statsByDocId.set(docId, stats);
+  return statsByDocId;
+}
+
+function readStoreKeys(db, storeName) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readonly');
+    const request = tx.objectStore(storeName).getAllKeys();
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result || []);
+  });
+}
+
+function readCachedDocumentNoteStats(db, docIds) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('documentNoteStats', 'readonly');
+    const store = tx.objectStore('documentNoteStats');
+    const statsByDocId = new Map();
+    for (const docId of docIds) {
+      const request = store.get(docId);
+      request.onsuccess = () => {
+        if (isCurrentDocumentNoteStats(request.result, docId)) {
+          statsByDocId.set(docId, normalizeDocumentNoteStats(request.result, docId));
+        }
+      };
+    }
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+    tx.oncomplete = () => resolve(statsByDocId);
+  });
+}
+
+function backfillDocumentNoteStats(db, docIds) {
+  const storeNames = ['annotations', 'annotationBodies', 'documentNoteStats'];
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeNames, 'readwrite');
+    const stores = Object.fromEntries(storeNames.map((name) => [name, tx.objectStore(name)]));
+    const statsByDocId = new Map();
+    let callbackError = null;
+    try {
+      for (const docId of docIds) {
+        queueDocumentNoteStatsBackfill(stores, docId, (stats) => {
+          statsByDocId.set(docId, stats);
+        });
+      }
+    } catch (error) {
+      callbackError = error;
+      try {
+        tx.abort();
+      } catch {
+        reject(error);
+      }
+    }
+    tx.onerror = () => reject(callbackError || tx.error);
+    tx.onabort = () => reject(callbackError || tx.error);
+    tx.oncomplete = () => resolve(statsByDocId);
+  });
+}
+
+function mutateHydratedAnnotation(db, { docId, annotationId, nextAnnotation }) {
+  const normalizedDocId = String(docId || '');
+  const normalizedAnnotationId = String(annotationId || '');
+  const storeNames = ['annotations', 'annotationBodies', 'documentNoteStats'];
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeNames, 'readwrite');
+    const stores = Object.fromEntries(storeNames.map((name) => [name, tx.objectStore(name)]));
+    const annotationRequest = stores.annotations.get(normalizedAnnotationId);
+    const bodyRequest = stores.annotationBodies.get(normalizedAnnotationId);
+    const statsRequest = stores.documentNoteStats.get(normalizedDocId);
+    const requests = [annotationRequest, bodyRequest, statsRequest];
+    let pending = requests.length;
+    let result = nextAnnotation ? undefined : false;
+    let callbackError = null;
+    let settled = false;
+
+    const rejectOnce = (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error || new Error('The annotation transaction failed.'));
+    };
+    const abortWith = (error) => {
+      callbackError = error;
+      try {
+        tx.abort();
+      } catch {
+        rejectOnce(error);
+      }
+    };
+    const planAndWrite = () => {
+      const previousMetadata = annotationRequest.result || null;
+      const previousDocId = String(previousMetadata?.docId || '');
+      if (previousMetadata && previousDocId !== normalizedDocId) {
+        if (!nextAnnotation) return;
+        throw new Error(`Annotation id already belongs to another document: ${normalizedAnnotationId}`);
+      }
+      if (!nextAnnotation && !previousMetadata) return;
+
+      const previousBody = bodyRequest.result;
+      const previous = previousMetadata
+        ? {
+          ...previousMetadata,
+          note: String(previousBody?.docId || '') === normalizedDocId ? previousBody.note : null
+        }
+        : null;
+      let next = null;
+      if (nextAnnotation) {
+        const { note, ...metadata } = nextAnnotation;
+        const normalizedNote = normalizeNoteForStorage(note);
+        next = { ...metadata, note: normalizedNote };
+        stores.annotations.put({
+          ...metadata,
+          noteRef: {
+            storage: 'indexeddb',
+            version: 1
+          }
+        });
+        stores.annotationBodies.put({
+          id: normalizedAnnotationId,
+          docId: normalizedDocId,
+          note: normalizedNote,
+          updatedAt: nextAnnotation.updatedAt || new Date().toISOString()
+        });
+      } else {
+        stores.annotations.delete(normalizedAnnotationId);
+        stores.annotationBodies.delete(normalizedAnnotationId);
+        result = true;
+      }
+
+      if (!isCurrentDocumentNoteStats(statsRequest.result, normalizedDocId)) {
+        queueDocumentNoteStatsBackfill(stores, normalizedDocId);
+        return;
+      }
+      const stats = documentNoteStatsAfterReplacement(statsRequest.result, previous, next);
+      if (documentNoteStatsNeedsLastEditRefresh(statsRequest.result, previous, next)) {
+        const annotationsRequest = stores.annotations.index('docId').getAll(normalizedDocId);
+        annotationsRequest.onsuccess = () => {
+          stats.lastEditAt = latestAnnotationEditAt(annotationsRequest.result || []);
+          stores.documentNoteStats.put(stats);
+        };
+        return;
+      }
+      stores.documentNoteStats.put(stats);
+    };
+
+    for (const request of requests) {
+      request.onsuccess = () => {
+        pending -= 1;
+        if (pending !== 0) return;
+        try {
+          planAndWrite();
+        } catch (error) {
+          abortWith(error);
+        }
+      };
+    }
+    tx.onerror = () => rejectOnce(callbackError || tx.error);
+    tx.onabort = () => rejectOnce(callbackError || tx.error);
+    tx.oncomplete = () => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+  });
+}
+
+function queueDocumentNoteStatsBackfill(stores, docId, onComplete = null) {
+  const annotationsRequest = stores.annotations.index('docId').getAll(docId);
+  const bodiesRequest = stores.annotationBodies.index('docId').getAll(docId);
+  let pending = 2;
+  const finish = () => {
+    pending -= 1;
+    if (pending) return;
+    const stats = documentNoteStatsFromStoredRecords(
+      docId,
+      annotationsRequest.result || [],
+      bodiesRequest.result || []
+    );
+    stores.documentNoteStats.put(stats);
+    onComplete?.(stats);
+  };
+  annotationsRequest.onsuccess = finish;
+  bodiesRequest.onsuccess = finish;
+}
+
+function writeImportTransaction(db, callback, identityHints = {}) {
   const storeNames = [
     'documents',
     'documentMetadata',
     'annotations',
     'annotationBodies',
+    'documentNoteStats',
     'documentAssets',
     'appMeta'
   ];
   return new Promise((resolve, reject) => {
     const tx = db.transaction(storeNames, 'readwrite');
     const stores = Object.fromEntries(storeNames.map((name) => [name, tx.objectStore(name)]));
-    const documentIdsRequest = stores.documents.getAllKeys();
-    const annotationIdsRequest = stores.annotations.getAllKeys();
     const libraryRequest = stores.appMeta.get(APP_META_CURRENT_LIBRARY);
-    let ready = 0;
+    const storedDocumentIds = new Set();
+    const storedAnnotationIds = new Set();
+    const requests = [
+      { request: libraryRequest },
+      ...importIdentityRequests(stores.documents, identityHints.documentIds, storedDocumentIds),
+      ...importIdentityRequests(stores.annotations, identityHints.annotationIds, storedAnnotationIds)
+    ];
+    let pending = requests.length;
     let result;
     let callbackError = null;
     let settled = false;
@@ -2048,13 +2297,11 @@ function writeImportTransaction(db, callback) {
       reject(error || new Error('The import transaction failed.'));
     };
     const planAndWrite = () => {
-      ready += 1;
-      if (ready !== 3) return;
       try {
         result = callback({
           stores,
-          storedDocumentIds: documentIdsRequest.result || [],
-          storedAnnotationIds: annotationIdsRequest.result || [],
+          storedDocumentIds: [...storedDocumentIds],
+          storedAnnotationIds: [...storedAnnotationIds],
           currentLibrary: libraryRequest.result?.library || null
         });
       } catch (error) {
@@ -2066,9 +2313,13 @@ function writeImportTransaction(db, callback) {
         }
       }
     };
-    documentIdsRequest.onsuccess = planAndWrite;
-    annotationIdsRequest.onsuccess = planAndWrite;
-    libraryRequest.onsuccess = planAndWrite;
+    for (const { request, collect = null } of requests) {
+      request.onsuccess = () => {
+        collect?.(request.result || []);
+        pending -= 1;
+        if (pending === 0) planAndWrite();
+      };
+    }
     tx.onerror = () => rejectOnce(callbackError || tx.error);
     tx.onabort = () => rejectOnce(callbackError || tx.error);
     tx.oncomplete = () => {
@@ -2077,6 +2328,29 @@ function writeImportTransaction(db, callback) {
       resolve(result);
     };
   });
+}
+
+function importIdentityRequests(store, ids = [], collectedIds = new Set()) {
+  const normalizedIds = [...new Set((ids || []).map(String).filter(Boolean))];
+  if (normalizedIds.length > IMPORT_PREFIX_QUERY_LIMIT) {
+    return [{
+      request: store.getAllKeys(),
+      collect(keys) {
+        for (const key of keys || []) collectedIds.add(String(key));
+      }
+    }];
+  }
+  const requests = [];
+  for (const id of normalizedIds) {
+    const range = IDBKeyRange.bound(id, `${id}\uffff`);
+    requests.push({
+      request: store.getAllKeys(range),
+      collect(keys) {
+        for (const key of keys || []) collectedIds.add(String(key));
+      }
+    });
+  }
+  return requests;
 }
 
 function writeTransaction(db, storeNames, callback) {
@@ -2109,6 +2383,71 @@ function clearBrowserStateKeys(store, prefixes) {
   for (const key of keys) store.removeItem(key);
 }
 
+function emptyDocumentNoteStats(docId) {
+  return {
+    docId: String(docId || ''),
+    version: DOCUMENT_NOTE_STATS_VERSION,
+    notes: 0,
+    highlights: 0,
+    ink: 0,
+    lastEditAt: ''
+  };
+}
+
+function normalizeDocumentNoteStats(record, docId = '') {
+  const stats = emptyDocumentNoteStats(docId || record?.docId);
+  stats.notes = nonnegativeInteger(record?.notes);
+  stats.highlights = nonnegativeInteger(record?.highlights);
+  stats.ink = nonnegativeInteger(record?.ink);
+  stats.lastEditAt = String(record?.lastEditAt || '');
+  return stats;
+}
+
+function isCurrentDocumentNoteStats(record, docId) {
+  return String(record?.docId || '') === String(docId || '')
+    && record?.version === DOCUMENT_NOTE_STATS_VERSION
+    && Number.isInteger(record?.notes)
+    && record.notes >= 0
+    && Number.isInteger(record?.highlights)
+    && record.highlights >= 0
+    && Number.isInteger(record?.ink)
+    && record.ink >= 0
+    && typeof record?.lastEditAt === 'string';
+}
+
+function addAnnotationStatsContribution(stats, annotation, note, direction) {
+  if (!annotation) return stats;
+  if (annotation.highlight?.enabled) stats.highlights += direction;
+  if (noteHasContent(note)) stats.notes += direction;
+  if (noteHasInk(note)) stats.ink += direction;
+  if (direction > 0) {
+    stats.lastEditAt = maxIsoDate(stats.lastEditAt, annotationEditAt(annotation));
+  }
+  return stats;
+}
+
+function documentNoteStatsNeedsLastEditRefresh(current, previous, next) {
+  if (!previous) return false;
+  const previousEditAt = annotationEditAt(previous);
+  if (!previousEditAt || previousEditAt !== String(current?.lastEditAt || '')) return false;
+  return !next || annotationEditAt(next) < previousEditAt;
+}
+
+function annotationEditAt(annotation) {
+  return String(annotation?.updatedAt || annotation?.createdAt || '');
+}
+
+function latestAnnotationEditAt(annotations) {
+  let latest = '';
+  for (const annotation of annotations || []) latest = maxIsoDate(latest, annotationEditAt(annotation));
+  return latest;
+}
+
+function nonnegativeInteger(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 0 ? number : 0;
+}
+
 function noteHasContent(note) {
   if (!note) return false;
   if (String(note.title || '').trim()) return true;
@@ -2122,7 +2461,12 @@ function noteHasContent(note) {
 }
 
 function noteHasInk(note) {
-  return Array.isArray(note?.ink?.strokes) && note.ink.strokes.length > 0;
+  if (Array.isArray(note?.ink?.strokes) && note.ink.strokes.length > 0) return true;
+  return (note?.blocks || []).some((block) => (
+    block?.type === 'ink'
+      && Array.isArray(block.ink?.strokes)
+      && block.ink.strokes.length > 0
+  ));
 }
 
 function maxIsoDate(a, b) {

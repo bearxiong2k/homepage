@@ -9,7 +9,7 @@ import {
   pickAnnotatorBundleSaveHandle,
   pickAnnotatorPackageDirectory,
   queryFileHandlePermissionState,
-  readArchiveBytesFromPackageDirectory,
+  readParsedPackageFromDirectoryHandle,
   writeArchiveBytesToPackageDirectory,
   writeBytesToFileHandle
 } from './file-access.js';
@@ -52,6 +52,7 @@ let libraryViewMode = loadLibraryViewMode();
 let libraryCollapsedFolderIds = loadLibraryCollapsedFolderIds();
 let libraryRenderModel = null;
 let selectedTreeEntryId = '';
+let libraryRenderGeneration = 0;
 
 init().catch((error) => {
   documentsEl.innerHTML = `<p class="small">${escapeHtml(error.message)}</p>`;
@@ -173,10 +174,23 @@ async function init() {
     }
   });
   documentsEl?.addEventListener('input', (event) => clearFieldError(event.target));
-  registerServiceWorker()
-    .then(() => checkForAvailableAppUpdate())
-    .catch(() => {});
   await loadDocuments();
+  scheduleServiceWorkerStartup();
+}
+
+function scheduleServiceWorkerStartup() {
+  const start = () => {
+    registerServiceWorker()
+      .then(() => checkForAvailableAppUpdate())
+      .catch(() => {});
+  };
+  window.setTimeout(() => {
+    if ('requestIdleCallback' in window) {
+      window.requestIdleCallback(start, { timeout: 2000 });
+      return;
+    }
+    start();
+  }, 500);
 }
 
 async function checkForAvailableAppUpdate(options = {}) {
@@ -228,12 +242,16 @@ function reloadForAppUpdate(version = '') {
 }
 
 async function loadDocuments(options = {}) {
+  const generation = ++libraryRenderGeneration;
   if (options.showLoading !== false) {
     documentsEl.innerHTML = '<p class="small">Loading documents...</p>';
   }
   const model = await buildLibraryRenderModel();
+  if (generation !== libraryRenderGeneration) return model;
   libraryRenderModel = model;
   documentsEl.innerHTML = libraryDashboardMarkup(model);
+  scheduleLibraryRenderModelEnrichment(model, generation);
+  return model;
 }
 
 async function buildLibraryRenderModel() {
@@ -242,7 +260,7 @@ async function buildLibraryRenderModel() {
     storage.getCurrentLibraryContext?.(),
     storage.ensureLocalProfile?.()
   ]);
-  const handleStatus = await currentLibraryHandleStatus(library);
+  const handleStatus = initialLibraryHandleStatus(library);
   if (saveLibraryBtn) saveLibraryBtn.disabled = false;
   if (!documents.length && !library) {
     return {
@@ -251,6 +269,7 @@ async function buildLibraryRenderModel() {
       profile,
       handleStatus,
       empty: true,
+      orderedItems: [],
       activeViewMode: 'list',
       rows: [],
       displayRows: [],
@@ -261,58 +280,161 @@ async function buildLibraryRenderModel() {
       libraryTitle: 'Annotator library'
     };
   }
+  const documentsById = new Map(documents.map((doc) => [doc.id, doc]));
   const orderedItems = library?.entries?.length
     ? library.entries
       .slice()
       .sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
       .map((entry) => ({
         entry,
-        doc: documents.find((doc) => doc.id === entry.docId)
+        doc: documentsById.get(entry.docId)
       }))
       .filter((item) => item.doc)
     : documents.map((doc) => ({ entry: null, doc }));
-  const precomputedStats = storage.getDocumentNoteStats
-    ? await storage.getDocumentNoteStats(orderedItems.map(({ doc }) => doc.id))
-    : null;
-  const rows = precomputedStats
-    ? orderedItems.map(({ doc, entry }) => ({
-      doc,
-      entry,
-      stats: documentNoteStatsFromRecord(doc, precomputedStats.get(doc.id))
-    }))
-    : await Promise.all(orderedItems.map(async ({ doc, entry }) => ({
-      doc,
-      entry,
-      stats: await documentNoteStats(doc)
-    })));
-  const sourceCount = rows.length;
   const libraryTitle = library?.title || 'Annotator library';
   const folders = library?.folders || [];
-  const folderPathById = libraryFolderPathMap(folders);
-  const displayRows = rows.map((row) => ({
-    ...row,
-    folderPath: row.entry?.folderId ? folderPathById.get(row.entry.folderId) || '' : ''
-  }));
-  const listRows = displayRows.slice().sort(compareRowsByRecentOpen);
-  if (selectedTreeEntryId && !displayRows.some((row) => row.entry?.id === selectedTreeEntryId)) selectedTreeEntryId = '';
   const activeViewMode = library ? libraryViewMode : 'list';
-  const libraryStats = summarizeLibraryStats(rows, library);
-  return {
+  const rows = orderedItems.map(({ doc, entry }) => ({
+    doc,
+    entry,
+    stats: pendingDocumentNoteStats(doc)
+  }));
+  return libraryRenderModelWithRows({
     documents,
     library,
     profile,
     handleStatus,
     empty: false,
     orderedItems,
+    folders,
+    libraryTitle,
+    activeViewMode
+  }, rows);
+}
+
+function libraryRenderModelWithRows(model, rows) {
+  const folderPathById = libraryFolderPathMap(model.folders);
+  const displayRows = rows.map((row) => ({
+    ...row,
+    folderPath: row.entry?.folderId ? folderPathById.get(row.entry.folderId) || '' : ''
+  }));
+  const listRows = displayRows.slice().sort(compareRowsByRecentOpen);
+  if (selectedTreeEntryId && !displayRows.some((row) => row.entry?.id === selectedTreeEntryId)) selectedTreeEntryId = '';
+  return {
+    ...model,
     rows,
     displayRows,
     listRows,
-    folders,
-    sourceCount,
-    libraryTitle,
-    activeViewMode,
-    libraryStats
+    sourceCount: rows.length,
+    libraryStats: summarizeLibraryStats(rows, model.library)
   };
+}
+
+function scheduleLibraryRenderModelEnrichment(model, generation) {
+  const start = () => {
+    if (generation !== libraryRenderGeneration) return;
+    enrichLibraryRenderModel(model, generation).catch((error) => {
+      console.warn('Library details could not be loaded.', error);
+    });
+  };
+  const startWhenIdle = () => {
+    if ('requestIdleCallback' in window) {
+      window.requestIdleCallback(start, { timeout: 1000 });
+      return;
+    }
+    window.setTimeout(start, 0);
+  };
+  if ('requestAnimationFrame' in window) {
+    window.requestAnimationFrame(startWhenIdle);
+    return;
+  }
+  startWhenIdle();
+}
+
+async function enrichLibraryRenderModel(model, generation) {
+  const [handleResult, rowsResult] = await Promise.allSettled([
+    currentLibraryHandleStatus(model.library),
+    loadLibraryRowsWithStats(model.orderedItems)
+  ]);
+  if (generation !== libraryRenderGeneration) return;
+  const currentModel = libraryRenderModel;
+  if (!currentModel || currentModel.empty !== model.empty) return;
+  const handleStatus = handleResult.status === 'fulfilled'
+    ? handleResult.value
+    : unavailableLibraryHandleStatus(model.library);
+  const rows = rowsResult.status === 'fulfilled'
+    ? rowsResult.value
+    : currentModel.rows.map(({ doc, entry }) => ({
+      doc,
+      entry,
+      stats: unavailableDocumentNoteStats(doc)
+    }));
+  if (handleResult.status === 'rejected') console.warn('Library package permission could not be checked.', handleResult.reason);
+  if (rowsResult.status === 'rejected') console.warn('Library note totals could not be loaded.', rowsResult.reason);
+  const enrichedModel = libraryRenderModelWithRows({
+    ...currentModel,
+    handleStatus
+  }, rows);
+  libraryRenderModel = enrichedModel;
+  patchLibraryRenderModelEnrichment(enrichedModel);
+}
+
+async function loadLibraryRowsWithStats(orderedItems) {
+  if (!orderedItems.length) return [];
+  if (storage.getDocumentNoteStats) {
+    const statsByDocId = await storage.getDocumentNoteStats(orderedItems.map(({ doc }) => doc.id));
+    return orderedItems.map(({ doc, entry }) => ({
+      doc,
+      entry,
+      stats: documentNoteStatsFromRecord(doc, statsByDocId.get(doc.id))
+    }));
+  }
+  return Promise.all(orderedItems.map(async ({ doc, entry }) => ({
+    doc,
+    entry,
+    stats: await documentNoteStats(doc)
+  })));
+}
+
+function patchLibraryRenderModelEnrichment(model) {
+  const lastEditEl = documentsEl.querySelector('[data-library-last-edit]');
+  if (lastEditEl) lastEditEl.textContent = formatDateTime(model.libraryStats.lastEditAt);
+  const snapshotEl = documentsEl.querySelector('[data-library-snapshot]');
+  if (snapshotEl) snapshotEl.textContent = model.libraryStats.snapshot;
+  const rowsByRenderKey = new Map(model.displayRows.map((row) => [libraryRowRenderKey(row), row]));
+  for (const element of documentsEl.querySelectorAll('[data-library-entry-stats]')) {
+    const row = rowsByRenderKey.get(element.dataset.libraryEntryStats);
+    if (row) element.textContent = libraryListStatsText(row);
+  }
+  for (const element of documentsEl.querySelectorAll('[data-library-entry-summary]')) {
+    const row = rowsByRenderKey.get(element.dataset.libraryEntrySummary);
+    if (row) element.textContent = row.stats.summary;
+  }
+  for (const element of documentsEl.querySelectorAll('[data-library-package-access]')) {
+    const forgetButton = element.querySelector('[data-forget-library-handle]');
+    if (Boolean(forgetButton) !== Boolean(model.handleStatus.canForget)) {
+      element.outerHTML = localPackageAccessMarkup(model.handleStatus);
+      continue;
+    }
+    const label = element.querySelector('[data-library-package-access-label]');
+    if (label) label.textContent = model.handleStatus.label;
+  }
+}
+
+function initialLibraryHandleStatus(library) {
+  if (!library?.fileHandle && !library?.fileHandleName) {
+    return { label: 'No remembered local package handle', canForget: false, pending: false };
+  }
+  const { handleType, name } = libraryHandleDescription(library);
+  return { label: `Remembered ${handleType}: ${name}; checking permission...`, canForget: true, pending: true };
+}
+
+function unavailableLibraryHandleStatus(library) {
+  if (!library?.fileHandle && !library?.fileHandleName) {
+    return { label: 'No remembered local package handle', canForget: false, pending: false };
+  }
+  const { handleType, name } = libraryHandleDescription(library);
+  return { label: `Remembered ${handleType}: ${name}; permission status unavailable`, canForget: true, pending: false };
 }
 
 function libraryDashboardMarkup(model) {
@@ -354,11 +476,11 @@ function libraryDashboardMarkup(model) {
           <dl>
             <div>
               <dt>Last edit</dt>
-              <dd>${escapeHtml(formatDateTime(libraryStats.lastEditAt))}</dd>
+              <dd data-library-last-edit>${escapeHtml(formatDateTime(libraryStats.lastEditAt))}</dd>
             </div>
             <div>
               <dt>Snapshot</dt>
-              <dd>${escapeHtml(libraryStats.snapshot)}</dd>
+              <dd data-library-snapshot>${escapeHtml(libraryStats.snapshot)}</dd>
             </div>
             ${library?.fileHandleName ? `
               <div>
@@ -401,17 +523,21 @@ function libraryViewMarkup(model) {
 }
 
 async function refreshLibraryViewFromStorage(options = {}) {
+  const generation = ++libraryRenderGeneration;
   const focusSnapshot = captureLibraryFocus();
   const model = await buildLibraryRenderModel();
+  if (generation !== libraryRenderGeneration) return model;
   libraryRenderModel = model;
   if (!documentsEl.querySelector('[data-library-view-region]') || model.empty) {
     documentsEl.innerHTML = libraryDashboardMarkup(model);
     restoreLibraryFocus(focusSnapshot);
+    scheduleLibraryRenderModelEnrichment(model, generation);
     return model;
   }
   syncLibraryShellFromModel(model);
   renderLibraryViewRegion(model, options);
   restoreLibraryFocus(focusSnapshot);
+  scheduleLibraryRenderModelEnrichment(model, generation);
   return model;
 }
 
@@ -485,7 +611,7 @@ function libraryListRowMarkup({ doc, entry, stats, folderPath }) {
           <span class="library-field-label">Source</span>
           <input type="text" value="${escapeAttr(sourceTitle)}" data-original-title="${escapeAttr(sourceTitle)}" data-source-title="${escapeAttr(doc.id)}">
         </label>
-        <span class="library-entry-stats">${escapeHtml(stats.summary)} · Last edit ${escapeHtml(formatDateTime(stats.lastEditAt))} · Opened ${escapeHtml(formatDateTime(entry?.lastOpenedAt))}</span>
+        <span class="library-entry-stats" data-library-entry-stats="${escapeAttr(libraryRowRenderKey({ doc, entry }))}">${escapeHtml(libraryListStatsText({ doc, entry, stats }))}</span>
         ${entry ? `
           <span class="library-folder-path">Folder ${escapeHtml(folderPath || 'Library root')}</span>
         ` : ''}
@@ -498,6 +624,14 @@ function libraryListRowMarkup({ doc, entry, stats, folderPath }) {
       </span>
     </article>
   `;
+}
+
+function libraryListStatsText({ entry, stats }) {
+  return `${stats.summary} · Last edit ${formatDateTime(stats.lastEditAt)} · Opened ${formatDateTime(entry?.lastOpenedAt)}`;
+}
+
+function libraryRowRenderKey({ doc, entry }) {
+  return String(entry?.id || doc?.id || '');
 }
 
 function libraryTreeMarkup(rows, folders) {
@@ -615,7 +749,7 @@ function libraryTreeBundleMarkup({ doc, entry, stats, folderPath }, depth) {
         <span class="library-folder-disclosure-spacer" aria-hidden="true"></span>
         <span class="library-finder-icon library-finder-icon-bundle" aria-hidden="true"></span>
         <span class="library-tree-bundle-title">${escapeHtml(entryTitle)}</span>
-        <span class="library-tree-bundle-meta">${escapeHtml(folderPath || 'Library root')} · ${escapeHtml(stats.summary)}</span>
+        <span class="library-tree-bundle-meta">${escapeHtml(folderPath || 'Library root')} · <span data-library-entry-summary="${escapeAttr(libraryRowRenderKey({ doc, entry }))}">${escapeHtml(stats.summary)}</span></span>
       </button>
       ${selected ? libraryBundlePopoverMarkup({ doc, entry, entryTitle, sourceTitle }) : ''}
     </div>
@@ -1460,10 +1594,10 @@ function localProfileStatusMarkup(profile, handleStatus) {
 
 function localPackageAccessMarkup(handleStatus) {
   return `
-    <div>
+    <div data-library-package-access>
       <dt>Package access</dt>
       <dd>
-        ${escapeHtml(handleStatus.label)}
+        <span data-library-package-access-label>${escapeHtml(handleStatus.label)}</span>
         ${handleStatus.canForget ? '<br><button class="library-handle-forget" type="button" data-forget-library-handle="current">Forget local handle</button>' : ''}
       </dd>
     </div>
@@ -1532,9 +1666,10 @@ async function choosePackageOpenMode(importKind) {
 
 async function importBundleFolder(handle) {
   documentsEl.innerHTML = '<p class="small">Importing bundle folder...</p>';
-  const bytes = await readArchiveBytesFromPackageDirectory(handle, 'bundle');
-  const file = new File([bytes], `${handle.name || 'bundle'}.annotator.zip`, { type: 'application/zip' });
-  await importBundleFile(file, handle);
+  const bundle = await readParsedPackageFromDirectoryHandle(handle, 'bundle');
+  const doc = await storage.importBundleData(bundle, { addToCurrentLibrary: true });
+  await rememberDocumentHandle(doc.id, handle);
+  location.href = urlWithStorage('reader.html', { doc: doc.id }, storageMode);
 }
 
 async function importBundleFile(file, fileHandle = null) {
@@ -1573,10 +1708,14 @@ async function startLibraryImport() {
 }
 
 async function importLibraryFolder(handle) {
+  const importOptions = await confirmLibraryReplacement();
+  if (!importOptions) return;
   documentsEl.innerHTML = '<p class="small">Importing library folder...</p>';
-  const bytes = await readArchiveBytesFromPackageDirectory(handle, 'library');
-  const file = new File([bytes], `${handle.name || 'library'}.annotator-library.zip`, { type: 'application/zip' });
-  await importLibraryFile(file, handle);
+  const library = await readParsedPackageFromDirectoryHandle(handle, 'library');
+  const result = await storage.importLibraryData(library, importOptions);
+  await rememberCurrentLibraryHandle(handle);
+  await loadDocuments();
+  appendLibraryLog(`Imported "${result.library?.title || handle.name || 'library'}".`);
 }
 
 async function importSelectedLibrary() {
@@ -2005,15 +2144,20 @@ async function currentLibraryHandleStatus(library) {
   if (!library?.fileHandle && !library?.fileHandleName) {
     return { label: 'No remembered local package handle', canForget: false };
   }
-  const handleType = library.fileHandle?.kind === 'directory' ? 'folder'
-    : library.fileHandle?.kind === 'file' ? 'zip file'
-      : 'package handle';
-  const name = library.fileHandleName || library.fileHandle?.name || 'remembered package';
+  const { handleType, name } = libraryHandleDescription(library);
   const permission = await queryFileHandlePermissionState(library.fileHandle, 'readwrite');
   if (permission === 'granted') return { label: `Remembered ${handleType}: ${name}`, canForget: true };
   if (permission === 'prompt') return { label: `Remembered ${handleType}: ${name}; permission will be requested on save`, canForget: true };
   if (permission === 'denied') return { label: `Remembered ${handleType}: ${name}; permission denied`, canForget: true };
   return { label: `Remembered ${handleType}: ${name}`, canForget: true };
+}
+
+function libraryHandleDescription(library) {
+  const handleType = library?.fileHandle?.kind === 'directory' ? 'folder'
+    : library?.fileHandle?.kind === 'file' ? 'zip file'
+      : 'package handle';
+  const name = library?.fileHandleName || library?.fileHandle?.name || 'remembered package';
+  return { handleType, name };
 }
 
 async function documentNoteStats(doc) {
@@ -2031,6 +2175,28 @@ async function documentNoteStats(doc) {
   return documentNoteStatsFromRecord(doc, { notes, highlights, ink, lastEditAt });
 }
 
+function pendingDocumentNoteStats(doc) {
+  return {
+    notes: 0,
+    highlights: 0,
+    ink: 0,
+    lastEditAt: doc?.updatedAt || doc?.createdAt || '',
+    summary: 'Loading note totals...',
+    pending: true
+  };
+}
+
+function unavailableDocumentNoteStats(doc) {
+  return {
+    notes: 0,
+    highlights: 0,
+    ink: 0,
+    lastEditAt: doc?.updatedAt || doc?.createdAt || '',
+    summary: 'Note totals unavailable',
+    unavailable: true
+  };
+}
+
 function documentNoteStatsFromRecord(doc, stats = null) {
   const notes = Number(stats?.notes) || 0;
   const highlights = Number(stats?.highlights) || 0;
@@ -2046,6 +2212,8 @@ function documentNoteStatsFromRecord(doc, stats = null) {
 }
 
 function summarizeLibraryStats(rows, library) {
+  const noteTotalsPending = rows.some((row) => row.stats.pending);
+  const noteTotalsUnavailable = rows.some((row) => row.stats.unavailable);
   const totals = rows.reduce((acc, row) => ({
     notes: acc.notes + row.stats.notes,
     highlights: acc.highlights + row.stats.highlights,
@@ -2057,9 +2225,12 @@ function summarizeLibraryStats(rows, library) {
     ink: 0,
     lastEditAt: maxIsoDate(library?.packageUpdatedAt || library?.createdAt || '', library?.updatedAt || '')
   });
+  let snapshot = `${rows.length} bundle${rows.length === 1 ? '' : 's'}, ${totals.notes} note${totals.notes === 1 ? '' : 's'}, ${totals.highlights} highlight${totals.highlights === 1 ? '' : 's'}`;
+  if (noteTotalsPending) snapshot = `${rows.length} bundle${rows.length === 1 ? '' : 's'}, loading note totals...`;
+  if (noteTotalsUnavailable) snapshot = `${rows.length} bundle${rows.length === 1 ? '' : 's'}, note totals unavailable`;
   return {
     lastEditAt: totals.lastEditAt,
-    snapshot: `${rows.length} bundle${rows.length === 1 ? '' : 's'}, ${totals.notes} note${totals.notes === 1 ? '' : 's'}, ${totals.highlights} highlight${totals.highlights === 1 ? '' : 's'}`
+    snapshot
   };
 }
 

@@ -22,7 +22,11 @@ export async function readAnnotatorBundleArchive(input) {
   const bytes = input instanceof Uint8Array
     ? input
     : new Uint8Array(await input.arrayBuffer());
-  const files = readStoredZip(bytes);
+  return readAnnotatorBundleFiles(readStoredZip(bytes));
+}
+
+export function readAnnotatorBundleFiles(files) {
+  if (!Array.isArray(files)) throw new Error('Bundle files must be an array.');
   const manifest = readJsonFile(files, 'manifest.json');
   if (manifest?.format !== BUNDLE_FORMAT || Number(manifest.formatVersion) !== BUNDLE_VERSION) {
     throw new Error('Unsupported annotator bundle format.');

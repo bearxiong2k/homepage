@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'marginalia-static-';
-const APP_VERSION = '20260710-232052';
+const APP_VERSION = '20260711-010256';
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 const PDFJS_CMAP_ASSETS = [
   '78-EUC-H.bcmap',
@@ -312,46 +312,52 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // CACHE_NAME is app-versioned. Keep cached version-N shells and modules immutable
+  // so an active worker cannot mix version-N and version-N+1 resources.
   if (event.request.mode === 'navigate') {
     const shellKey = canonicalShellUrl(url);
-    event.respondWith(networkFirst(event.request, {
+    respondWithCacheFirst(event, event.request, {
       cacheKey: shellKey,
       fallbackKey: shellKey || fallbackForNavigation(url)
-    }));
+    });
     return;
   }
 
   const cacheKey = canonicalAssetUrl(url);
-  event.respondWith(shouldRefreshFromNetwork(url)
-    ? networkFirst(event.request, { cacheKey })
-    : cacheFirst(event.request, cacheKey));
+  respondWithCacheFirst(event, event.request, { cacheKey });
 });
 
-async function cacheFirst(request, cacheKey = canonicalAssetUrl(new URL(request.url))) {
-  const cache = await caches.open(CACHE_NAME);
-  const cached = await cache.match(cacheKey);
-  if (cached) return cached;
-  const response = await fetch(request);
-  if (response.ok) {
-    await cache.put(cacheKey, response.clone());
-  }
-  return response;
+function respondWithCacheFirst(event, request, options = {}) {
+  let cachePersistence = Promise.resolve();
+  const responsePromise = cacheFirst(request, options.cacheKey, {
+    fallbackKey: options.fallbackKey,
+    deferCacheWrite: (promise) => {
+      cachePersistence = Promise.resolve(promise).catch(() => {});
+    }
+  });
+  event.respondWith(responsePromise);
+  event.waitUntil?.(
+    responsePromise
+      .then(() => cachePersistence)
+      .catch(() => {})
+  );
 }
 
-async function networkFirst(request, options = {}) {
+async function cacheFirst(request, cacheKey = canonicalAssetUrl(new URL(request.url)), options = {}) {
   const cache = await caches.open(CACHE_NAME);
-  const cacheKey = options.cacheKey || null;
-  const fallbackKey = options.fallbackKey || null;
   const cached = cacheKey ? await cache.match(cacheKey) : null;
+  if (cached) return cached;
   try {
     const response = await fetch(request, { cache: 'reload' });
-    if (response.ok) {
-      if (cacheKey) await cache.put(cacheKey, response.clone());
-      return response;
+    if (response.ok && cacheKey) {
+      const cacheWrite = cache.put(cacheKey, response.clone());
+      if (options.deferCacheWrite) options.deferCacheWrite(cacheWrite);
+      else cacheWrite.catch(() => {});
     }
-    return cached || (fallbackKey ? await cache.match(fallbackKey) : null) || response;
+    if (response.ok) return response;
+    return (options.fallbackKey ? await cache.match(options.fallbackKey) : null) || response;
   } catch (error) {
-    const fallback = cached || (fallbackKey ? await cache.match(fallbackKey) : null);
+    const fallback = options.fallbackKey ? await cache.match(options.fallbackKey) : null;
     if (fallback) return fallback;
     throw error;
   }
@@ -379,8 +385,4 @@ function canonicalAssetUrl(url) {
 
 function isVersionCheck(url) {
   return url.pathname.endsWith('/app-version.js') && url.searchParams.has('version-check');
-}
-
-function shouldRefreshFromNetwork(url) {
-  return /\.(?:html|js|css|webmanifest)$/i.test(url.pathname);
 }

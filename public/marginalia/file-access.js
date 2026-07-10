@@ -3,7 +3,9 @@ import {
   bundleArchiveBytesFromFolderFiles,
   bundleFolderFilesFromArchiveBytes,
   libraryArchiveBytesFromFolderFiles,
-  libraryFolderFilesFromArchiveBytes
+  libraryFolderFilesFromArchiveBytes,
+  readBundleFolderFiles,
+  readLibraryFolderFiles
 } from './folder-package.js';
 
 export const ANNOTATOR_BUNDLE_TYPES = [{
@@ -69,24 +71,52 @@ export async function pickAnnotatorPackageDirectory(id = 'annotator-package-open
 }
 
 export async function readFilesFromDirectoryHandle(directoryHandle) {
+  return (await readValidatedPackageDirectory(directoryHandle)).files;
+}
+
+export async function readParsedPackageFromDirectoryHandle(directoryHandle, packageKind) {
+  if (packageKind !== 'bundle' && packageKind !== 'library') {
+    throw new Error(`Unsupported package kind: ${packageKind || '(missing)'}.`);
+  }
+  return (await readValidatedPackageDirectory(directoryHandle, packageKind)).parsed;
+}
+
+async function readValidatedPackageDirectory(directoryHandle, expectedKind = null) {
   if (!directoryHandle) throw new Error('No package folder was selected.');
   if (!(await ensureFileHandlePermission(directoryHandle, 'read'))) {
     throw new Error('Permission to read the selected folder was not granted.');
   }
   const pending = await readPackageTransaction(directoryHandle, true);
-  if (pending) return readableFilesForPendingTransaction(directoryHandle, pending);
-  const detectedKind = await detectPackageKind(directoryHandle);
+  const detectedKind = pending?.packageKind || await detectPackageKind(directoryHandle);
+  if (expectedKind && detectedKind && detectedKind !== expectedKind) {
+    throw new Error(`Selected folder is a ${detectedKind} package, not ${expectedKind}.`);
+  }
+  if (pending) {
+    const files = await readableFilesForPendingTransaction(directoryHandle, pending);
+    return {
+      files,
+      packageKind: detectedKind,
+      parsed: await validatePackageFiles(files, detectedKind)
+    };
+  }
   if (!detectedKind) {
     const files = await readDirectoryFilesBounded(directoryHandle);
     if (!files.length) throw new Error('Selected folder is empty.');
-    return files;
+    return {
+      files,
+      packageKind: expectedKind,
+      parsed: expectedKind ? await validatePackageFiles(files, expectedKind) : null
+    };
   }
   const lock = await readPackageLock(directoryHandle, true);
   const files = lock && Number(lock.formatVersion) === PACKAGE_LOCK_VERSION
     ? await readCurrentPackageFiles(directoryHandle, detectedKind)
     : await readDirectoryFilesBounded(directoryHandle);
-  await validatePackageFiles(files, detectedKind);
-  return files;
+  return {
+    files,
+    packageKind: detectedKind,
+    parsed: await validatePackageFiles(files, detectedKind)
+  };
 }
 
 export async function writeFilesToDirectoryHandle(directoryHandle, files) {
@@ -258,12 +288,10 @@ async function inspectWritablePackageDirectory(directoryHandle, expectedKind, re
 
 async function validatePackageFiles(files, packageKind) {
   if (packageKind === 'bundle') {
-    await bundleArchiveBytesFromFolderFiles(files);
-    return true;
+    return readBundleFolderFiles(files);
   }
   if (packageKind === 'library') {
-    await libraryArchiveBytesFromFolderFiles(files);
-    return true;
+    return readLibraryFolderFiles(files);
   }
   throw new Error(`Unsupported package kind: ${packageKind || '(missing)'}.`);
 }
@@ -466,13 +494,9 @@ function isPackageOwnedPath(path, packageKind, sourcePath = null) {
 
 async function readableFilesForPendingTransaction(directoryHandle, transaction) {
   if (await directoryExists(directoryHandle, transaction.stageName)) {
-    const stagedFiles = await readStageFiles(directoryHandle, transaction);
-    await validatePackageFiles(stagedFiles, transaction.packageKind);
-    return stagedFiles;
+    return readStageFiles(directoryHandle, transaction);
   }
-  const files = await readCurrentPackageFiles(directoryHandle, transaction.packageKind);
-  await validatePackageFiles(files, transaction.packageKind);
-  return files;
+  return readCurrentPackageFiles(directoryHandle, transaction.packageKind);
 }
 
 async function recoverPendingPackageTransaction(directoryHandle) {

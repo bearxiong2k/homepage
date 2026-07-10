@@ -1,6 +1,6 @@
 import {
   createStoredZip,
-  readAnnotatorBundleArchive,
+  readAnnotatorBundleFiles,
   readStoredZip
 } from './bundle.js';
 import {
@@ -18,6 +18,7 @@ const PACKAGE_LOCK_VERSION = 2;
 const LEGACY_PACKAGE_LOCK_VERSION = 1;
 const MAX_FOLDER_FILES = 4096;
 const MAX_FOLDER_TOTAL_BYTES = 1024 * 1024 * 1024;
+const MAX_FOLDER_PATH_BYTES = 1024;
 
 export function bundleFolderNameForDocument(documentMeta) {
   return `${safeName(documentMeta?.title || documentMeta?.id || 'document')}${BUNDLE_FOLDER_SUFFIX}`;
@@ -29,7 +30,7 @@ export function libraryFolderNameForTitle(value) {
 
 export async function bundleFolderFilesFromArchiveBytes(bytes) {
   return withPackageLock(
-    await validateBundleFolderFiles(readStoredZip(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes))),
+    parseBundleFolderFiles(readStoredZip(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes))).files,
     'bundle'
   );
 }
@@ -72,10 +73,34 @@ export async function libraryFolderFilesFromArchiveBytes(bytes) {
 }
 
 export async function bundleArchiveBytesFromFolderFiles(files) {
-  return createStoredZip(await validateBundleFolderFiles(files));
+  return createStoredZip(parseBundleFolderFiles(files).files);
+}
+
+export function readBundleFolderFiles(files) {
+  return parseBundleFolderFiles(files).bundle;
+}
+
+export function readLibraryFolderFiles(files) {
+  return parseLibraryFolderFiles(files).library;
 }
 
 export async function libraryArchiveBytesFromFolderFiles(files) {
+  const parsed = parseLibraryFolderFiles(files);
+  const entries = parsed.library.entries.map(({ bundle, filename, ...entry }) => ({
+    ...entry,
+    data: createStoredZip(parsed.bundleFilesByDirectory.get(filename))
+  }));
+  return createAnnotatorLibraryArchive({
+    id: parsed.library.manifest.id,
+    title: parsed.library.manifest.title,
+    activeEntryId: parsed.library.manifest.activeEntryId,
+    createdAt: parsed.library.manifest.createdAt,
+    folders: parsed.library.manifest.folders,
+    entries
+  });
+}
+
+function parseLibraryFolderFiles(files) {
   const cleanFiles = normalizeFolderFiles(files);
   const packageFiles = cleanFiles.filter((file) => file.path !== PACKAGE_LOCK_PATH);
   for (const file of packageFiles) {
@@ -122,10 +147,15 @@ export async function libraryArchiveBytesFromFolderFiles(files) {
     if (!seenDirectories.has(directory)) orderedDirectories.push({ entry: null, directory });
   }
   const entries = [];
+  const bundleFilesByDirectory = new Map();
+  const normalizedEntryIds = new Set();
   for (const [index, item] of orderedDirectories.entries()) {
-    const bundleBytes = await bundleArchiveBytesFromFolderFiles(groups.get(item.directory));
-    const bundle = await readAnnotatorBundleArchive(bundleBytes);
+    const parsedBundle = parseBundleFolderFiles(groups.get(item.directory));
+    const bundle = parsedBundle.bundle;
+    bundleFilesByDirectory.set(item.directory, parsedBundle.files);
     const id = safeName(item.entry?.id || bundle.document?.id || item.directory.split('/').pop()?.replace(new RegExp(`${escapeRegExp(BUNDLE_FOLDER_SUFFIX)}$`), '') || `bundle-${index + 1}`);
+    if (normalizedEntryIds.has(id)) throw new Error(`Library folder contains colliding entry id: ${id}.`);
+    normalizedEntryIds.add(id);
     const folderId = folderIds.has(item.entry?.folderId)
       ? item.entry.folderId
       : folderIdByPath.get(folderPathFromBundleDirectory(item.directory)) || null;
@@ -133,23 +163,34 @@ export async function libraryArchiveBytesFromFolderFiles(files) {
       id,
       title: item.entry?.title || bundle.document?.title || id,
       order: Number.isFinite(Number(item.entry?.order)) ? Number(item.entry.order) : index,
-      data: bundleBytes
+      filename: item.directory,
+      bundle
     };
     if (folderId) manifestEntry.folderId = folderId;
     if (item.entry?.lastOpenedAt) manifestEntry.lastOpenedAt = String(item.entry.lastOpenedAt);
     entries.push(manifestEntry);
   }
-  return createAnnotatorLibraryArchive({
+  const activeEntryId = entries.some((entry) => entry.id === manifest.activeEntryId)
+    ? manifest.activeEntryId
+    : entries[0]?.id || null;
+  const normalizedManifest = {
+    ...manifest,
     id: manifest.id || 'library',
     title: manifest.title || 'Annotator library',
-    activeEntryId: entries.some((entry) => entry.id === manifest.activeEntryId) ? manifest.activeEntryId : entries[0]?.id,
-    createdAt: manifest.createdAt,
+    activeEntryId,
     folders,
-    entries
-  });
+    entries: entries.map(({ bundle, ...entry }) => entry)
+  };
+  return {
+    bundleFilesByDirectory,
+    library: {
+      manifest: normalizedManifest,
+      entries
+    }
+  };
 }
 
-async function validateBundleFolderFiles(files) {
+function parseBundleFolderFiles(files) {
   const cleanFiles = normalizeFolderFiles(files);
   const packageFiles = cleanFiles.filter((file) => file.path !== PACKAGE_LOCK_PATH);
   const manifest = readJsonFile(packageFiles, 'manifest.json');
@@ -165,8 +206,10 @@ async function validateBundleFolderFiles(files) {
     if (/^assets\/.+/.test(file.path)) continue;
     throw new Error(`Bundle folder contains unsupported file: ${file.path}`);
   }
-  await readAnnotatorBundleArchive(createStoredZip(packageFiles));
-  return packageFiles;
+  return {
+    files: packageFiles,
+    bundle: readAnnotatorBundleFiles(packageFiles)
+  };
 }
 
 function groupBundleDirectories(files) {
@@ -199,6 +242,9 @@ function normalizeFolderFiles(files) {
   for (const file of files || []) {
     const path = normalizePackagePath(file.path);
     if (!path || ignoredPath(path)) continue;
+    if (TEXT_ENCODER.encode(path).length > MAX_FOLDER_PATH_BYTES) {
+      throw new Error(`Package folder path is too long: ${path}.`);
+    }
     const pathKey = path.normalize('NFC');
     if (seen.has(pathKey)) throw new Error(`Package folder contains duplicate file: ${path}`);
     seen.add(pathKey);

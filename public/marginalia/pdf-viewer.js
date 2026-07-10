@@ -34,9 +34,9 @@ const orderedPageRecordEntries = [];
 const pageShellPromises = new Map();
 const renderQueue = [];
 const textLayerQueue = [];
-const renderingPages = new Set();
+const renderingPages = new Map();
 const renderedPages = new Set();
-const renderingTextLayers = new Set();
+const renderingTextLayers = new Map();
 const renderedTextLayers = new Set();
 let pageMetrics = [];
 const MAX_RENDER_CONCURRENCY = 2;
@@ -53,6 +53,7 @@ let activeTextLayerRenderCount = 0;
 let observer = null;
 let pdfDocument = null;
 let zoomScale = null;
+let zoomRatio = 1;
 let zoomGeneration = 0;
 let selectionOverlayRaf = 0;
 let pageMetricsRaf = 0;
@@ -109,7 +110,7 @@ document.addEventListener('pointermove', updateTextSelectionDrag, true);
 document.addEventListener('pointerup', finishTextSelectionDrag, true);
 document.addEventListener('pointercancel', finishTextSelectionDrag, true);
 document.addEventListener('reader-reading-mode-change', scheduleZoomRefresh);
-document.addEventListener('reader-side-note-layout-change', scheduleZoomRefresh);
+document.addEventListener('reader-side-note-layout-change', handleReaderSideNoteLayoutChange);
 document.addEventListener('reader-pdf-ensure-page', handleReaderPdfEnsurePage);
 window.addEventListener('resize', scheduleZoomRefresh);
 window.addEventListener('scroll', handlePdfWindowScroll, { passive: true });
@@ -310,7 +311,7 @@ async function renderPageNumber(pageNumber) {
   const generation = zoomGeneration;
   const renderToken = Symbol(`render-${pageNumber}`);
   record.renderToken = renderToken;
-  renderingPages.add(pageNumber);
+  renderingPages.set(pageNumber, renderToken);
   record.pageEl.dataset.renderState = 'rendering';
   try {
     await renderPage(record, generation, renderToken);
@@ -322,7 +323,7 @@ async function renderPageNumber(pageNumber) {
   } catch (error) {
     if (!isRenderCancelled(error)) throw error;
   } finally {
-    renderingPages.delete(pageNumber);
+    if (renderingPages.get(pageNumber) === renderToken) renderingPages.delete(pageNumber);
   }
 }
 
@@ -417,13 +418,14 @@ async function renderPage(record, generation, renderToken) {
 
   record.renderTask?.cancel();
   record.textLayer?.cancel();
-  record.renderTask = page.render({
+  const renderTask = page.render({
     canvasContext: context,
     viewport: outputViewport,
     transform: null
   });
-  await record.renderTask.promise;
-  record.renderTask = null;
+  record.renderTask = renderTask;
+  await renderTask.promise;
+  if (record.renderTask === renderTask) record.renderTask = null;
   if (record.renderToken !== renderToken || generation !== zoomGeneration) return;
 
   pageEl.querySelector('.pdf-page-placeholder')?.remove();
@@ -467,18 +469,21 @@ function drainTextLayerQueue() {
 function startTextLayerRender(pageNumber) {
   const record = pageRecords.get(pageNumber);
   if (!record?.textLayerEl || renderedTextLayers.has(pageNumber) || renderingTextLayers.has(pageNumber)) return;
+  const textLayerToken = record.renderToken;
   activeTextLayerRenderCount += 1;
-  renderingTextLayers.add(pageNumber);
+  renderingTextLayers.set(pageNumber, textLayerToken);
   renderTextLayerForPage(pageNumber, record)
     .catch((error) => {
-      if (!isRenderCancelled(error)) {
+      if (!isRenderCancelled(error)
+        && record.renderToken === textLayerToken
+        && renderingTextLayers.get(pageNumber) === textLayerToken) {
         record.pageEl.dataset.textLayer = 'failed';
         syncPdfPageAccessibility(record);
         console.warn('PDF text layer failed', error);
       }
     })
     .finally(() => {
-      renderingTextLayers.delete(pageNumber);
+      if (renderingTextLayers.get(pageNumber) === textLayerToken) renderingTextLayers.delete(pageNumber);
       activeTextLayerRenderCount = Math.max(0, activeTextLayerRenderCount - 1);
       drainTextLayerQueue();
     });
@@ -584,7 +589,7 @@ function schedulePageControlsSync() {
 }
 
 function pageCssScale(viewport) {
-  if (!Number.isFinite(zoomScale)) zoomScale = fitScaleForViewport(viewport);
+  if (!Number.isFinite(zoomScale)) zoomScale = fitScaleForViewport(viewport) * zoomRatio;
   return clamp(zoomScale, MIN_PAGE_SCALE, MAX_PAGE_SCALE);
 }
 
@@ -611,13 +616,15 @@ function availablePdfWidth() {
 
 function setZoomMode(mode) {
   if (mode !== 'fit-width') return;
-  zoomScale = representativeFitScale();
+  zoomRatio = 1;
+  zoomScale = representativeFitScale() * zoomRatio;
   refreshZoomedPages();
 }
 
 function setExplicitZoomRatio(ratio) {
   if (!Number.isFinite(ratio)) return;
-  zoomScale = clamp(representativeFitScale() * ratio, MIN_PAGE_SCALE, MAX_PAGE_SCALE);
+  zoomRatio = ratio;
+  zoomScale = clamp(representativeFitScale() * zoomRatio, MIN_PAGE_SCALE, MAX_PAGE_SCALE);
   refreshZoomedPages();
 }
 
@@ -637,8 +644,20 @@ function scheduleZoomRefresh() {
   if (zoomRefreshRaf) return;
   zoomRefreshRaf = requestAnimationFrame(() => {
     zoomRefreshRaf = 0;
+    if (!pdfDocument || !pageRecords.size) return;
+    const nextScale = clamp(representativeFitScale() * zoomRatio, MIN_PAGE_SCALE, MAX_PAGE_SCALE);
+    if (Number.isFinite(zoomScale) && Math.abs(nextScale - zoomScale) < 0.0001) {
+      syncZoomControls();
+      return;
+    }
+    zoomScale = nextScale;
     refreshZoomedPages();
   });
+}
+
+function handleReaderSideNoteLayoutChange(event) {
+  if (event.detail?.phase !== 'commit') return;
+  scheduleZoomRefresh();
 }
 
 function refreshZoomedPages() {
@@ -648,18 +667,16 @@ function refreshZoomedPages() {
   zoomGeneration += 1;
   renderQueue.length = 0;
   textLayerQueue.length = 0;
-  activeRenderCount = 0;
-  activeTextLayerRenderCount = 0;
   renderedPages.clear();
   renderedTextLayers.clear();
   renderingTextLayers.clear();
+  renderingPages.clear();
   for (const [pageNumber, record] of orderedPageRecords()) {
     record.renderTask?.cancel();
     record.textLayer?.cancel();
     record.renderTask = null;
     record.textLayer = null;
     record.textLayerEl = null;
-    renderingPages.delete(pageNumber);
     updatePageGeometry(record);
     record.pageEl.dataset.renderState = 'pending';
     record.pageEl.dataset.textLayer = 'pending';

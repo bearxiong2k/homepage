@@ -61,7 +61,7 @@ export async function createAnnotatorLibraryArchive(libraryData = {}) {
   return createStoredZip(files);
 }
 
-export async function readAnnotatorLibraryArchive(input) {
+export async function readAnnotatorLibraryArchive(input, options = {}) {
   const bytes = input instanceof Uint8Array
     ? input
     : new Uint8Array(await input.arrayBuffer());
@@ -119,10 +119,11 @@ export async function readAnnotatorLibraryArchive(input) {
   for (const entry of manifestEntries) {
     const file = filesByPath.get(entry.filename);
     if (!file) throw new Error(`Library package is missing ${entry.filename}.`);
-    await readAnnotatorBundleArchive(file.data);
+    const bundle = await readAnnotatorBundleArchive(file.data);
     entries.push({
       ...entry,
-      data: file.data
+      ...(options?.retainBundleBytes === false ? {} : { data: file.data }),
+      ...(options?.retainParsedBundles ? { bundle } : {})
     });
   }
   return {

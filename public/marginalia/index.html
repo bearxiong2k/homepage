@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Marginalia</title>
-  <link rel="manifest" href="manifest.webmanifest?v=20260710-232052">
+  <link rel="manifest" href="manifest.webmanifest?v=20260711-010256">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -18,15 +18,13 @@
   </main>
   <script type="module">
     import { APP_VERSION_LABEL } from './app-version.js';
-    import { currentStorageMode, registerServiceWorker, urlWithStorage } from './runtime.js';
+    import { currentStorageMode, urlWithStorage } from './runtime.js';
 
     const storageMode = currentStorageMode();
     const target = urlWithStorage('reader.html', {}, storageMode);
     document.querySelector('#appVersion').textContent = APP_VERSION_LABEL;
     document.querySelector('#readerFallbackLink').href = target;
-    registerServiceWorker().finally(() => {
-      location.replace(target);
-    });
+    location.replace(target);
   </script>
 </body>
 </html>
