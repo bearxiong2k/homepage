@@ -1,4 +1,5 @@
 import { APP_VERSION, APP_VERSION_LABEL } from './app-version.js';
+import { marginaliaPerformanceTrace } from './performance-trace.js';
 import { currentStorageMode, fetchNetworkAppVersion, registerServiceWorker, updateAppFromNetwork, urlWithStorage } from './runtime.js';
 import { createStorageAdapter } from './storage-adapter.js';
 import { downloadBytes } from './bundle.js';
@@ -20,6 +21,7 @@ import { isAnnotatorLibraryFilename, libraryFilenameForTitle } from './library-p
 
 const storageMode = currentStorageMode();
 const storage = createStorageAdapter({ mode: storageMode });
+const libraryPerformance = marginaliaPerformanceTrace('library');
 
 const documentsEl = document.querySelector('#documents');
 const appVersionEl = document.querySelector('#appVersion');
@@ -242,6 +244,8 @@ function reloadForAppUpdate(version = '') {
 }
 
 async function loadDocuments(options = {}) {
+  const startedAt = libraryPerformance.now();
+  libraryPerformance.mark('load-start');
   const generation = ++libraryRenderGeneration;
   if (options.showLoading !== false) {
     documentsEl.innerHTML = '<p class="small">Loading documents...</p>';
@@ -250,6 +254,7 @@ async function loadDocuments(options = {}) {
   if (generation !== libraryRenderGeneration) return model;
   libraryRenderModel = model;
   documentsEl.innerHTML = libraryDashboardMarkup(model);
+  libraryPerformance.measure('usable', startedAt, { documents: model.documents?.length || 0 });
   scheduleLibraryRenderModelEnrichment(model, generation);
   return model;
 }
@@ -352,6 +357,7 @@ function scheduleLibraryRenderModelEnrichment(model, generation) {
 }
 
 async function enrichLibraryRenderModel(model, generation) {
+  const startedAt = libraryPerformance.now();
   const [handleResult, rowsResult] = await Promise.allSettled([
     currentLibraryHandleStatus(model.library),
     loadLibraryRowsWithStats(model.orderedItems)
@@ -377,6 +383,7 @@ async function enrichLibraryRenderModel(model, generation) {
   }, rows);
   libraryRenderModel = enrichedModel;
   patchLibraryRenderModelEnrichment(enrichedModel);
+  libraryPerformance.measure('enriched', startedAt, { documents: rows.length });
 }
 
 async function loadLibraryRowsWithStats(orderedItems) {

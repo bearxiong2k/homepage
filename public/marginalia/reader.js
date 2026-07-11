@@ -36,9 +36,11 @@ import { createReaderSessionChannel, randomSessionId } from './reader-session-ch
 import { currentStorageMode, registerServiceWorker, urlWithStorage } from './runtime.js';
 import { APP_VERSION_LABEL, APP_VERSION_SHORT } from './app-version.js';
 import { analyzeNoteMarkdown, ensureNoteMarkdownStyles, renderNoteMarkdown } from './note-markdown.js';
+import { marginaliaPerformanceTrace } from './performance-trace.js';
 
 const storageMode = currentStorageMode();
 const storage = createStorageAdapter({ mode: storageMode });
+const readerPerformance = marginaliaPerformanceTrace('reader');
 
 const state = {
   documents: [],
@@ -147,7 +149,10 @@ const state = {
   splitWindowMonitorTimer: 0,
   splitSourceWindowTarget: null,
   splitSourceFallbackTimer: 0,
-  splitSourceFallbackResizeReadyAt: 0
+  splitSourceFallbackResizeReadyAt: 0,
+  lifecycleGeneration: 0,
+  lifecycleSuspended: document.visibilityState === 'hidden',
+  hiddenAt: 0
 };
 
 const els = {
@@ -291,7 +296,10 @@ function scheduleServiceWorkerRegistration() {
 
 function bindChromeEvents() {
   const libraryLink = document.querySelector('.left-rail a[href="library.html"]');
-  if (libraryLink) libraryLink.href = urlWithStorage('library.html', {}, state.storageMode);
+  if (libraryLink) {
+    libraryLink.href = urlWithStorage('library.html', {}, state.storageMode);
+    libraryLink.addEventListener('click', () => readerPerformance.mark('library-navigation-click'));
+  }
   els.reloadBtn.addEventListener('click', () => loadDocument(state.docId));
   els.cancelModeBtn.addEventListener('click', () => setMode('select'));
   els.readingModeBtn.addEventListener('click', toggleReadingMode);
@@ -352,16 +360,79 @@ function bindChromeEvents() {
   });
   if (els.readerNoticeLibrary) els.readerNoticeLibrary.href = urlWithStorage('library.html', {}, state.storageMode);
   window.addEventListener('pagehide', () => {
+    suspendReaderLifecycle('pagehide');
     void flushAllPendingAnnotationBlockSaves();
     flushReaderScrollPosition();
   });
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') {
-      void flushAllPendingAnnotationBlockSaves();
-      flushReaderScrollPosition();
-    }
-  });
+  document.addEventListener('visibilitychange', handleReaderVisibilityChange);
   document.addEventListener('keydown', handleDocumentKeyDown);
+}
+
+function handleReaderVisibilityChange() {
+  if (document.visibilityState === 'hidden') {
+    suspendReaderLifecycle('hidden');
+    void flushAllPendingAnnotationBlockSaves();
+    flushReaderScrollPosition();
+    return;
+  }
+  resumeReaderLifecycle('visible');
+}
+
+function suspendReaderLifecycle(reason = 'hidden') {
+  if (state.lifecycleSuspended) return;
+  state.lifecycleSuspended = true;
+  state.lifecycleGeneration += 1;
+  state.hiddenAt = Date.now();
+  window.clearTimeout(state.frameScrollIdleTimer);
+  state.frameScrollIdleTimer = 0;
+  state.frameScrolling = false;
+  const rafStateKeys = [
+    'frameScrollRaf',
+    'pdfFrameRefreshRaf',
+    'sideNoteLayoutRaf',
+    'sideInkRenderRaf',
+    'navigatorInkPreviewRenderRaf',
+    'quickMarkDragRenderRaf',
+    'htmlAnchorMetricsRaf'
+  ];
+  for (const key of rafStateKeys) {
+    if (state[key]) cancelAnimationFrame(state[key]);
+    state[key] = 0;
+  }
+  state.pendingSideInkRenders.clear();
+  postReaderLifecycleToFrame('hidden');
+  readerPerformance.mark('suspended', { reason, generation: state.lifecycleGeneration });
+}
+
+function resumeReaderLifecycle(reason = 'visible') {
+  if (!state.lifecycleSuspended) return;
+  const hiddenDuration = state.hiddenAt ? Date.now() - state.hiddenAt : 0;
+  state.lifecycleSuspended = false;
+  state.lifecycleGeneration += 1;
+  const generation = state.lifecycleGeneration;
+  state.hiddenAt = 0;
+  readerPerformance.mark('resume-start', { reason, generation, hiddenDuration });
+  postReaderLifecycleToFrame('visible');
+  requestAnimationFrame(() => {
+    if (state.lifecycleSuspended || generation !== state.lifecycleGeneration || !state.iframeLoaded) return;
+    const doc = getFrameDoc();
+    if (state.currentDocument?.sourceType === 'pdf') schedulePdfFrameRefresh(doc);
+    requestSideNoteLayout(doc);
+    requestNavigatorInkPreviewRedraw();
+    readerPerformance.mark('resume-ui-scheduled', { generation, hiddenDuration });
+  });
+}
+
+function postReaderLifecycleToFrame(lifecycleState) {
+  try {
+    els.frame?.contentWindow?.postMessage?.({
+      type: 'marginalia-reader-lifecycle',
+      state: lifecycleState,
+      generation: state.lifecycleGeneration
+    }, location.origin);
+  } catch {
+    // A navigating or replaced iframe may not accept lifecycle messages.
+  }
 }
 
 async function loadDocuments() {
@@ -1045,6 +1116,8 @@ function readerUrlForDoc(docId) {
 
 async function loadDocument(docId) {
   if (!docId) return;
+  const loadStartedAt = readerPerformance.now();
+  readerPerformance.mark('document-load-start');
   if (state.docId) await flushAllPendingAnnotationBlockSaves();
   if (state.docId && state.docId !== docId) storage.revokeNoteImageUrl?.(state.docId);
   if (state.docId && state.docId !== docId) closeSplitNotesSession({ notify: true });
@@ -1059,6 +1132,7 @@ async function loadDocument(docId) {
     setStatus(`Document not found: ${docId}`, true);
     return;
   }
+  readerPerformance.mark('document-metadata-ready', { sourceType: currentDocument.sourceType });
   hideSourceStartPanel();
   syncBundleControls();
   state.currentTarget = null;
@@ -1135,19 +1209,23 @@ async function loadDocument(docId) {
   setStatus('Loading document…');
   try {
     state.pendingReaderPosition = await readerPositionPromise;
+    readerPerformance.mark('saved-position-ready');
     const shouldHideFrameUntilRestored = hasSavedReaderScrollPosition(state.pendingReaderPosition);
     setReaderFrameRestoring(shouldHideFrameUntilRestored);
     const frameSrc = await frameSrcPromise;
     configureReaderFrameSandbox(currentDocument.sourceType);
     await loadReaderFrame(frameSrc);
+    readerPerformance.mark('iframe-loaded');
     await quickMarksPromise;
     syncClipToolColor();
     renderQuickMarkStack();
     state.annotations = await annotationsPromise;
+    readerPerformance.mark('annotations-ready', { annotations: state.annotations.length });
     storage.sweepUnreferencedNoteImages?.(docId).catch(() => {});
     state.iframeLoaded = true;
     await instrumentIframe();
     await waitForFramePdfReadyIfNeeded();
+    readerPerformance.mark('source-ready', { sourceType: currentDocument.sourceType });
     renderAnnotations();
     renderNoteList();
     requestAnimationFrame(() => {
@@ -1162,6 +1240,10 @@ async function loadDocument(docId) {
     history.replaceState(null, '', readerUrlForDoc(docId));
     scheduleDocumentOpenRemember(docId);
     scheduleServiceWorkerRegistration();
+    readerPerformance.measure('document-usable', loadStartedAt, {
+      sourceType: currentDocument.sourceType,
+      annotations: state.annotations.length
+    });
   } catch (error) {
     await Promise.allSettled([
       quickMarksPromise,
@@ -1402,6 +1484,7 @@ function installStaticHtmlSourceBehavior(doc) {
 }
 
 function scheduleFrameScrollWork(doc = getFrameDoc()) {
+  if (state.lifecycleSuspended) return;
   state.frameScrollDoc = doc;
   state.frameScrolling = true;
   window.clearTimeout(state.frameScrollIdleTimer);
@@ -1440,15 +1523,25 @@ function handlePdfPageReady(doc, event) {
     schedulePdfFrameRefresh(doc);
     return;
   }
-  if (!['shell', 'canvas', 'text'].includes(phase)) return;
+  if (!['shell', 'canvas', 'text', 'released', 'evicted'].includes(phase)) return;
   const pageIndex = Number(event.detail?.pageIndex);
   if (!Number.isInteger(pageIndex) || pageIndex < 0) return;
+  if (phase === 'evicted') {
+    for (const annotation of state.annotations) {
+      if (!annotationPdfPageIndexes(annotation).includes(pageIndex)) continue;
+      clearRenderedAnnotation(doc, annotation.id);
+      doc.querySelector(`.reader-side-note[data-annotation-id="${cssEscape(annotation.id)}"]`)?.remove();
+      state.annotationResolution.set(annotation.id, buildAnnotationResolution(doc, annotation));
+    }
+    requestSideNoteLayout(doc);
+    return;
+  }
   state.pdfDirtyPageIndexes.add(pageIndex);
   schedulePdfFrameRefresh(doc);
 }
 
 function schedulePdfFrameRefresh(doc = getFrameDoc()) {
-  if (state.pdfFrameRefreshRaf) return;
+  if (state.lifecycleSuspended || state.pdfFrameRefreshRaf) return;
   state.pdfFrameRefreshRaf = requestAnimationFrame(() => {
     state.pdfFrameRefreshRaf = 0;
     flushPdfFrameRefresh(doc);
@@ -6473,6 +6566,15 @@ function readerPositionPdfPageElementNow(doc, position) {
 function readerPositionPdfPageElement(doc, position) {
   const found = readerPositionPdfPageElementNow(doc, position);
   if (found || doc.documentElement.dataset.pdfPagesReady === 'true') return Promise.resolve(found);
+  const pageIndex = Number(position?.pageIndex);
+  const pageNumber = Number.isFinite(pageIndex) && pageIndex >= 0
+    ? Math.round(pageIndex) + 1
+    : Math.round(Number(position?.pageNumber));
+  if (Number.isInteger(pageNumber) && pageNumber > 0) {
+    doc.dispatchEvent(new doc.defaultView.CustomEvent('reader-pdf-ensure-page', {
+      detail: { pageNumber, pageIndex: pageNumber - 1 }
+    }));
+  }
   return new Promise((resolve) => {
     const startedAt = Date.now();
     const interval = window.setInterval(() => {
@@ -6535,6 +6637,7 @@ function layoutSideNotes(doc) {
 }
 
 function requestSideNoteLayout(doc = getFrameDoc()) {
+  if (state.lifecycleSuspended) return;
   state.sideNoteLayoutDoc = doc;
   if (state.sideNoteLayoutRaf) return;
   state.sideNoteLayoutRaf = requestAnimationFrame(() => {
@@ -6551,7 +6654,7 @@ function sideNoteEditingActive(doc = getFrameDoc()) {
 }
 
 function redrawSideInkCanvases(doc) {
-  if (!doc) return;
+  if (!doc || state.lifecycleSuspended || doc.visibilityState === 'hidden') return;
   const entries = Array.from(doc.querySelectorAll('.reader-side-note-ink'))
     .map((canvas) => {
       const note = canvas.closest('.reader-side-note');
@@ -6562,7 +6665,10 @@ function redrawSideInkCanvases(doc) {
     })
     .filter(Boolean);
   const liveEntries = entries.filter((entry) => isLiveSideInkCanvas(entry.annotationId, entry.blockId));
-  const inactiveEntries = entries.filter((entry) => !isLiveSideInkCanvas(entry.annotationId, entry.blockId));
+  const inactiveEntries = entries.filter((entry) => (
+    !isLiveSideInkCanvas(entry.annotationId, entry.blockId)
+    && elementNearViewport(entry.canvas, doc.defaultView, 500)
+  ));
   for (const { canvas, annotationId, blockId } of liveEntries) {
     drawSideInkCanvas(canvas, annotationId, blockId);
   }
@@ -6574,6 +6680,12 @@ function redrawSideInkCanvases(doc) {
   for (const { canvas, annotationId, blockId } of inactiveEntries) {
     drawSideInkCanvas(canvas, annotationId, blockId);
   }
+}
+
+function elementNearViewport(element, view, margin = 0) {
+  const rect = element?.getBoundingClientRect?.();
+  if (!rect || !view) return false;
+  return rect.bottom >= -margin && rect.top <= view.innerHeight + margin;
 }
 
 function deferInactiveSideInkRedrawUntilLayoutDragEnd(doc) {
@@ -8319,10 +8431,7 @@ function schedulePdfPendingJumpNoticeClear(annotationId) {
 
 function pdfPageShellsReadyThrough(doc, pageIndex) {
   if (!Number.isInteger(pageIndex) || pageIndex < 0) return true;
-  for (let index = 0; index <= pageIndex; index += 1) {
-    if (!doc.querySelector(`[data-pdf-page-index="${cssEscape(String(index))}"]`)) return false;
-  }
-  return true;
+  return Boolean(doc.querySelector(`[data-pdf-page-index="${cssEscape(String(pageIndex))}"]`));
 }
 
 function annotationTop(doc, annotation) {
@@ -9578,7 +9687,7 @@ function drawInkToCanvas(canvas, strokes, activeStroke) {
 }
 
 function requestSideInkRender(canvas) {
-  if (!canvas) return;
+  if (!canvas || state.lifecycleSuspended) return;
   state.pendingSideInkRenders.add(canvas);
   if (state.sideInkRenderRaf) return;
   state.sideInkRenderRaf = requestAnimationFrame(() => {
@@ -9851,7 +9960,7 @@ function drawInkPreview(canvas, ink) {
 }
 
 function requestNavigatorInkPreviewRedraw() {
-  if (state.navigatorInkPreviewRenderRaf) return;
+  if (state.lifecycleSuspended || state.navigatorInkPreviewRenderRaf) return;
   state.navigatorInkPreviewRenderRaf = requestAnimationFrame(() => {
     state.navigatorInkPreviewRenderRaf = 0;
     redrawNavigatorInkPreviews();
@@ -9859,8 +9968,9 @@ function requestNavigatorInkPreviewRedraw() {
 }
 
 function redrawNavigatorInkPreviews() {
-  if (!els.noteList || !isNotesPanelExpanded()) return;
+  if (state.lifecycleSuspended || !els.noteList || !isNotesPanelExpanded()) return;
   els.noteList.querySelectorAll('.note-card-ink').forEach((canvas) => {
+    if (!elementNearViewport(canvas, window, 320)) return;
     const annotationId = canvas.dataset.annotationId;
     const blockId = canvas.dataset.blockId;
     if (!annotationId || !blockId) return;

@@ -9,6 +9,7 @@ import {
   readAnnotatorLibraryArchive
 } from './library-package.js';
 import { encodeInkForStorage } from './ink-codec.js';
+import { marginaliaPerformanceTrace } from './performance-trace.js';
 
 const DB_NAME = 'annotator-reader';
 const DB_VERSION = 5;
@@ -26,6 +27,7 @@ const IMPORT_PREFIX_QUERY_LIMIT = 32;
 const ANCHORABLE_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'li', 'figure', 'figcaption', 'td', 'th', 'section', 'article']);
 const TEXT_ANCHOR_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'li', 'figcaption', 'td', 'th']);
 let dbPromise = null;
+const storagePerformance = marginaliaPerformanceTrace('storage');
 
 export function createStorageAdapter(options = {}) {
   return new IndexedDbStorageAdapter(options);
@@ -2456,8 +2458,13 @@ function safeId(value) {
 function openDb() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
+    const startedAt = storagePerformance.now();
+    let settled = false;
+    let blockedTimer = 0;
+    storagePerformance.mark('open-requested', { version: DB_VERSION });
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
+      storagePerformance.mark('upgrade-started', { version: DB_VERSION });
       const db = request.result;
       if (!db.objectStoreNames.contains('documents')) {
         db.createObjectStore('documents', { keyPath: 'id' });
@@ -2498,15 +2505,36 @@ function openDb() {
       }
     };
     request.onerror = () => {
+      settled = true;
+      if (blockedTimer) clearTimeout(blockedTimer);
       dbPromise = null;
+      storagePerformance.measure('open-failed', startedAt);
       reject(request.error);
+    };
+    request.onblocked = () => {
+      storagePerformance.mark('open-blocked', { version: DB_VERSION });
+      if (blockedTimer) return;
+      blockedTimer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        dbPromise = null;
+        storagePerformance.measure('open-blocked-timeout', startedAt);
+        reject(new Error('Local library storage is blocked by another Marginalia window. Close other app windows, then retry.'));
+      }, 8000);
     };
     request.onsuccess = () => {
       const db = request.result;
+      if (settled) {
+        db.close();
+        return;
+      }
+      settled = true;
+      if (blockedTimer) clearTimeout(blockedTimer);
       db.onversionchange = () => {
         db.close();
         dbPromise = null;
       };
+      storagePerformance.measure('open-succeeded', startedAt, { version: DB_VERSION });
       resolve(db);
     };
   });
