@@ -1,5 +1,9 @@
 const BUNDLE_FORMAT = 'annotator-bundle';
-const BUNDLE_VERSION = 1;
+const BUNDLE_VERSION = 2;
+const READABLE_BUNDLE_VERSIONS = new Set([1, 2]);
+const NOTE_SCHEMA_VERSION = 2;
+const NOTE_IMAGE_MAX_BYTES = 20 * 1024 * 1024;
+const NOTE_IMAGE_MAX_PIXELS = 40 * 1000 * 1000;
 const TEXT_ENCODER = new TextEncoder();
 const TEXT_DECODER = new TextDecoder();
 const STRICT_TEXT_DECODER = new TextDecoder('utf-8', { fatal: true });
@@ -28,7 +32,8 @@ export async function readAnnotatorBundleArchive(input) {
 export function readAnnotatorBundleFiles(files) {
   if (!Array.isArray(files)) throw new Error('Bundle files must be an array.');
   const manifest = readJsonFile(files, 'manifest.json');
-  if (manifest?.format !== BUNDLE_FORMAT || Number(manifest.formatVersion) !== BUNDLE_VERSION) {
+  const bundleVersion = Number(manifest?.formatVersion);
+  if (manifest?.format !== BUNDLE_FORMAT || !READABLE_BUNDLE_VERSIONS.has(bundleVersion)) {
     throw new Error('Unsupported annotator bundle format.');
   }
   validateBundleManifest(manifest);
@@ -91,6 +96,8 @@ export function readAnnotatorBundleFiles(files) {
       data: entry.data,
       mimeType: mimeTypeForPath(entry.path)
     }));
+  if (bundleVersion === 2) validateBundleV2NotesAndImages(notes, assets);
+  else validateBundleV1HasNoImageBlocks(notes);
   const allowedFixedPaths = new Set(['manifest.json', 'annotations.json', 'quick-marks.json', sourcePath]);
   for (const entry of files) {
     if (allowedFixedPaths.has(entry.path)) continue;
@@ -178,6 +185,7 @@ export function bundleFiles(bundleData) {
   const annotations = [];
   const annotationIds = new Set();
   const notePaths = new Set();
+  const referencedNoteImages = new Map();
   for (const annotation of bundleData.annotations || []) {
     if (!isPlainObject(annotation) || !nonEmptyString(annotation.id)) {
       throw new Error('Bundle annotations must each have a valid id.');
@@ -198,8 +206,20 @@ export function bundleFiles(bundleData) {
         path: notePath
       }
     });
+    const normalizedNote = normalizeNoteForBundleV2(note || defaultNote());
+    for (const block of normalizedNote.blocks) {
+      if (block.type !== 'image') continue;
+      const existing = referencedNoteImages.get(block.assetPath);
+      if (existing
+        && (existing.mimeType !== block.mimeType
+          || existing.intrinsicWidth !== block.intrinsicWidth
+          || existing.intrinsicHeight !== block.intrinsicHeight)) {
+        throw new Error(`Bundle note picture metadata disagrees for ${block.assetPath}.`);
+      }
+      referencedNoteImages.set(block.assetPath, block);
+    }
     files.push(textFile(notePath, JSON.stringify({
-      note: note || defaultNote(),
+      note: normalizedNote,
       updatedAt: annotation.updatedAt || now
     }, null, 2) + '\n'));
   }
@@ -213,14 +233,24 @@ export function bundleFiles(bundleData) {
       colorIndex: quickMarks.colorIndex
     }, null, 2) + '\n'));
   }
+  const writtenNoteImages = new Set();
   for (const asset of bundleData.assets || []) {
     const path = normalizeBundlePath(asset.path);
     if (!path) continue;
+    const referencedBlock = referencedNoteImages.get(path);
+    if (asset.kind === 'note-image' && !referencedBlock) continue;
+    if (referencedBlock) {
+      validatePortableNoteImageAsset(path, bytesFromAsset(asset), referencedBlock);
+      writtenNoteImages.add(path);
+    }
     files.push({
       path: `assets/${path}`,
       data: bytesFromAsset(asset),
       lastModified: asset.updatedAt ? new Date(asset.updatedAt) : new Date()
     });
+  }
+  for (const path of referencedNoteImages.keys()) {
+    if (!writtenNoteImages.has(path)) throw new Error(`Bundle is missing the referenced note picture: ${path}.`);
   }
   return files;
 }
@@ -653,11 +683,392 @@ function defaultNote() {
   return { title: '', markdown: '', ink: { strokes: [] }, blocks: [] };
 }
 
+function normalizeNoteForBundleV2(note) {
+  if (!isPlainObject(note)) throw new Error('Bundle note must be an object.');
+  const inputBlocks = Array.isArray(note.blocks) ? note.blocks : [];
+  let sourceBlocks = inputBlocks;
+  if (!sourceBlocks.length) {
+    sourceBlocks = [];
+    const legacyInk = isPlainObject(note.ink) ? note.ink : { strokes: [] };
+    if (String(note.markdown || '') || !Array.isArray(legacyInk.strokes) || !legacyInk.strokes.length) {
+      sourceBlocks.push({ type: 'text', markdown: String(note.markdown || '') });
+    }
+    if (Array.isArray(legacyInk.strokes) && legacyInk.strokes.length) sourceBlocks.push({ type: 'ink', ink: legacyInk });
+  }
+  const usedIds = new Set();
+  const blocks = sourceBlocks.map((block, index) => {
+    if (!isPlainObject(block)) throw new Error(`Bundle note block ${index + 1} must be an object.`);
+    let normalized;
+    if (block.type === 'blank') {
+      normalized = { type: 'blank' };
+    } else if (block.type === 'text') {
+      normalized = { type: 'text', markdown: String(block.markdown || '') };
+    } else if (block.type === 'ink') {
+      if (!isPlainObject(block.ink)) throw new Error(`Bundle ink block ${index + 1} has invalid ink data.`);
+      normalized = { type: 'ink', ink: block.ink };
+    } else if (block.type === 'image') {
+      validatePortableImageBlock(block, index);
+      normalized = {
+        type: 'image',
+        assetPath: block.assetPath,
+        mimeType: block.mimeType,
+        intrinsicWidth: Number(block.intrinsicWidth),
+        intrinsicHeight: Number(block.intrinsicHeight),
+        alt: block.alt,
+        originalName: block.originalName
+      };
+    } else {
+      throw new Error(`Bundle note block ${index + 1} has an unsupported type.`);
+    }
+    let id = validPortableBlockId(block.id)
+      ? String(block.id)
+      : `blk_${portableShortHash(`${index}:${JSON.stringify(normalized)}`)}`;
+    const base = id;
+    let suffix = 2;
+    while (usedIds.has(id)) {
+      id = `${base}-${suffix}`;
+      suffix += 1;
+    }
+    usedIds.add(id);
+    return { id, ...normalized };
+  });
+  const firstText = blocks.find((block) => block.type === 'text');
+  const firstInk = blocks.find((block) => block.type === 'ink');
+  return {
+    title: String(note.title || ''),
+    schemaVersion: NOTE_SCHEMA_VERSION,
+    markdown: firstText?.markdown || '',
+    ink: firstInk?.ink || { strokes: [] },
+    blocks
+  };
+}
+
+function validateBundleV2NotesAndImages(notes, assets) {
+  const referenced = new Map();
+  for (const [annotationId, note] of Object.entries(notes || {})) {
+    if (!isPlainObject(note) || Number(note.schemaVersion) !== NOTE_SCHEMA_VERSION || !Array.isArray(note.blocks)) {
+      throw new Error(`Bundle v2 note ${annotationId} must use note schema version 2.`);
+    }
+    if (typeof note.title !== 'string' || typeof note.markdown !== 'string' || !isPlainObject(note.ink)) {
+      throw new Error(`Bundle v2 note ${annotationId} has invalid legacy mirror fields.`);
+    }
+    const ids = new Set();
+    for (const [index, block] of note.blocks.entries()) {
+      if (!isPlainObject(block) || !validPortableBlockId(block.id)) {
+        throw new Error(`Bundle v2 note ${annotationId} block ${index + 1} has an invalid id.`);
+      }
+      if (ids.has(block.id)) throw new Error(`Bundle v2 note ${annotationId} contains duplicate block id: ${block.id}.`);
+      ids.add(block.id);
+      if (block.type === 'blank') continue;
+      if (block.type === 'text') {
+        if (typeof block.markdown !== 'string') throw new Error(`Bundle v2 text block ${block.id} has invalid Markdown source.`);
+        continue;
+      }
+      if (block.type === 'ink') {
+        if (!isPlainObject(block.ink)) throw new Error(`Bundle v2 ink block ${block.id} has invalid ink data.`);
+        continue;
+      }
+      if (block.type !== 'image') throw new Error(`Bundle v2 note block ${block.id} has an unsupported type.`);
+      validatePortableImageBlock(block, index);
+      const existing = referenced.get(block.assetPath);
+      if (existing
+        && (existing.mimeType !== block.mimeType
+          || existing.intrinsicWidth !== Number(block.intrinsicWidth)
+          || existing.intrinsicHeight !== Number(block.intrinsicHeight))) {
+        throw new Error(`Bundle note picture metadata disagrees for ${block.assetPath}.`);
+      }
+      referenced.set(block.assetPath, block);
+    }
+    const firstText = note.blocks.find((block) => block.type === 'text');
+    const firstInk = note.blocks.find((block) => block.type === 'ink');
+    if (note.markdown !== (firstText?.markdown || '')
+      || !portableJsonEqual(note.ink, firstInk?.ink || { strokes: [] })) {
+      throw new Error(`Bundle v2 note ${annotationId} has stale legacy mirror fields.`);
+    }
+  }
+  const assetsByPath = new Map((assets || []).map((asset) => [asset.path, asset]));
+  for (const [path, block] of referenced) {
+    const asset = assetsByPath.get(path);
+    if (!asset) throw new Error(`Bundle is missing the referenced note picture: ${path}.`);
+    validatePortableNoteImageAsset(path, asset.data, block);
+  }
+}
+
+function validateBundleV1HasNoImageBlocks(notes) {
+  for (const [annotationId, note] of Object.entries(notes || {})) {
+    if ((note?.blocks || []).some((block) => block?.type === 'image')) {
+      throw new Error(`Bundle v1 note ${annotationId} cannot contain image blocks.`);
+    }
+  }
+}
+
+function validatePortableImageBlock(block, index = 0) {
+  if (!isPortableNoteImagePath(block.assetPath)) {
+    throw new Error(`Bundle image block ${index + 1} has an invalid note picture path.`);
+  }
+  const expectedMime = noteImageMimeTypeForPath(block.assetPath);
+  const width = Number(block.intrinsicWidth);
+  const height = Number(block.intrinsicHeight);
+  if (block.mimeType !== expectedMime
+    || !Number.isSafeInteger(width)
+    || width <= 0
+    || !Number.isSafeInteger(height)
+    || height <= 0
+    || width * height > NOTE_IMAGE_MAX_PIXELS) {
+    throw new Error(`Bundle image block ${index + 1} has invalid picture metadata.`);
+  }
+  if (typeof block.alt !== 'string' || typeof block.originalName !== 'string') {
+    throw new Error(`Bundle image block ${index + 1} has invalid picture text metadata.`);
+  }
+}
+
+function validatePortableNoteImageAsset(path, data, expectedBlock = null) {
+  if (!isPortableNoteImagePath(path)) throw new Error(`Bundle has an invalid note picture path: ${path}.`);
+  if (!(data instanceof Uint8Array) || !data.byteLength || data.byteLength > NOTE_IMAGE_MAX_BYTES) {
+    throw new Error(`Bundle note picture ${path} has an invalid byte length.`);
+  }
+  const metadata = portableImageMetadata(data);
+  if (metadata.mimeType !== noteImageMimeTypeForPath(path)) {
+    throw new Error(`Bundle note picture ${path} does not match its extension.`);
+  }
+  if (metadata.intrinsicWidth * metadata.intrinsicHeight > NOTE_IMAGE_MAX_PIXELS) {
+    throw new Error(`Bundle note picture ${path} exceeds the 40 megapixel limit.`);
+  }
+  if (expectedBlock
+    && (metadata.mimeType !== expectedBlock.mimeType
+      || metadata.intrinsicWidth !== Number(expectedBlock.intrinsicWidth)
+      || metadata.intrinsicHeight !== Number(expectedBlock.intrinsicHeight))) {
+    throw new Error(`Bundle note picture ${path} does not match its declared dimensions.`);
+  }
+  return metadata;
+}
+
+function portableImageMetadata(bytes) {
+  if (hasBytes(bytes, 0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return portablePngMetadata(bytes);
+  if (bytes.length >= 4
+    && bytes[0] === 0xff && bytes[1] === 0xd8
+    && bytes[bytes.length - 2] === 0xff && bytes[bytes.length - 1] === 0xd9) return portableJpegMetadata(bytes);
+  if (bytes.length >= 16 && asciiBytes(bytes, 0, 4) === 'RIFF' && asciiBytes(bytes, 8, 4) === 'WEBP') {
+    if (portableLe32(bytes, 4) + 8 !== bytes.length) throw new Error('Bundle WebP note picture has invalid RIFF bounds.');
+    return portableWebpMetadata(bytes);
+  }
+  throw new Error('Bundle note picture has an unsupported or corrupt signature.');
+}
+
+function portablePngMetadata(bytes) {
+  let offset = 8;
+  let dimensions = null;
+  let sawImageData = false;
+  while (offset + 12 <= bytes.length) {
+    const length = portableBe32(bytes, offset);
+    const type = asciiBytes(bytes, offset + 4, 4);
+    const dataStart = offset + 8;
+    const dataEnd = dataStart + length;
+    const chunkEnd = dataEnd + 4;
+    if (!Number.isSafeInteger(length) || dataEnd < dataStart || chunkEnd > bytes.length) {
+      throw new Error('Bundle PNG note picture has invalid chunk bounds.');
+    }
+    const declaredCrc = portableBe32(bytes, dataEnd);
+    const actualCrc = crc32(bytes.slice(offset + 4, dataEnd));
+    if (declaredCrc !== actualCrc) throw new Error(`Bundle PNG note picture has an invalid ${type || 'unknown'} chunk checksum.`);
+    if (!dimensions) {
+      if (type !== 'IHDR' || length !== 13) throw new Error('Bundle PNG note picture must begin with a complete IHDR chunk.');
+      dimensions = checkedPortableDimensions('image/png', portableBe32(bytes, dataStart), portableBe32(bytes, dataStart + 4));
+    }
+    if (type === 'IDAT') sawImageData = true;
+    if (type === 'IEND') {
+      if (length !== 0 || !sawImageData || chunkEnd !== bytes.length) {
+        throw new Error('Bundle PNG note picture has an invalid IEND or image-data sequence.');
+      }
+      return dimensions;
+    }
+    offset = chunkEnd;
+  }
+  throw new Error('Bundle PNG note picture is truncated or missing IEND.');
+}
+
+function portableJpegMetadata(bytes) {
+  const sofMarkers = new Set([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf]);
+  let offset = 2;
+  let orientation = 1;
+  let dimensions = null;
+  let sawScan = false;
+  while (offset + 4 <= bytes.length) {
+    while (offset < bytes.length && bytes[offset] === 0xff) offset += 1;
+    const marker = bytes[offset++];
+    if (marker === 0xd9) break;
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+    if (offset + 2 > bytes.length) break;
+    const length = (bytes[offset] << 8) | bytes[offset + 1];
+    if (length < 2 || offset + length > bytes.length) break;
+    if (marker === 0xda) {
+      sawScan = offset + length < bytes.length - 2;
+      break;
+    }
+    if (marker === 0xe1) orientation = portableJpegExifOrientation(bytes, offset + 2, offset + length) || orientation;
+    if (sofMarkers.has(marker) && length >= 7) {
+      const height = (bytes[offset + 3] << 8) | bytes[offset + 4];
+      const width = (bytes[offset + 5] << 8) | bytes[offset + 6];
+      dimensions = { width, height };
+    }
+    offset += length;
+  }
+  if (dimensions && sawScan) {
+    const swapsAxes = orientation >= 5 && orientation <= 8;
+    return checkedPortableDimensions(
+      'image/jpeg',
+      swapsAxes ? dimensions.height : dimensions.width,
+      swapsAxes ? dimensions.width : dimensions.height
+    );
+  }
+  throw new Error('Bundle JPEG note picture has no valid size header.');
+}
+
+function portableJpegExifOrientation(bytes, start, end) {
+  if (end - start < 14 || asciiBytes(bytes, start, 6) !== 'Exif\u0000\u0000') return 0;
+  const tiff = start + 6;
+  const byteOrder = asciiBytes(bytes, tiff, 2);
+  const littleEndian = byteOrder === 'II';
+  if (!littleEndian && byteOrder !== 'MM') return 0;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const read16 = (offset) => offset >= tiff && offset + 2 <= end ? view.getUint16(offset, littleEndian) : NaN;
+  const read32 = (offset) => offset >= tiff && offset + 4 <= end ? view.getUint32(offset, littleEndian) : NaN;
+  if (read16(tiff + 2) !== 42) return 0;
+  const ifd = tiff + read32(tiff + 4);
+  const count = read16(ifd);
+  if (!Number.isSafeInteger(count) || count > 4096) return 0;
+  for (let index = 0; index < count; index += 1) {
+    const entry = ifd + 2 + index * 12;
+    if (entry + 12 > end) return 0;
+    if (read16(entry) !== 0x0112 || read16(entry + 2) !== 3 || read32(entry + 4) !== 1) continue;
+    const orientation = read16(entry + 8);
+    return orientation >= 1 && orientation <= 8 ? orientation : 0;
+  }
+  return 0;
+}
+
+function portableWebpMetadata(bytes) {
+  let offset = 12;
+  let declaredDimensions = null;
+  let payloadDimensions = null;
+  while (offset + 8 <= bytes.length) {
+    const type = asciiBytes(bytes, offset, 4);
+    const length = portableLe32(bytes, offset + 4);
+    const payload = offset + 8;
+    if (!Number.isSafeInteger(length) || payload + length > bytes.length) break;
+    if (type === 'VP8X' && length >= 10) {
+      declaredDimensions = checkedPortableDimensions(
+        'image/webp',
+        1 + portableLe24(bytes, payload + 4),
+        1 + portableLe24(bytes, payload + 7)
+      );
+    }
+    if (type === 'VP8 ' && length >= 10
+      && bytes[payload + 3] === 0x9d && bytes[payload + 4] === 0x01 && bytes[payload + 5] === 0x2a) {
+      payloadDimensions = checkedPortableDimensions(
+        'image/webp',
+        (bytes[payload + 6] | (bytes[payload + 7] << 8)) & 0x3fff,
+        (bytes[payload + 8] | (bytes[payload + 9] << 8)) & 0x3fff
+      );
+    }
+    if (type === 'VP8L' && length >= 5 && bytes[payload] === 0x2f) {
+      const bits = portableLe32(bytes, payload + 1);
+      payloadDimensions = checkedPortableDimensions('image/webp', (bits & 0x3fff) + 1, ((bits >>> 14) & 0x3fff) + 1);
+    }
+    offset = payload + length + (length % 2);
+  }
+  if (offset !== bytes.length || !payloadDimensions) {
+    throw new Error('Bundle WebP note picture has invalid chunk bounds or no image payload.');
+  }
+  if (declaredDimensions
+    && (declaredDimensions.intrinsicWidth !== payloadDimensions.intrinsicWidth
+      || declaredDimensions.intrinsicHeight !== payloadDimensions.intrinsicHeight)) {
+    throw new Error('Bundle WebP note picture canvas dimensions disagree with its image payload.');
+  }
+  if (payloadDimensions) return declaredDimensions || payloadDimensions;
+  throw new Error('Bundle WebP note picture has no valid size header.');
+}
+
+function checkedPortableDimensions(mimeType, intrinsicWidth, intrinsicHeight) {
+  if (!Number.isSafeInteger(intrinsicWidth) || intrinsicWidth <= 0
+    || !Number.isSafeInteger(intrinsicHeight) || intrinsicHeight <= 0) {
+    throw new Error('Bundle note picture has invalid intrinsic dimensions.');
+  }
+  return { mimeType, intrinsicWidth, intrinsicHeight };
+}
+
+function isPortableNoteImagePath(value) {
+  return typeof value === 'string'
+    && /^note-images\/img_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:png|jpg|webp)$/.test(value);
+}
+
+function noteImageMimeTypeForPath(path) {
+  if (/\.png$/.test(path || '')) return 'image/png';
+  if (/\.jpg$/.test(path || '')) return 'image/jpeg';
+  if (/\.webp$/.test(path || '')) return 'image/webp';
+  return '';
+}
+
+function validPortableBlockId(value) {
+  return typeof value === 'string' && /^blk_[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(value);
+}
+
+function portableShortHash(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+function portableJsonEqual(a, b) {
+  if (Object.is(a, b)) return true;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b)
+      && a.length === b.length
+      && a.every((value, index) => portableJsonEqual(value, b[index]));
+  }
+  if (!isPlainObject(a) || !isPlainObject(b)) return false;
+  const aKeys = Object.keys(a).sort();
+  const bKeys = Object.keys(b).sort();
+  return aKeys.length === bKeys.length
+    && aKeys.every((key, index) => key === bKeys[index] && portableJsonEqual(a[key], b[key]));
+}
+
+function hasBytes(bytes, offset, expected) {
+  return offset >= 0 && offset + expected.length <= bytes.length
+    && expected.every((byte, index) => bytes[offset + index] === byte);
+}
+
+function asciiBytes(bytes, offset, length) {
+  if (offset < 0 || offset + length > bytes.length) return '';
+  let value = '';
+  for (let index = 0; index < length; index += 1) value += String.fromCharCode(bytes[offset + index]);
+  return value;
+}
+
+function portableLe24(bytes, offset) {
+  if (offset < 0 || offset + 3 > bytes.length) return NaN;
+  return bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16);
+}
+
+function portableLe32(bytes, offset) {
+  if (offset < 0 || offset + 4 > bytes.length) return NaN;
+  return new DataView(bytes.buffer, bytes.byteOffset + offset, 4).getUint32(0, true);
+}
+
+function portableBe32(bytes, offset) {
+  if (offset < 0 || offset + 4 > bytes.length) return NaN;
+  return new DataView(bytes.buffer, bytes.byteOffset + offset, 4).getUint32(0, false);
+}
+
 function mimeTypeForPath(path) {
   if (/\.png$/i.test(path)) return 'image/png';
   if (/\.jpe?g$/i.test(path)) return 'image/jpeg';
   if (/\.gif$/i.test(path)) return 'image/gif';
   if (/\.svg$/i.test(path)) return 'image/svg+xml';
+  if (/\.webp$/i.test(path)) return 'image/webp';
   if (/\.css$/i.test(path)) return 'text/css';
   if (/\.js$/i.test(path)) return 'text/javascript';
   return 'application/octet-stream';

@@ -716,6 +716,18 @@ body.has-pinned-note .notes-tab-arrow {
   outline: none;
 }
 
+.split-side-note-body.is-rendered {
+  white-space: normal;
+}
+
+.split-side-note-body.is-rendered > :first-child {
+  margin-top: 0;
+}
+
+.split-side-note-body.is-rendered > :last-child {
+  margin-bottom: 0;
+}
+
 .split-side-note-title:empty::before,
 .split-side-note-body:empty::before {
   content: attr(data-placeholder);
@@ -764,7 +776,10 @@ body.has-pinned-note .notes-tab-arrow {
 
 .split-side-note.is-collapsed .split-side-note-body,
 .split-side-note.is-collapsed .split-side-note-ink-wrap,
+.split-side-note.is-collapsed .split-side-note-text-block,
+.split-side-note.is-collapsed .split-side-note-image-block,
 .split-side-note.is-collapsed .split-note-block-tools,
+.split-side-note.is-collapsed .split-note-insertion-row,
 .split-side-note.is-collapsed .split-side-note-status {
   display: none !important;
 }
@@ -863,6 +878,136 @@ body.has-pinned-note .notes-tab-arrow {
   color: #7a3d00;
   font: inherit;
   cursor: pointer;
+}
+
+.split-side-note-text-block {
+  position: relative;
+  clear: both;
+}
+
+.split-side-note-text-mode {
+  display: block;
+  margin: 0.18rem 0 0.32rem auto;
+  border: 1px solid #d8c7a8;
+  border-radius: 4px;
+  padding: 0.16rem 0.38rem;
+  background: #fffdf8;
+  color: #7a3d00;
+  font: 11px/1.2 ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.split-note-insertion-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+  clear: both;
+  margin: 0.38rem 0;
+  color: #7b6a55;
+  font: 11px/1.2 ui-sans-serif, system-ui, sans-serif;
+}
+
+.split-note-insertion-row button {
+  border: 1px solid #d8c7a8;
+  border-radius: 4px;
+  padding: 0.18rem 0.38rem;
+  background: #fffdf8;
+  color: #7a3d00;
+  font: inherit;
+  cursor: pointer;
+}
+
+.split-side-note-image-block,
+.note-card-image-block {
+  width: 100%;
+  margin: 0.38rem 0;
+}
+
+.split-side-note-image-frame,
+.note-card-image-block .reader-side-note-image-frame {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  margin-inline: auto;
+  overflow: hidden;
+  border: 1px solid #e2d5bd;
+  border-radius: 4px;
+  background: rgba(255, 253, 248, 0.72);
+}
+
+.split-side-note-image,
+.note-card-image-block .reader-side-note-image {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.split-side-note-image-placeholder,
+.note-card-image-block .reader-side-note-image-placeholder {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 0.65rem;
+  color: #7b6a55;
+  font: 12px/1.35 ui-sans-serif, system-ui, sans-serif;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.split-side-note-image-alt {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.24rem;
+  color: #7b6a55;
+  font: 11px/1.2 ui-sans-serif, system-ui, sans-serif;
+}
+
+.split-side-note-image-alt input {
+  min-width: 0;
+  border: 1px solid #d8c7a8;
+  border-radius: 4px;
+  padding: 0.18rem 0.3rem;
+  background: #fffdf8;
+  color: #151515;
+}
+
+.note-markdown-math-display {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.note-markdown-math-error {
+  display: inline-block;
+  max-width: 100%;
+  color: #9b2f23;
+  overflow-wrap: anywhere;
+}
+
+.note-markdown pre {
+  max-width: 100%;
+  overflow: auto;
+  padding: 0.45rem;
+  border-radius: 4px;
+  background: rgba(52, 38, 18, 0.06);
+}
+
+.note-markdown code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88em;
+  overflow-wrap: anywhere;
+}
+
+.note-markdown a {
+  color: #7a3d00;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.14em;
 }
 
 .split-notes-empty {

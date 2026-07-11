@@ -11,8 +11,12 @@ import {
 import { encodeInkForStorage } from './ink-codec.js';
 
 const DB_NAME = 'annotator-reader';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const DOCUMENT_NOTE_STATS_VERSION = 1;
+const NOTE_SCHEMA_VERSION = 2;
+const NOTE_IMAGE_KIND = 'note-image';
+const NOTE_IMAGE_MAX_BYTES = 20 * 1024 * 1024;
+const NOTE_IMAGE_MAX_PIXELS = 40 * 1000 * 1000;
 const APP_META_LAST_OPEN_DOCUMENT = 'lastOpenDocument';
 const APP_META_CURRENT_LIBRARY = 'currentLibrary';
 const APP_META_LOCAL_PROFILE = 'localProfile';
@@ -30,6 +34,10 @@ export function createStorageAdapter(options = {}) {
 export class IndexedDbStorageAdapter {
   mode = 'indexeddb';
   blobUrls = new Map();
+  noteImageUrls = new Map();
+  noteImageUrlLoads = new Map();
+  noteImageUrlGeneration = 0;
+  noteImageUrlInvalidations = new Map();
 
   async listDocuments() {
     const db = await openDb();
@@ -89,6 +97,7 @@ export class IndexedDbStorageAdapter {
     if (!doc) throw new Error(`Document not found: ${docId}`);
     for (const urls of this.blobUrls.values()) revokeBlobUrls(urls);
     this.blobUrls.clear();
+    this.revokeAllNoteImageUrls();
     const urls = [];
     if (doc.sourceType === 'pdf') {
       const pdfUrl = URL.createObjectURL(new Blob([doc.sourceBytes || new Uint8Array()], { type: 'application/pdf' }));
@@ -106,7 +115,8 @@ export class IndexedDbStorageAdapter {
       this.blobUrls.set(docId, urls);
       return url;
     }
-    const assets = await readIndexAll(db, 'documentAssets', 'docId', docId);
+    const assets = (await readIndexAll(db, 'documentAssets', 'docId', docId))
+      .filter((asset) => asset?.kind !== NOTE_IMAGE_KIND);
     const renderedHtml = htmlWithResolvedAssets(html, doc.sourcePath, assets, urls);
     const url = URL.createObjectURL(new Blob([renderedHtml], { type: 'text/html' }));
     urls.push(url);
@@ -176,6 +186,123 @@ export class IndexedDbStorageAdapter {
     });
     await this.writeHydratedAnnotation(annotation);
     return annotation;
+  }
+
+  async insertNoteImage(docId, annotationId, file, options = {}) {
+    const validated = await validateNoteImageFile(file);
+    const assetPath = noteImageAssetPath(validated.extension);
+    const block = normalizeNoteBlockForStorage({
+      id: options.blockId || newNoteBlockId(),
+      type: 'image',
+      assetPath,
+      mimeType: validated.mimeType,
+      intrinsicWidth: validated.intrinsicWidth,
+      intrinsicHeight: validated.intrinsicHeight,
+      alt: options.alt == null ? validated.alt : String(options.alt),
+      originalName: validated.originalName
+    });
+    const db = await openDb();
+    const annotation = await insertNoteImageTransaction(db, {
+      docId: String(docId || ''),
+      annotationId: String(annotationId || ''),
+      block,
+      beforeBlockId: options.beforeBlockId,
+      afterBlockId: options.afterBlockId,
+      asset: {
+        id: `${docId}:${assetPath}`,
+        docId: String(docId || ''),
+        path: assetPath,
+        kind: NOTE_IMAGE_KIND,
+        mimeType: validated.mimeType,
+        data: validated.data,
+        byteLength: validated.byteLength,
+        updatedAt: new Date().toISOString()
+      }
+    });
+    return { annotation, block };
+  }
+
+  async getNoteImageUrl(docId, assetPath) {
+    const normalizedDocId = String(docId || '');
+    const normalizedPath = normalizeNoteImagePath(assetPath);
+    if (!normalizedDocId || !normalizedPath) throw new Error('Invalid note image reference.');
+    const cacheKey = noteImageCacheKey(normalizedDocId, normalizedPath);
+    const cached = this.noteImageUrls.get(cacheKey);
+    if (cached) {
+      return cached.url;
+    }
+    const existingLoad = this.noteImageUrlLoads.get(cacheKey);
+    if (existingLoad) return existingLoad;
+    const generation = this.noteImageUrlGeneration;
+    const keyGeneration = this.noteImageUrlInvalidations.get(cacheKey) || 0;
+    const load = (async () => {
+      const db = await openDb();
+      const asset = await readOne(db, 'documentAssets', `${normalizedDocId}:${normalizedPath}`);
+      if (generation !== this.noteImageUrlGeneration
+        || keyGeneration !== (this.noteImageUrlInvalidations.get(cacheKey) || 0)) {
+        throw new Error('The note picture request is stale.');
+      }
+      if (!asset
+        || String(asset.docId || '') !== normalizedDocId
+        || asset.path !== normalizedPath
+        || asset.kind !== NOTE_IMAGE_KIND) {
+        throw new Error('This note picture is missing from browser storage.');
+      }
+      const mimeType = noteImageMimeTypeForPath(normalizedPath);
+      if (!mimeType || asset.mimeType !== mimeType) throw new Error('This note picture has invalid stored metadata.');
+      const url = URL.createObjectURL(new Blob([asset.data], { type: mimeType }));
+      if (generation !== this.noteImageUrlGeneration
+        || keyGeneration !== (this.noteImageUrlInvalidations.get(cacheKey) || 0)) {
+        revokeBlobUrls(url);
+        throw new Error('The note picture request is stale.');
+      }
+      this.noteImageUrls.set(cacheKey, { url, docId: normalizedDocId, assetPath: normalizedPath });
+      return url;
+    })();
+    this.noteImageUrlLoads.set(cacheKey, load);
+    try {
+      return await load;
+    } finally {
+      if (this.noteImageUrlLoads.get(cacheKey) === load) this.noteImageUrlLoads.delete(cacheKey);
+    }
+  }
+
+  revokeNoteImageUrl(docId, assetPath = null) {
+    const normalizedDocId = String(docId || '');
+    const normalizedPath = assetPath == null ? '' : normalizeNoteImagePath(assetPath);
+    if (normalizedPath) {
+      const cacheKey = noteImageCacheKey(normalizedDocId, normalizedPath);
+      this.noteImageUrlInvalidations.set(cacheKey, (this.noteImageUrlInvalidations.get(cacheKey) || 0) + 1);
+    } else {
+      this.noteImageUrlGeneration += 1;
+    }
+    if (assetPath != null && !normalizedPath) return 0;
+    let revoked = 0;
+    for (const [key, entry] of this.noteImageUrls) {
+      if (entry.docId !== normalizedDocId || (normalizedPath && entry.assetPath !== normalizedPath)) continue;
+      revokeBlobUrls(entry.url);
+      this.noteImageUrls.delete(key);
+      revoked += 1;
+    }
+    return revoked;
+  }
+
+  revokeAllNoteImageUrls() {
+    this.noteImageUrlGeneration += 1;
+    this.noteImageUrlInvalidations.clear();
+    const count = this.noteImageUrls.size;
+    for (const entry of this.noteImageUrls.values()) revokeBlobUrls(entry.url);
+    this.noteImageUrls.clear();
+    return count;
+  }
+
+  async sweepUnreferencedNoteImages(docId) {
+    const normalizedDocId = String(docId || '');
+    if (!normalizedDocId) return 0;
+    const db = await openDb();
+    const deletedPaths = await sweepUnreferencedNoteImagesTransaction(db, normalizedDocId);
+    for (const path of deletedPaths) this.revokeNoteImageUrl(normalizedDocId, path);
+    return deletedPaths.length;
   }
 
   async deleteAnnotation(docId, annotationId) {
@@ -610,7 +737,10 @@ export class IndexedDbStorageAdapter {
     const document = normalizeStoredDocument(await readOne(db, 'documents', docId));
     if (!document) throw new Error(`Document not found: ${docId}`);
     const annotations = await this.getAnnotations(docId);
-    const assets = await readIndexAll(db, 'documentAssets', 'docId', docId);
+    const referencedNoteImages = referencedNoteImagePaths(annotations);
+    const assets = (await readIndexAll(db, 'documentAssets', 'docId', docId)).filter((asset) => (
+      asset?.kind !== NOTE_IMAGE_KIND || referencedNoteImages.has(asset.path)
+    ));
     const quickMarks = await this.getQuickMarks(docId);
     return createAnnotatorBundleArchive({
       document,
@@ -855,6 +985,7 @@ export class IndexedDbStorageAdapter {
     clearBrowserStateKeys(sessionStorage, [`reader-scroll:${docId}`]);
     revokeBlobUrls(this.blobUrls.get(docId));
     this.blobUrls.delete(docId);
+    this.revokeNoteImageUrl(docId);
     return true;
   }
 
@@ -968,12 +1099,15 @@ export function planBundleImport(bundle, usedDocumentIds = new Set(), usedAnnota
       docId: document.id
     });
   });
+  const noteImagePaths = referencedNoteImagePaths(annotations);
   const assets = (bundle?.assets || []).map((asset) => ({
     id: `${document.id}:${asset.path}`,
     docId: document.id,
     path: asset.path,
+    ...(noteImagePaths.has(asset.path) ? { kind: NOTE_IMAGE_KIND } : {}),
     data: asset.data,
-    mimeType: asset.mimeType || 'application/octet-stream'
+    mimeType: asset.mimeType || 'application/octet-stream',
+    byteLength: asset.data?.byteLength ?? asset.data?.length ?? 0
   }));
   return {
     document,
@@ -1481,6 +1615,281 @@ function readLegacyQuickMarks(docId) {
   }
 }
 
+export async function validateNoteImageFile(file) {
+  if (!file || typeof file.arrayBuffer !== 'function') throw new Error('Choose a PNG, JPEG, or WebP picture.');
+  const declaredSize = Number(file.size);
+  if (Number.isFinite(declaredSize) && declaredSize > NOTE_IMAGE_MAX_BYTES) {
+    throw new Error('Pictures must be 20 MiB or smaller.');
+  }
+  const data = new Uint8Array(await file.arrayBuffer());
+  if (!data.byteLength) throw new Error('The selected picture is empty.');
+  if (data.byteLength > NOTE_IMAGE_MAX_BYTES) {
+    throw new Error('Pictures must be 20 MiB or smaller.');
+  }
+  const metadata = noteImageMetadataFromBytes(data);
+  const declaredType = String(file.type || '').toLowerCase();
+  if (declaredType && declaredType !== metadata.mimeType) {
+    throw new Error(`The picture contents do not match its declared ${declaredType} type.`);
+  }
+  const pixels = metadata.intrinsicWidth * metadata.intrinsicHeight;
+  if (!Number.isSafeInteger(pixels) || pixels > NOTE_IMAGE_MAX_PIXELS) {
+    throw new Error('Pictures must contain no more than 40 megapixels.');
+  }
+  await verifyNoteImageDecode(file, data, metadata);
+  const originalName = sanitizeNoteImageFilename(file.name, metadata.mimeType);
+  return {
+    data,
+    byteLength: data.byteLength,
+    mimeType: metadata.mimeType,
+    extension: metadata.extension,
+    intrinsicWidth: metadata.intrinsicWidth,
+    intrinsicHeight: metadata.intrinsicHeight,
+    originalName,
+    alt: defaultNoteImageAlt(originalName)
+  };
+}
+
+export function noteImageMetadataFromBytes(input) {
+  const bytes = input instanceof Uint8Array ? input : new Uint8Array(input || []);
+  if (isPngBytes(bytes)) return pngMetadata(bytes);
+  if (isJpegBytes(bytes)) return jpegMetadata(bytes);
+  if (isWebpBytes(bytes)) return webpMetadata(bytes);
+  throw new Error('Only PNG, JPEG, and WebP pictures are supported.');
+}
+
+function isPngBytes(bytes) {
+  const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  return bytes.length >= 24 && signature.every((byte, index) => bytes[index] === byte);
+}
+
+function pngMetadata(bytes) {
+  if (asciiAt(bytes, 12, 4) !== 'IHDR') throw new Error('The PNG picture has an invalid header.');
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return checkedNoteImageMetadata('image/png', 'png', view.getUint32(16), view.getUint32(20));
+}
+
+function isJpegBytes(bytes) {
+  return bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[bytes.length - 2] === 0xff && bytes[bytes.length - 1] === 0xd9;
+}
+
+function jpegMetadata(bytes) {
+  const sofMarkers = new Set([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf]);
+  let offset = 2;
+  let orientation = 1;
+  let dimensions = null;
+  while (offset + 4 <= bytes.length) {
+    while (offset < bytes.length && bytes[offset] === 0xff) offset += 1;
+    const marker = bytes[offset];
+    offset += 1;
+    if (marker === 0xd9 || marker === 0xda) break;
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+    if (offset + 2 > bytes.length) break;
+    const length = (bytes[offset] << 8) | bytes[offset + 1];
+    if (length < 2 || offset + length > bytes.length) break;
+    if (marker === 0xe1) orientation = jpegExifOrientation(bytes, offset + 2, offset + length) || orientation;
+    if (sofMarkers.has(marker)) {
+      if (length < 7) break;
+      const height = (bytes[offset + 3] << 8) | bytes[offset + 4];
+      const width = (bytes[offset + 5] << 8) | bytes[offset + 6];
+      dimensions = { width, height };
+    }
+    offset += length;
+  }
+  if (dimensions) {
+    const swapsAxes = orientation >= 5 && orientation <= 8;
+    return checkedNoteImageMetadata(
+      'image/jpeg',
+      'jpg',
+      swapsAxes ? dimensions.height : dimensions.width,
+      swapsAxes ? dimensions.width : dimensions.height
+    );
+  }
+  throw new Error('The JPEG picture has no valid size header.');
+}
+
+function jpegExifOrientation(bytes, start, end) {
+  if (end - start < 14 || asciiAt(bytes, start, 6) !== 'Exif\u0000\u0000') return 0;
+  const tiff = start + 6;
+  const byteOrder = asciiAt(bytes, tiff, 2);
+  const littleEndian = byteOrder === 'II';
+  if (!littleEndian && byteOrder !== 'MM') return 0;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const read16 = (offset) => offset >= tiff && offset + 2 <= end ? view.getUint16(offset, littleEndian) : NaN;
+  const read32 = (offset) => offset >= tiff && offset + 4 <= end ? view.getUint32(offset, littleEndian) : NaN;
+  if (read16(tiff + 2) !== 42) return 0;
+  const ifd = tiff + read32(tiff + 4);
+  const count = read16(ifd);
+  if (!Number.isSafeInteger(count) || count > 4096) return 0;
+  for (let index = 0; index < count; index += 1) {
+    const entry = ifd + 2 + index * 12;
+    if (entry + 12 > end) return 0;
+    if (read16(entry) !== 0x0112 || read16(entry + 2) !== 3 || read32(entry + 4) !== 1) continue;
+    const orientation = read16(entry + 8);
+    return orientation >= 1 && orientation <= 8 ? orientation : 0;
+  }
+  return 0;
+}
+
+function isWebpBytes(bytes) {
+  return bytes.length >= 30 && asciiAt(bytes, 0, 4) === 'RIFF' && asciiAt(bytes, 8, 4) === 'WEBP';
+}
+
+function webpMetadata(bytes) {
+  let offset = 12;
+  while (offset + 8 <= bytes.length) {
+    const type = asciiAt(bytes, offset, 4);
+    const length = readLe32At(bytes, offset + 4);
+    const payload = offset + 8;
+    if (!Number.isSafeInteger(length) || payload + length > bytes.length) break;
+    if (type === 'VP8X' && length >= 10) {
+      return checkedNoteImageMetadata(
+        'image/webp',
+        'webp',
+        1 + readLe24At(bytes, payload + 4),
+        1 + readLe24At(bytes, payload + 7)
+      );
+    }
+    if (type === 'VP8 ' && length >= 10
+      && bytes[payload + 3] === 0x9d && bytes[payload + 4] === 0x01 && bytes[payload + 5] === 0x2a) {
+      const width = (bytes[payload + 6] | (bytes[payload + 7] << 8)) & 0x3fff;
+      const height = (bytes[payload + 8] | (bytes[payload + 9] << 8)) & 0x3fff;
+      return checkedNoteImageMetadata('image/webp', 'webp', width, height);
+    }
+    if (type === 'VP8L' && length >= 5 && bytes[payload] === 0x2f) {
+      const bits = readLe32At(bytes, payload + 1);
+      const width = (bits & 0x3fff) + 1;
+      const height = ((bits >>> 14) & 0x3fff) + 1;
+      return checkedNoteImageMetadata('image/webp', 'webp', width, height);
+    }
+    offset = payload + length + (length % 2);
+  }
+  throw new Error('The WebP picture has no valid size header.');
+}
+
+function checkedNoteImageMetadata(mimeType, extension, intrinsicWidth, intrinsicHeight) {
+  const width = positiveInteger(intrinsicWidth);
+  const height = positiveInteger(intrinsicHeight);
+  if (!width || !height) throw new Error('The picture has invalid intrinsic dimensions.');
+  return { mimeType, extension, intrinsicWidth: width, intrinsicHeight: height };
+}
+
+async function verifyNoteImageDecode(file, bytes, expected) {
+  const blob = typeof Blob === 'function' && file instanceof Blob
+    ? file
+    : new Blob([bytes], { type: expected.mimeType });
+  if (typeof createImageBitmap === 'function') {
+    let bitmap = null;
+    try {
+      bitmap = await createImageBitmap(blob);
+      if (bitmap.width !== expected.intrinsicWidth || bitmap.height !== expected.intrinsicHeight) {
+        throw new Error('The decoded picture dimensions do not match its header.');
+      }
+      return;
+    } catch (error) {
+      if (/dimensions do not match/.test(error?.message || '')) throw error;
+      throw new Error('The selected picture could not be decoded.', { cause: error });
+    } finally {
+      bitmap?.close?.();
+    }
+  }
+  if (typeof Image !== 'function' || typeof URL?.createObjectURL !== 'function') return;
+  const url = URL.createObjectURL(blob);
+  try {
+    const dimensions = await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+      image.onerror = () => reject(new Error('decode failed'));
+      image.src = url;
+    });
+    if (dimensions.width !== expected.intrinsicWidth || dimensions.height !== expected.intrinsicHeight) {
+      throw new Error('The decoded picture dimensions do not match its header.');
+    }
+  } catch (error) {
+    if (/dimensions do not match/.test(error?.message || '')) throw error;
+    throw new Error('The selected picture could not be decoded.', { cause: error });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function noteImageAssetPath(extension) {
+  return `note-images/img_${crypto.randomUUID().toLowerCase()}.${extension}`;
+}
+
+function normalizeNoteImagePath(value) {
+  const path = String(value || '');
+  return /^note-images\/img_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:png|jpg|webp)$/.test(path)
+    ? path
+    : '';
+}
+
+function noteImageMimeTypeForPath(path) {
+  if (/\.png$/.test(path || '')) return 'image/png';
+  if (/\.jpg$/.test(path || '')) return 'image/jpeg';
+  if (/\.webp$/.test(path || '')) return 'image/webp';
+  return '';
+}
+
+function sanitizeNoteImageFilename(value, mimeType = '') {
+  const extension = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+  const fallback = `image.${extension}`;
+  const basename = String(value || fallback).replaceAll('\\', '/').split('/').pop() || fallback;
+  const safe = basename
+    .normalize('NFC')
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 180);
+  return safe && safe !== '.' && safe !== '..' ? safe : fallback;
+}
+
+function defaultNoteImageAlt(filename) {
+  return String(filename || 'Image')
+    .replace(/\.[^.]+$/, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 240) || 'Image';
+}
+
+function referencedNoteImagePaths(annotations) {
+  const paths = new Set();
+  for (const annotation of annotations || []) {
+    for (const block of annotation?.note?.blocks || []) {
+      if (block?.type !== 'image') continue;
+      const path = normalizeNoteImagePath(block.assetPath);
+      if (path) paths.add(path);
+    }
+  }
+  return paths;
+}
+
+function noteImageCacheKey(docId, assetPath) {
+  return `${docId}\u0000${assetPath}`;
+}
+
+function asciiAt(bytes, offset, length) {
+  if (offset < 0 || offset + length > bytes.length) return '';
+  let value = '';
+  for (let index = 0; index < length; index += 1) value += String.fromCharCode(bytes[offset + index]);
+  return value;
+}
+
+function readLe24At(bytes, offset) {
+  if (offset < 0 || offset + 3 > bytes.length) return NaN;
+  return bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16);
+}
+
+function readLe32At(bytes, offset) {
+  if (offset < 0 || offset + 4 > bytes.length) return NaN;
+  return new DataView(bytes.buffer, bytes.byteOffset + offset, 4).getUint32(0, true);
+}
+
+function positiveInteger(value) {
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number > 0 ? number : 0;
+}
+
 function revokeBlobUrls(urls) {
   for (const url of Array.isArray(urls) ? urls : urls ? [urls] : []) {
     try {
@@ -1952,23 +2361,82 @@ function normalizeHydratedAnnotation(input) {
   };
 }
 
-function normalizeNoteForStorage(note) {
-  const blocks = Array.isArray(note?.blocks) ? note.blocks.map(normalizeNoteBlockForStorage).filter(Boolean) : [];
+export function normalizeNoteForStorage(note) {
+  const inputBlocks = Array.isArray(note?.blocks) ? note.blocks : [];
+  let blocks = inputBlocks.map(normalizeNoteBlockForStorage).filter(Boolean);
+  if (!inputBlocks.length) {
+    const legacyInk = encodeInkForStorage(note?.ink);
+    if (String(note?.markdown || '') || !legacyInk.strokes?.length) {
+      blocks.push({ type: 'text', markdown: String(note?.markdown || '') });
+    }
+    if (legacyInk.strokes?.length) blocks.push({ type: 'ink', ink: legacyInk });
+  }
+  blocks = assignStableNoteBlockIds(blocks);
   const firstText = blocks.find((block) => block.type === 'text');
   const firstInk = blocks.find((block) => block.type === 'ink');
   return {
-    title: note?.title || '',
-    markdown: note?.markdown || firstText?.markdown || '',
-    ink: firstInk?.ink || encodeInkForStorage(note?.ink),
+    title: String(note?.title || ''),
+    schemaVersion: NOTE_SCHEMA_VERSION,
+    markdown: firstText?.markdown || '',
+    ink: firstInk?.ink || encodeInkForStorage(inputBlocks.length ? null : note?.ink),
     blocks
   };
 }
 
 function normalizeNoteBlockForStorage(block) {
-  if (block?.type === 'text') return { type: 'text', markdown: block.markdown || '' };
-  if (block?.type === 'ink') return { type: 'ink', ink: encodeInkForStorage(block.ink) };
-  if (block?.type === 'blank') return { type: 'blank' };
+  const id = validNoteBlockId(block?.id) ? String(block.id) : '';
+  if (block?.type === 'text') return { ...(id ? { id } : {}), type: 'text', markdown: String(block.markdown || '') };
+  if (block?.type === 'ink') return { ...(id ? { id } : {}), type: 'ink', ink: encodeInkForStorage(block.ink) };
+  if (block?.type === 'blank') return { ...(id ? { id } : {}), type: 'blank' };
+  if (block?.type === 'image') {
+    const assetPath = normalizeNoteImagePath(block.assetPath);
+    const mimeType = noteImageMimeTypeForPath(assetPath);
+    const intrinsicWidth = positiveInteger(block.intrinsicWidth);
+    const intrinsicHeight = positiveInteger(block.intrinsicHeight);
+    if (!assetPath
+      || !mimeType
+      || block.mimeType !== mimeType
+      || !intrinsicWidth
+      || !intrinsicHeight
+      || intrinsicWidth * intrinsicHeight > NOTE_IMAGE_MAX_PIXELS) return null;
+    return {
+      ...(id ? { id } : {}),
+      type: 'image',
+      assetPath,
+      mimeType,
+      intrinsicWidth,
+      intrinsicHeight,
+      alt: String(block.alt || ''),
+      originalName: sanitizeNoteImageFilename(block.originalName, mimeType)
+    };
+  }
   return null;
+}
+
+function assignStableNoteBlockIds(blocks) {
+  const used = new Set();
+  return blocks.map((block, index) => {
+    let id = validNoteBlockId(block.id)
+      ? String(block.id)
+      : `blk_${shortHash(`${index}:${JSON.stringify(block)}`)}`;
+    const base = id;
+    let suffix = 2;
+    while (used.has(id)) {
+      id = `${base}-${suffix}`;
+      suffix += 1;
+    }
+    used.add(id);
+    return { ...block, id };
+  });
+}
+
+function validNoteBlockId(value) {
+  return typeof value === 'string'
+    && /^blk_[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(value);
+}
+
+function newNoteBlockId() {
+  return `blk_${crypto.randomUUID()}`;
 }
 
 function safeId(value) {
@@ -2247,6 +2715,148 @@ function mutateHydratedAnnotation(db, { docId, annotationId, nextAnnotation }) {
   });
 }
 
+function insertNoteImageTransaction(db, {
+  docId,
+  annotationId,
+  block,
+  beforeBlockId = null,
+  afterBlockId = null,
+  asset
+}) {
+  if (!docId || !annotationId) return Promise.reject(new Error('Document and annotation ids are required.'));
+  if (beforeBlockId && afterBlockId) return Promise.reject(new Error('Choose either a before or after picture boundary.'));
+  const storeNames = ['annotations', 'annotationBodies', 'documentNoteStats', 'documentAssets'];
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeNames, 'readwrite');
+    const stores = Object.fromEntries(storeNames.map((name) => [name, tx.objectStore(name)]));
+    const annotationRequest = stores.annotations.get(annotationId);
+    const bodyRequest = stores.annotationBodies.get(annotationId);
+    const statsRequest = stores.documentNoteStats.get(docId);
+    const requests = [annotationRequest, bodyRequest, statsRequest];
+    let pending = requests.length;
+    let result = null;
+    let callbackError = null;
+    let settled = false;
+
+    const rejectOnce = (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error || new Error('The note picture transaction failed.'));
+    };
+    const abortWith = (error) => {
+      callbackError = error;
+      try {
+        tx.abort();
+      } catch {
+        rejectOnce(error);
+      }
+    };
+    const planAndWrite = () => {
+      const metadata = annotationRequest.result;
+      const body = bodyRequest.result;
+      if (!metadata || String(metadata.docId || '') !== docId) {
+        throw new Error(`Annotation not found: ${annotationId}`);
+      }
+      if (!body || String(body.docId || '') !== docId) {
+        throw new Error(`Annotation body not found: ${annotationId}`);
+      }
+      const previous = normalizeHydratedAnnotation({ ...metadata, note: body.note });
+      const blocks = insertNoteImageBlock(previous.note.blocks, block, { beforeBlockId, afterBlockId });
+      const updatedAt = new Date().toISOString();
+      const next = normalizeHydratedAnnotation({
+        ...previous,
+        note: { ...previous.note, schemaVersion: NOTE_SCHEMA_VERSION, blocks },
+        updatedAt
+      });
+      const { note, ...nextMetadata } = next;
+      stores.annotations.put({
+        ...nextMetadata,
+        noteRef: { storage: 'indexeddb', version: 1 }
+      });
+      stores.annotationBodies.put({
+        id: annotationId,
+        docId,
+        note,
+        updatedAt
+      });
+      stores.documentAssets.add(asset);
+      result = next;
+
+      if (!isCurrentDocumentNoteStats(statsRequest.result, docId)) {
+        queueDocumentNoteStatsBackfill(stores, docId);
+        return;
+      }
+      stores.documentNoteStats.put(documentNoteStatsAfterReplacement(statsRequest.result, previous, next));
+    };
+
+    for (const request of requests) {
+      request.onsuccess = () => {
+        pending -= 1;
+        if (pending !== 0) return;
+        try {
+          planAndWrite();
+        } catch (error) {
+          abortWith(error);
+        }
+      };
+    }
+    tx.onerror = () => rejectOnce(callbackError || tx.error);
+    tx.onabort = () => rejectOnce(callbackError || tx.error);
+    tx.oncomplete = () => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+  });
+}
+
+function insertNoteImageBlock(blocks, block, { beforeBlockId = null, afterBlockId = null } = {}) {
+  const current = Array.isArray(blocks) ? blocks.map((item) => ({ ...item })) : [];
+  if (current.some((item) => item.id === block.id)) throw new Error(`Duplicate note block id: ${block.id}`);
+  if (current.length === 1 && current[0].type === 'blank') return [block];
+  let index = current.length;
+  if (beforeBlockId) index = current.findIndex((item) => item.id === beforeBlockId);
+  if (afterBlockId) {
+    const neighborIndex = current.findIndex((item) => item.id === afterBlockId);
+    index = neighborIndex < 0 ? -1 : neighborIndex + 1;
+  }
+  if (index < 0) throw new Error('The requested note insertion boundary no longer exists.');
+  current.splice(index, 0, block);
+  return current;
+}
+
+function sweepUnreferencedNoteImagesTransaction(db, docId) {
+  const storeNames = ['annotationBodies', 'documentAssets'];
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeNames, 'readwrite');
+    const bodiesRequest = tx.objectStore('annotationBodies').index('docId').getAll(docId);
+    const assetsStore = tx.objectStore('documentAssets');
+    const assetsRequest = assetsStore.index('docId').getAll(docId);
+    let pending = 2;
+    let deletedPaths = [];
+    let callbackError = null;
+    const finish = () => {
+      pending -= 1;
+      if (pending) return;
+      try {
+        const referenced = referencedNoteImagePaths((bodiesRequest.result || []).map((body) => ({ note: body.note })));
+        deletedPaths = (assetsRequest.result || [])
+          .filter((asset) => asset?.kind === NOTE_IMAGE_KIND && !referenced.has(asset.path))
+          .map((asset) => asset.path);
+        for (const path of deletedPaths) assetsStore.delete(`${docId}:${path}`);
+      } catch (error) {
+        callbackError = error;
+        tx.abort();
+      }
+    };
+    bodiesRequest.onsuccess = finish;
+    assetsRequest.onsuccess = finish;
+    tx.onerror = () => reject(callbackError || tx.error);
+    tx.onabort = () => reject(callbackError || tx.error);
+    tx.oncomplete = () => resolve(deletedPaths);
+  });
+}
+
 function queueDocumentNoteStatsBackfill(stores, docId, onComplete = null) {
   const annotationsRequest = stores.annotations.index('docId').getAll(docId);
   const bodiesRequest = stores.annotationBodies.index('docId').getAll(docId);
@@ -2456,6 +3066,7 @@ function noteHasContent(note) {
   return (note.blocks || []).some((block) => {
     if (block?.type === 'text') return Boolean(String(block.markdown || '').trim());
     if (block?.type === 'ink') return noteHasInk({ ink: block.ink });
+    if (block?.type === 'image') return Boolean(normalizeNoteImagePath(block.assetPath));
     return block?.type === 'blank';
   });
 }

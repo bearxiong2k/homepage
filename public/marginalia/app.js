@@ -2242,6 +2242,7 @@ function noteHasContent(note) {
   return (note.blocks || []).some((block) => {
     if (block?.type === 'text') return Boolean(String(block.markdown || '').trim());
     if (block?.type === 'ink') return noteHasInk({ ink: block.ink });
+    if (block?.type === 'image') return Boolean(String(block.assetPath || '').trim());
     return block?.type === 'blank';
   });
 }

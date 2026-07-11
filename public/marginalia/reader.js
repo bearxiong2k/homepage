@@ -35,6 +35,7 @@ import { buildReaderDocumentNotice } from './reader-notice.js';
 import { createReaderSessionChannel, randomSessionId } from './reader-session-channel.js';
 import { currentStorageMode, registerServiceWorker, urlWithStorage } from './runtime.js';
 import { APP_VERSION_LABEL, APP_VERSION_SHORT } from './app-version.js';
+import { analyzeNoteMarkdown, ensureNoteMarkdownStyles, renderNoteMarkdown } from './note-markdown.js';
 
 const storageMode = currentStorageMode();
 const storage = createStorageAdapter({ mode: storageMode });
@@ -76,6 +77,9 @@ const state = {
   pendingSideInkRenders: new Set(),
   sideInkRenderRaf: 0,
   sideInkSaveTimers: new Map(),
+  noteMarkdownAnalysisTimers: new WeakMap(),
+  noteMarkdownSources: new WeakMap(),
+  noteMarkdownRenderRevision: 0,
   annotationBlockSaveQueues: new Map(),
   annotationBlockSaveRevisions: new Map(),
   noteNavigatorExpandAll: false,
@@ -341,15 +345,21 @@ function bindChromeEvents() {
     }
   });
   window.addEventListener('beforeunload', () => {
+    void flushAllPendingAnnotationBlockSaves();
     flushReaderScrollPosition();
     closeSplitNotesSession({ notify: true });
+    storage.revokeAllNoteImageUrls?.();
   });
   if (els.readerNoticeLibrary) els.readerNoticeLibrary.href = urlWithStorage('library.html', {}, state.storageMode);
   window.addEventListener('pagehide', () => {
+    void flushAllPendingAnnotationBlockSaves();
     flushReaderScrollPosition();
   });
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') flushReaderScrollPosition();
+    if (document.visibilityState === 'hidden') {
+      void flushAllPendingAnnotationBlockSaves();
+      flushReaderScrollPosition();
+    }
   });
   document.addEventListener('keydown', handleDocumentKeyDown);
 }
@@ -766,6 +776,7 @@ function annotationHasUserContent(annotation) {
   return (note.blocks || []).some((block) => {
     if (block?.type === 'text') return Boolean(String(block.markdown || '').trim());
     if (block?.type === 'ink') return Array.isArray(block.ink?.strokes) && block.ink.strokes.length > 0;
+    if (block?.type === 'image') return Boolean(String(block.assetPath || '').trim());
     return block?.type === 'blank';
   });
 }
@@ -776,6 +787,7 @@ async function exportCurrentBundle() {
     return;
   }
   await flushQuickMarkSave();
+  await flushAllPendingAnnotationBlockSaves();
   setSaveProgress('Preparing save...');
   const doc = state.documents.find((item) => item.id === state.docId) || await storage.getDocument(state.docId);
   const library = await storage.getCurrentLibraryContext?.();
@@ -1033,6 +1045,8 @@ function readerUrlForDoc(docId) {
 
 async function loadDocument(docId) {
   if (!docId) return;
+  if (state.docId) await flushAllPendingAnnotationBlockSaves();
+  if (state.docId && state.docId !== docId) storage.revokeNoteImageUrl?.(state.docId);
   if (state.docId && state.docId !== docId) closeSplitNotesSession({ notify: true });
   if (state.docId && state.docId !== docId) await flushQuickMarkSave();
   if (state.iframeLoaded && state.docId) {
@@ -1130,6 +1144,7 @@ async function loadDocument(docId) {
     syncClipToolColor();
     renderQuickMarkStack();
     state.annotations = await annotationsPromise;
+    storage.sweepUnreferencedNoteImages?.(docId).catch(() => {});
     state.iframeLoaded = true;
     await instrumentIframe();
     await waitForFramePdfReadyIfNeeded();
@@ -1664,18 +1679,21 @@ function handleSideNoteKeyboardAction(event) {
   if (blank && ['Enter', ' '].includes(event.key)) {
     event.preventDefault();
     event.stopPropagation();
-    convertBlankBlockToText(annotationId, Number(blank.dataset.blockIndex), { target: blank })
+    convertBlankBlockToText(annotationId, blank.dataset.blockId, { target: blank })
       .catch((error) => setStatus(error.message, true));
     return true;
   }
   const field = target.closest?.('.reader-side-note-title, .reader-side-note-body');
   if (field && ['Enter', 'F2'].includes(event.key)) {
+    if (field.classList.contains('is-rendered')) return false;
     event.preventDefault();
     event.stopPropagation();
     beginInlineTextEdit(
       annotationId,
       note,
-      field.classList.contains('reader-side-note-title') ? 'title' : 'body'
+      field.classList.contains('reader-side-note-title') ? 'title' : 'body',
+      null,
+      field.dataset.blockId || ''
     );
     return true;
   }
@@ -1767,6 +1785,11 @@ function editableSelectionActive(element) {
 
 function onFrameClick(event) {
   const frameDoc = getFrameDoc();
+  const noteLink = event.target?.closest?.('.reader-side-note-body.is-rendered a[href]');
+  if (noteLink) {
+    openRenderedSideNoteLink(noteLink, frameDoc, event);
+    return;
+  }
   if (isFrameInteractiveControl(event.target)) return;
   if (
     state.currentDocument?.sourceType === 'pdf'
@@ -1800,14 +1823,19 @@ function onFrameClick(event) {
     const annotationId = sideNote.dataset.annotationId;
     const action = event.target?.closest?.('[data-side-note-action]')?.dataset.sideNoteAction;
     const editableTarget = event.target?.closest?.('.reader-side-note-title, .reader-side-note-body');
-    if (annotationId === state.activeAnnotationId && editableTarget && !action) {
+    if (annotationId === state.activeAnnotationId && editableTarget && !editableTarget.classList.contains('is-rendered') && !action) {
       hideSelectionHighlightButton();
       event.stopPropagation();
-      beginInlineTextEdit(annotationId, sideNote, editableTarget.classList.contains('reader-side-note-title') ? 'title' : 'body', event);
+      beginInlineTextEdit(annotationId, sideNote, editableTarget.classList.contains('reader-side-note-title') ? 'title' : 'body', event, editableTarget.dataset.blockId || '');
       return;
     }
     hideSelectionHighlightButton();
     frameDoc.getSelection()?.removeAllRanges();
+    if (action === 'image-alt') {
+      activateAnnotation(annotationId, false);
+      event.stopPropagation();
+      return;
+    }
     if (!['ink-color', 'ink-width', 'ink-pressure'].includes(action)) event.preventDefault();
     event.stopPropagation();
     if (action === 'pin') {
@@ -1818,7 +1846,15 @@ function onFrameClick(event) {
       toggleSideNoteCollapse(annotationId);
       return;
     }
-    if (action === 'insert-text' || action === 'insert-ink' || action === 'remove-block') {
+    if (action === 'edit-text') {
+      beginInlineTextEdit(annotationId, sideNote, 'body', null, event.target?.dataset?.blockId || '');
+      return;
+    }
+    if (action === 'render-text') {
+      finishInlineTextEdit(annotationId, sideNote).catch((error) => setStatus(error.message, true));
+      return;
+    }
+    if (action === 'insert-text' || action === 'insert-ink' || action === 'insert-image' || action === 'remove-block') {
       handlePinnedNoteBlockAction(annotationId, action, event.target).catch((error) => setStatus(error.message, true));
       return;
     }
@@ -1844,7 +1880,7 @@ function onFrameClick(event) {
     }
     const blankTarget = event.target?.closest?.('.reader-side-note-blank');
     if (blankTarget) {
-      convertBlankBlockToText(annotationId, Number(blankTarget.dataset.blockIndex), event).catch((error) => setStatus(error.message, true));
+      convertBlankBlockToText(annotationId, blankTarget.dataset.blockId, event).catch((error) => setStatus(error.message, true));
       return;
     }
     activateAnnotation(annotationId, false);
@@ -1915,6 +1951,25 @@ function onFrameClick(event) {
   };
   createBlockSideNote(target).catch((error) => setStatus(error.message, true));
   frameDoc.getSelection()?.removeAllRanges();
+}
+
+function openRenderedSideNoteLink(link, doc, event) {
+  const href = link.getAttribute('href') || '';
+  event.preventDefault();
+  event.stopPropagation();
+  if (href.startsWith('#')) {
+    const target = doc.getElementById(decodeURIComponent(href.slice(1)));
+    target?.scrollIntoView?.({ block: 'start' });
+    return;
+  }
+  let url;
+  try {
+    url = new URL(href, location.href);
+  } catch {
+    return;
+  }
+  if (!['http:', 'https:', 'mailto:'].includes(url.protocol)) return;
+  window.open(url.href, '_blank', 'noopener,noreferrer');
 }
 
 function onFrameDoubleClick(event) {
@@ -2271,6 +2326,14 @@ function handleSplitNotesMessage(envelope) {
     insertSplitNoteBlock(payload).catch((error) => setStatus(error.message, true));
     return;
   }
+  if (type === 'insert-note-image') {
+    insertSplitNoteImage(payload).catch((error) => setStatus(error.message, true));
+    return;
+  }
+  if (type === 'save-note-image-alt') {
+    saveSideNoteImageAlt(payload.annotationId, payload.blockId, payload.alt).catch((error) => setStatus(error.message, true));
+    return;
+  }
   if (type === 'remove-note-block') {
     removeSplitNoteBlock(payload).catch((error) => setStatus(error.message, true));
     return;
@@ -2469,23 +2532,21 @@ async function saveSplitNoteText(payload = {}) {
   const annotationId = String(payload.annotationId || '');
   const annotation = state.annotations.find((item) => item.id === annotationId);
   if (!annotation) return;
+  await flushPendingAnnotationBlockSave(annotationId);
   const before = cloneAnnotation(annotation);
-  const title = String(payload.title || '');
-  const textBlocks = Array.isArray(payload.textBlocks) ? payload.textBlocks : [];
   const blocks = sideNoteContentBlocks(annotation);
-  for (const item of textBlocks) {
-    const index = Number(item?.blockIndex);
-    if (!Number.isInteger(index) || index < 0) continue;
-    if (blocks[index]?.type === 'text' || blocks[index]?.type === 'blank') {
-      blocks[index] = { type: 'text', markdown: String(item.markdown || '') };
-    }
+  if (payload.blockId) {
+    const block = blocks.find((item) => item.id === payload.blockId);
+    if (block?.type !== 'text') return;
+    block.markdown = String(payload.markdown || '');
   }
   const legacy = legacyNoteFieldsFromBlocks(blocks);
   const nextAnnotation = {
     ...annotation,
     note: {
       ...(annotation.note || {}),
-      title,
+      title: payload.title === undefined ? annotation.note?.title || '' : String(payload.title || ''),
+      schemaVersion: 2,
       ...legacy,
       blocks
     }
@@ -2503,17 +2564,17 @@ async function saveSplitNoteText(payload = {}) {
 
 async function appendSplitInkStroke(payload = {}) {
   const annotationId = String(payload.annotationId || '');
-  const blockIndex = Number(payload.blockIndex);
+  const blockId = String(payload.blockId || '');
   const annotation = state.annotations.find((item) => item.id === annotationId);
-  if (!annotation || !Number.isInteger(blockIndex)) return;
+  if (!annotation || !blockId) return;
   const blocks = sideNoteContentBlocks(annotation);
-  const block = blocks[blockIndex];
+  const block = blocks.find((item) => item.id === blockId);
   if (block?.type !== 'ink') return;
   const stroke = normalizeSplitInkStroke(payload.stroke);
   if (!stroke || stroke.points.length < 2) return;
   block.ink.strokes.push(stroke);
   updateInkLogicalBottomForStroke(block.ink, stroke);
-  const history = sideInkHistory(annotationId, blockIndex);
+  const history = sideInkHistory(annotationId, blockId);
   history.undo.push({ type: 'add', stroke });
   history.redo = [];
   const updated = await saveAnnotationBlocks(annotation, blocks, { render: false });
@@ -2527,18 +2588,17 @@ async function appendSplitInkStroke(payload = {}) {
 async function insertSplitNoteBlock(payload = {}) {
   const annotationId = String(payload.annotationId || '');
   const blockType = payload.blockType === 'ink' ? 'ink' : 'text';
-  const afterBlockIndex = Number(payload.afterBlockIndex);
+  const beforeBlockId = String(payload.beforeBlockId || '');
+  const afterBlockId = String(payload.afterBlockId || '');
   const annotation = state.annotations.find((item) => item.id === annotationId);
   if (!annotation) return;
   const blocks = sideNoteContentBlocks(annotation);
-  const block = blockType === 'ink'
-    ? { type: 'ink', ink: { strokes: [], height: INK_CANVAS_HEIGHT.default } }
-    : { type: 'text', markdown: '' };
+  const block = newSideNoteBlock(blockType);
   if (blocks.length === 1 && blocks[0]?.type === 'blank') blocks[0] = block;
-  else if (Number.isInteger(afterBlockIndex) && afterBlockIndex >= 0) {
-    blocks.splice(Math.min(afterBlockIndex + 1, blocks.length), 0, block);
-  } else {
-    blocks.push(block);
+  else {
+    const beforeIndex = beforeBlockId ? blocks.findIndex((item) => item.id === beforeBlockId) : -1;
+    const afterIndex = afterBlockId ? blocks.findIndex((item) => item.id === afterBlockId) : -1;
+    blocks.splice(beforeIndex >= 0 ? beforeIndex : afterIndex >= 0 ? afterIndex + 1 : blocks.length, 0, block);
   }
   const before = cloneAnnotation(annotation);
   const updated = await saveAnnotationBlocks(annotation, blocks, { render: false });
@@ -2551,13 +2611,15 @@ async function insertSplitNoteBlock(payload = {}) {
 
 async function removeSplitNoteBlock(payload = {}) {
   const annotationId = String(payload.annotationId || '');
-  const blockIndex = Number(payload.blockIndex);
+  const blockId = String(payload.blockId || '');
   const annotation = state.annotations.find((item) => item.id === annotationId);
-  if (!annotation || !Number.isInteger(blockIndex) || blockIndex < 0) return;
+  if (!annotation || !blockId) return;
   const before = cloneAnnotation(annotation);
   const blocks = sideNoteContentBlocks(annotation);
+  const blockIndex = blocks.findIndex((block) => block.id === blockId);
   if (blockIndex >= blocks.length) return;
-  if (blocks.length <= 1) blocks.splice(0, blocks.length, { ...BLANK_NOTE_BLOCK });
+  if (blockIndex < 0) return;
+  if (blocks.length <= 1) blocks.splice(0, blocks.length, newSideNoteBlock('blank'));
   else blocks.splice(blockIndex, 1);
   const updated = await saveAnnotationBlocks(annotation, blocks, { render: false });
   recordAnnotationHistory('note block deletion', before, updated, annotationId);
@@ -2587,11 +2649,20 @@ function setSplitInkTool(payload = {}) {
 
 async function clearSplitInkBlock(payload = {}) {
   const annotationId = String(payload.annotationId || '');
-  const blockIndex = Number(payload.blockIndex);
-  await clearSideInk(annotationId, blockIndex);
+  const blockId = String(payload.blockId || '');
+  await clearSideInk(annotationId, blockId);
   renderAnnotations();
   renderNoteList();
   scheduleSplitNotesStateBroadcast();
+}
+
+async function insertSplitNoteImage(payload = {}) {
+  const annotationId = String(payload.annotationId || '');
+  if (!payload.file || typeof payload.file.arrayBuffer !== 'function') throw new Error('Choose a PNG, JPEG, or WebP picture.');
+  await insertNoteImageAtBoundary(annotationId, payload.file, {
+    beforeBlockId: String(payload.beforeBlockId || ''),
+    afterBlockId: String(payload.afterBlockId || '')
+  });
 }
 
 function normalizeSplitInkStroke(stroke) {
@@ -3075,8 +3146,11 @@ function syncHistoryControls() {
 }
 
 async function undoHistoryCommand() {
-  const command = state.undoStack.pop();
+  const command = state.undoStack.at(-1);
   if (!command) return;
+  const annotationId = command.before?.id || command.after?.id || '';
+  if (annotationId) await flushPendingAnnotationBlockSave(annotationId);
+  state.undoStack.pop();
   state.isApplyingHistory = true;
   try {
     await applyHistorySnapshot(command.before, command.after, command.activeAnnotationId);
@@ -3089,8 +3163,11 @@ async function undoHistoryCommand() {
 }
 
 async function redoHistoryCommand() {
-  const command = state.redoStack.pop();
+  const command = state.redoStack.at(-1);
   if (!command) return;
+  const annotationId = command.before?.id || command.after?.id || '';
+  if (annotationId) await flushPendingAnnotationBlockSave(annotationId);
+  state.redoStack.pop();
   state.isApplyingHistory = true;
   try {
     await applyHistorySnapshot(command.after, command.before, command.activeAnnotationId);
@@ -3847,7 +3924,13 @@ async function createBlockSideNote(target) {
 }
 
 function defaultBlankNote() {
-  return { title: '', markdown: '', ink: { strokes: [], height: INK_CANVAS_HEIGHT.default }, blocks: [{ ...BLANK_NOTE_BLOCK }] };
+  return {
+    title: '',
+    schemaVersion: 2,
+    markdown: '',
+    ink: { strokes: [], height: INK_CANVAS_HEIGHT.default },
+    blocks: [newSideNoteBlock('blank')]
+  };
 }
 
 async function createAnnotationFromTarget(sourceTarget, options = {}) {
@@ -3949,7 +4032,7 @@ function captureFrameNoteFocus(doc) {
   const snapshot = {
     annotationId: note.dataset.annotationId,
     action: active.dataset?.sideNoteAction || '',
-    blockIndex: active.dataset?.blockIndex || '',
+    blockId: active.dataset?.blockId || active.closest?.('[data-block-id]')?.dataset?.blockId || '',
     field: active.classList?.contains('reader-side-note-title') ? 'title'
       : active.classList?.contains('reader-side-note-body') ? 'body'
         : active.classList?.contains('reader-side-note-blank') ? 'blank'
@@ -3964,11 +4047,11 @@ function restoreFrameNoteFocus(doc, snapshot) {
   const note = doc.querySelector(`.reader-side-note[data-annotation-id="${cssEscape(snapshot.annotationId)}"]`);
   if (!note) return;
   let target = null;
-  if (snapshot.action) target = note.querySelector(`[data-side-note-action="${cssEscape(snapshot.action)}"]`);
+  if (snapshot.action) target = note.querySelector(`[data-side-note-action="${cssEscape(snapshot.action)}"][data-block-id="${cssEscape(snapshot.blockId)}"], [data-side-note-action="${cssEscape(snapshot.action)}"]`);
   if (!target && snapshot.field === 'title') target = note.querySelector('.reader-side-note-title');
-  if (!target && snapshot.field === 'body') target = note.querySelector(`.reader-side-note-body[data-block-index="${cssEscape(snapshot.blockIndex)}"]`);
-  if (!target && snapshot.field === 'blank') target = note.querySelector(`.reader-side-note-blank[data-block-index="${cssEscape(snapshot.blockIndex)}"]`);
-  if (!target && snapshot.field === 'ink-resize') target = note.querySelector(`.reader-side-note-ink-resize-handle[data-block-index="${cssEscape(snapshot.blockIndex)}"]`);
+  if (!target && snapshot.field === 'body') target = note.querySelector(`.reader-side-note-body[data-block-id="${cssEscape(snapshot.blockId)}"]`);
+  if (!target && snapshot.field === 'blank') target = note.querySelector(`.reader-side-note-blank[data-block-id="${cssEscape(snapshot.blockId)}"]`);
+  if (!target && snapshot.field === 'ink-resize') target = note.querySelector(`.reader-side-note-ink-resize-handle[data-block-id="${cssEscape(snapshot.blockId)}"]`);
   target?.focus?.({ preventScroll: true });
 }
 
@@ -4346,26 +4429,33 @@ function attachMarker(doc, annotation) {
     card.append(warning);
   }
   const blocks = sideNoteContentBlocks(annotation);
+  const soleBlank = blocks.length === 1 && blocks[0]?.type === 'blank';
+  if (isPinned) card.append(createPinnedInsertionBoundary(doc, annotation.id, {
+    beforeBlockId: soleBlank ? '' : blocks[0]?.id || ''
+  }));
   blocks.forEach((block, index) => {
+    if (isPinned && soleBlank) return;
     if (block.type === 'blank') {
       const blank = doc.createElement('span');
       blank.className = 'reader-side-note-blank';
-      blank.dataset.blockIndex = String(index);
+      blank.dataset.blockId = block.id;
       blank.setAttribute('role', 'button');
       blank.setAttribute('aria-label', 'Empty note block. Press Enter to add text');
       blank.tabIndex = 0;
       blank.addEventListener('pointerdown', onSideNoteBlankPointerDown);
       card.append(blank);
-      if (isPinned) card.append(createPinnedBlockControls(doc, index));
+      if (isPinned) card.append(createPinnedBlockControls(doc, block.id));
+      if (isPinned) card.append(createPinnedInsertionBoundary(doc, annotation.id, { afterBlockId: block.id }));
       return;
     }
     if (block.type === 'ink') {
       const inkWrap = doc.createElement('div');
       inkWrap.className = 'reader-side-note-ink-wrap';
+      inkWrap.dataset.blockId = block.id;
       inkWrap.style.height = `${normalizeInkHeight(block.ink?.height)}px`;
       const canvas = doc.createElement('canvas');
       canvas.className = 'reader-side-note-ink';
-      canvas.dataset.blockIndex = String(index);
+      canvas.dataset.blockId = block.id;
       canvas.setAttribute('role', 'img');
       canvas.setAttribute('aria-label', drawingCanvasLabel(annotation, block));
       if (doc.defaultView?.PointerEvent) {
@@ -4381,37 +4471,180 @@ function attachMarker(doc, annotation) {
         canvas.addEventListener('mouseleave', onSideInkPointerUp);
       }
       canvas.addEventListener('contextmenu', (event) => event.preventDefault());
-      const resizeHandle = createSideInkResizeHandle(doc, annotation.id, index, inkWrap);
+      const resizeHandle = createSideInkResizeHandle(doc, annotation.id, block.id, inkWrap);
       inkWrap.append(canvas, resizeHandle);
-      requestAnimationFrame(() => drawSideInkCanvas(canvas, annotation.id, index));
+      requestAnimationFrame(() => drawSideInkCanvas(canvas, annotation.id, block.id));
       card.append(inkWrap);
       if (annotation.id === state.activeAnnotationId) {
-        const toolbar = createSideInkToolbar(doc, annotation.id, index);
+        const toolbar = createSideInkToolbar(doc, annotation.id, block.id);
         inkWrap.append(toolbar);
       }
-      if (isPinned) card.append(createPinnedBlockControls(doc, index));
+      if (isPinned) card.append(createPinnedBlockControls(doc, block.id));
+      if (isPinned) card.append(createPinnedInsertionBoundary(doc, annotation.id, { afterBlockId: block.id }));
       return;
     }
-    const body = doc.createElement('span');
-    body.className = 'reader-side-note-body';
-    body.dataset.blockIndex = String(index);
-    body.dataset.placeholder = index === 0 ? 'Note' : 'Continue note';
-    body.textContent = block.markdown;
-    body.tabIndex = 0;
-    body.setAttribute('aria-label', block.markdown?.trim()
-      ? `Note text: ${readableSnippet(block.markdown, 100)}`
-      : 'Empty note text. Press Enter to edit');
-    card.append(body);
-    if (isPinned) card.append(createPinnedBlockControls(doc, index));
+    if (block.type === 'image') {
+      card.append(createSideNoteImageBlock(doc, annotation, block, { editable: isPinned }));
+    } else {
+      card.append(createSideNoteTextBlock(doc, annotation, block, index));
+    }
+    if (isPinned) card.append(createPinnedBlockControls(doc, block.id));
+    if (isPinned) card.append(createPinnedInsertionBoundary(doc, annotation.id, { afterBlockId: block.id }));
   });
   note.append(card);
   layer.append(note);
 }
 
-function createSideInkToolbar(doc, annotationId, blockIndex) {
+function createSideNoteTextBlock(doc, annotation, block, index) {
+  const wrapper = doc.createElement('div');
+  wrapper.className = 'reader-side-note-text-block';
+  wrapper.dataset.blockId = block.id;
+  const body = doc.createElement('div');
+  body.className = 'reader-side-note-body';
+  body.dataset.blockId = block.id;
+  body.dataset.placeholder = index === 0 ? 'Note' : 'Continue note';
+  body.textContent = block.markdown;
+  body.tabIndex = 0;
+  body.setAttribute('aria-label', block.markdown?.trim()
+    ? `Note text: ${readableSnippet(block.markdown, 100)}`
+    : 'Empty note text. Press Enter to edit');
+  const modeButton = doc.createElement('button');
+  modeButton.type = 'button';
+  modeButton.className = 'reader-side-note-text-mode';
+  modeButton.dataset.sideNoteAction = 'edit-text';
+  modeButton.dataset.blockId = block.id;
+  modeButton.textContent = 'Edit';
+  modeButton.hidden = true;
+  modeButton.addEventListener('pointerdown', preserveSideNoteActionClick);
+  wrapper.append(body, modeButton);
+  renderSideNoteMarkdownBlock(body, modeButton, block.id, block.markdown, doc);
+  return wrapper;
+}
+
+async function renderSideNoteMarkdownBlock(body, modeButton, blockId, source, doc = body?.ownerDocument) {
+  if (!body || !modeButton) return;
+  const revision = String(++state.noteMarkdownRenderRevision);
+  body.dataset.markdownRevision = revision;
+  state.noteMarkdownSources.set(body, source);
+  try {
+    const rendered = await renderNoteMarkdown(source);
+    if (!body.isConnected
+      || body.dataset.blockId !== blockId
+      || body.dataset.markdownRevision !== revision
+      || state.noteMarkdownSources.get(body) !== source
+      || body.isContentEditable) return;
+    if (!rendered.hasRenderableSyntax) {
+      body.classList.remove('is-rendered', 'note-markdown');
+      body.textContent = source;
+      body.tabIndex = 0;
+      modeButton.hidden = true;
+      delete body.dataset.hasRenderableSyntax;
+      return;
+    }
+    ensureNoteMarkdownStyles(doc);
+    body.classList.add('is-rendered', 'note-markdown');
+    body.innerHTML = rendered.html;
+    body.tabIndex = -1;
+    body.dataset.hasRenderableSyntax = 'true';
+    modeButton.dataset.sideNoteAction = 'edit-text';
+    modeButton.textContent = 'Edit';
+    modeButton.hidden = false;
+    requestSideNoteLayout(doc);
+  } catch {
+    if (!body.isConnected || body.dataset.markdownRevision !== revision) return;
+    body.classList.remove('is-rendered', 'note-markdown');
+    body.textContent = source;
+    body.tabIndex = 0;
+    modeButton.hidden = true;
+  }
+}
+
+function createSideNoteImageBlock(doc, annotation, block, options = {}) {
+  const wrapper = doc.createElement('div');
+  wrapper.className = 'reader-side-note-image-block';
+  wrapper.dataset.blockId = block.id;
+  const frame = doc.createElement('div');
+  frame.className = 'reader-side-note-image-frame';
+  frame.style.aspectRatio = `${block.intrinsicWidth} / ${block.intrinsicHeight}`;
+  frame.style.maxWidth = `${block.intrinsicWidth}px`;
+  const image = doc.createElement('img');
+  image.className = 'reader-side-note-image';
+  image.alt = block.alt || '';
+  image.loading = 'eager';
+  image.decoding = 'async';
+  image.hidden = true;
+  image.dataset.assetPath = block.assetPath;
+  const placeholder = doc.createElement('span');
+  placeholder.className = 'reader-side-note-image-placeholder';
+  placeholder.textContent = `Loading ${block.originalName || block.alt || 'picture'}…`;
+  frame.append(image, placeholder);
+  wrapper.append(frame);
+  if (options.editable) {
+    const tools = doc.createElement('div');
+    tools.className = 'reader-side-note-image-tools';
+    const label = doc.createElement('label');
+    label.textContent = 'Alt text';
+    const input = doc.createElement('input');
+    input.type = 'text';
+    input.value = block.alt || '';
+    input.dataset.sideNoteAction = 'image-alt';
+    input.dataset.blockId = block.id;
+    input.maxLength = 500;
+    input.addEventListener('pointerdown', (event) => event.stopPropagation());
+    input.addEventListener('change', () => {
+      saveSideNoteImageAlt(annotation.id, block.id, input.value).catch((error) => setStatus(error.message, true));
+    });
+    label.append(input);
+    tools.append(label);
+    wrapper.append(tools);
+  }
+  hydrateSideNoteImage(image, placeholder, block, doc);
+  return wrapper;
+}
+
+async function hydrateSideNoteImage(image, placeholder, block, doc = image?.ownerDocument) {
+  const assetPath = block.assetPath;
+  try {
+    const url = await storage.getNoteImageUrl(state.docId, assetPath);
+    if (!image.isConnected || image.dataset.assetPath !== assetPath) return;
+    image.addEventListener('load', () => {
+      if (!image.isConnected) return;
+      image.hidden = false;
+      placeholder.hidden = true;
+      requestSideNoteLayout(doc);
+    }, { once: true });
+    image.src = url;
+    image.addEventListener('error', () => {
+      image.hidden = true;
+      placeholder.hidden = false;
+      placeholder.textContent = `Picture unavailable: ${block.originalName || block.alt || 'image'}`;
+      requestSideNoteLayout(doc);
+    }, { once: true });
+  } catch {
+    if (!image.isConnected || image.dataset.assetPath !== assetPath) return;
+    image.hidden = true;
+    placeholder.hidden = false;
+    placeholder.textContent = `Picture unavailable: ${block.originalName || block.alt || 'image'}`;
+    requestSideNoteLayout(doc);
+  }
+}
+
+async function saveSideNoteImageAlt(annotationId, blockId, alt) {
+  const annotation = state.annotations.find((item) => item.id === annotationId);
+  if (!annotation) return;
+  const before = cloneAnnotation(annotation);
+  const blocks = sideNoteContentBlocks(annotation);
+  const block = blocks.find((item) => item.id === blockId);
+  if (block?.type !== 'image' || block.alt === alt) return;
+  block.alt = String(alt || '');
+  const updated = await saveAnnotationBlocks(annotation, blocks);
+  recordAnnotationHistory('picture alt text edit', before, updated, annotationId);
+}
+
+function createSideInkToolbar(doc, annotationId, blockId) {
   const toolbar = doc.createElement('div');
   toolbar.className = 'reader-side-note-ink-toolbar';
-  toolbar.dataset.blockIndex = String(blockIndex);
+  toolbar.dataset.blockId = blockId;
   toolbar.innerHTML = `
     <button type="button" data-side-note-action="ink-tool-pen" class="${state.inkTool === 'pen' ? 'is-active' : ''}" title="Pen" aria-pressed="${state.inkTool === 'pen'}">Pen</button>
     <button type="button" data-side-note-action="ink-tool-eraser" class="${state.inkTool === 'eraser' ? 'is-active' : ''}" title="Eraser" aria-pressed="${state.inkTool === 'eraser'}">Eraser</button>
@@ -4440,20 +4673,20 @@ function drawingCanvasLabel(annotation, block) {
   return `${noteLabel} drawing, ${strokeCount} stroke${strokeCount === 1 ? '' : 's'}. Use the drawing toolbar to choose pen or eraser.`;
 }
 
-function createSideInkResizeHandle(doc, annotationId, blockIndex, inkWrap) {
+function createSideInkResizeHandle(doc, annotationId, blockId, inkWrap) {
   const handle = doc.createElement('button');
   handle.type = 'button';
   handle.className = 'reader-side-note-ink-resize-handle';
   handle.title = 'Resize drawing';
   handle.setAttribute('aria-label', 'Resize drawing');
-  handle.dataset.blockIndex = String(blockIndex);
+  handle.dataset.blockId = blockId;
   handle.setAttribute('role', 'slider');
   handle.setAttribute('aria-orientation', 'vertical');
   handle.setAttribute('aria-valuemin', String(INK_CANVAS_HEIGHT.min));
   handle.setAttribute('aria-valuemax', String(INK_CANVAS_HEIGHT.max));
   handle.setAttribute('aria-valuenow', String(Math.round(inkWrap.getBoundingClientRect().height || normalizeInkHeight(inkWrap.style.height))));
-  handle.addEventListener('pointerdown', (event) => beginSideInkCanvasResize(event, annotationId, blockIndex, inkWrap));
-  handle.addEventListener('keydown', (event) => resizeSideInkCanvasFromKeyboard(event, annotationId, blockIndex, inkWrap));
+  handle.addEventListener('pointerdown', (event) => beginSideInkCanvasResize(event, annotationId, blockId, inkWrap));
+  handle.addEventListener('keydown', (event) => resizeSideInkCanvasFromKeyboard(event, annotationId, blockId, inkWrap));
   handle.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -4461,13 +4694,14 @@ function createSideInkResizeHandle(doc, annotationId, blockIndex, inkWrap) {
   return handle;
 }
 
-function beginSideInkCanvasResize(event, annotationId, blockIndex, inkWrap) {
+function beginSideInkCanvasResize(event, annotationId, blockId, inkWrap) {
   if (event.button != null && event.button !== 0) return;
   const annotation = state.annotations.find((item) => item.id === annotationId);
-  if (!annotation || !Number.isInteger(blockIndex) || !inkWrap) return;
+  if (!annotation || !blockId || !inkWrap) return;
   event.preventDefault();
   event.stopPropagation();
   const blocks = sideNoteContentBlocks(annotation);
+  const blockIndex = blocks.findIndex((item) => item.id === blockId);
   const block = blocks[blockIndex];
   if (block?.type !== 'ink') return;
   const doc = inkWrap.ownerDocument;
@@ -4475,7 +4709,7 @@ function beginSideInkCanvasResize(event, annotationId, blockIndex, inkWrap) {
   const minHeight = minimumInkCanvasHeight(block.ink, inkWrap, { refresh: true });
   state.sideInkResizeSession = {
     annotationId,
-    blockIndex,
+    blockId,
     blocks,
     inkWrap,
     startY: event.clientY,
@@ -4500,10 +4734,10 @@ function onSideInkCanvasResizeMove(event) {
   const requestedHeight = session.startHeight + event.clientY - session.startY;
   const height = normalizeInkHeight(Math.max(session.minHeight, requestedHeight));
   session.inkWrap.style.height = `${height}px`;
-  const block = session.blocks[session.blockIndex];
+  const block = session.blocks.find((item) => item.id === session.blockId);
   if (block?.type === 'ink') block.ink.height = height;
   const canvas = session.inkWrap.querySelector('.reader-side-note-ink');
-  if (canvas) drawSideInkCanvas(canvas, session.annotationId, session.blockIndex);
+  if (canvas) drawSideInkCanvas(canvas, session.annotationId, session.blockId);
   const handle = session.inkWrap.querySelector('.reader-side-note-ink-resize-handle');
   handle?.setAttribute('aria-valuemin', String(Math.round(session.minHeight)));
   handle?.setAttribute('aria-valuenow', String(Math.round(height)));
@@ -4534,10 +4768,11 @@ function finishSideInkCanvasResize(event) {
   requestAnimationFrame(() => layoutSideNotes(getFrameDoc()));
 }
 
-function resizeSideInkCanvasFromKeyboard(event, annotationId, blockIndex, inkWrap) {
+function resizeSideInkCanvasFromKeyboard(event, annotationId, blockId, inkWrap) {
   const annotation = state.annotations.find((item) => item.id === annotationId);
-  if (!annotation || !Number.isInteger(blockIndex) || !inkWrap) return;
+  if (!annotation || !blockId || !inkWrap) return;
   const blocks = sideNoteContentBlocks(annotation);
+  const blockIndex = blocks.findIndex((item) => item.id === blockId);
   const block = blocks[blockIndex];
   if (block?.type !== 'ink') return;
   const minHeight = minimumInkCanvasHeight(block.ink, inkWrap, { refresh: true });
@@ -4558,7 +4793,7 @@ function resizeSideInkCanvasFromKeyboard(event, annotationId, blockIndex, inkWra
   event.currentTarget.setAttribute('aria-valuemin', String(Math.round(minHeight)));
   event.currentTarget.setAttribute('aria-valuenow', String(height));
   const canvas = inkWrap.querySelector('.reader-side-note-ink');
-  if (canvas) drawSideInkCanvas(canvas, annotationId, blockIndex);
+  if (canvas) drawSideInkCanvas(canvas, annotationId, blockId);
   queueSaveAnnotationBlocks(annotation, blocks, { render: false }).catch((error) => setStatus(error.message, true));
   requestSideInkResizeLayout();
   setStatus(`Drawing height ${height} pixels.`);
@@ -4579,41 +4814,43 @@ function onSideNoteBlankPointerDown(event) {
   const blank = event.currentTarget;
   const note = blank.closest('.reader-side-note');
   const annotationId = note?.dataset?.annotationId;
-  const blockIndex = Number(blank.dataset.blockIndex);
-  if (!annotationId || !Number.isInteger(blockIndex)) return;
+  const blockId = blank.dataset.blockId;
+  if (!annotationId || !blockId) return;
   event.preventDefault();
   event.stopPropagation();
-  convertBlankBlockToInk(annotationId, blockIndex, event).catch((error) => setStatus(error.message, true));
+  convertBlankBlockToInk(annotationId, blockId, event).catch((error) => setStatus(error.message, true));
 }
 
-async function convertBlankBlockToText(annotationId, blockIndex, pointerEvent = null) {
+async function convertBlankBlockToText(annotationId, blockId, pointerEvent = null) {
   const note = pointerEvent?.target?.closest?.('.reader-side-note');
   const annotation = state.annotations.find((item) => item.id === annotationId);
-  if (!annotation || !Number.isInteger(blockIndex)) return;
+  if (!annotation || !blockId) return;
   const blocks = sideNoteContentBlocks(annotation);
+  const blockIndex = blocks.findIndex((block) => block.id === blockId);
   if (blocks[blockIndex]?.type !== 'blank') return;
-  blocks[blockIndex] = { type: 'text', markdown: '' };
+  blocks[blockIndex] = { id: blockId, type: 'text', markdown: '' };
   queueSaveAnnotationBlocks(annotation, blocks, { render: false }).catch((error) => setStatus(error.message, true));
   renderAnnotations();
   renderNoteList();
   const doc = note?.ownerDocument || getFrameDoc();
   const editedNote = doc.querySelector(`.reader-side-note[data-annotation-id="${cssEscape(annotationId)}"]`);
-  if (editedNote) beginInlineTextEdit(annotationId, editedNote, 'body', pointerEvent);
+  if (editedNote) beginInlineTextEdit(annotationId, editedNote, 'body', pointerEvent, blockId);
 }
 
-async function convertBlankBlockToInk(annotationId, blockIndex, pointerEvent = null) {
+async function convertBlankBlockToInk(annotationId, blockId, pointerEvent = null) {
   const annotation = state.annotations.find((item) => item.id === annotationId);
-  if (!annotation || !Number.isInteger(blockIndex)) return;
+  if (!annotation || !blockId) return;
   const blocks = sideNoteContentBlocks(annotation);
+  const blockIndex = blocks.findIndex((block) => block.id === blockId);
   if (blocks[blockIndex]?.type !== 'blank') return;
   const startPoint = pointerEvent ? normalizedPointInElement(pointerEvent.currentTarget || pointerEvent.target, pointerEvent) : null;
-  blocks[blockIndex] = { type: 'ink', ink: { strokes: [], height: INK_CANVAS_HEIGHT.default } };
+  blocks[blockIndex] = { id: blockId, type: 'ink', ink: { strokes: [], height: INK_CANVAS_HEIGHT.default } };
   queueSaveAnnotationBlocks(annotation, blocks, { render: false }).catch((error) => setStatus(error.message, true));
   renderAnnotations();
   renderNoteList();
   const doc = getFrameDoc();
   const note = doc.querySelector(`.reader-side-note[data-annotation-id="${cssEscape(annotationId)}"]`);
-  const canvas = note?.querySelector?.(`.reader-side-note-ink[data-block-index="${cssEscape(String(blockIndex))}"]`);
+  const canvas = note?.querySelector?.(`.reader-side-note-ink[data-block-id="${cssEscape(blockId)}"]`);
   const remappedEvent = canvas && pointerEvent && startPoint
     ? remappedPointerEventForCanvas(canvas, pointerEvent, startPoint)
     : null;
@@ -4650,16 +4887,30 @@ function remappedPointerEventForCanvas(canvas, sourceEvent, normalizedPoint) {
   };
 }
 
-function createPinnedBlockControls(doc, blockIndex) {
+function createPinnedBlockControls(doc, blockId) {
   const controls = doc.createElement('div');
   controls.className = 'reader-pinned-note-block-tools';
   controls.addEventListener('pointerdown', preserveSideNoteActionClick);
   controls.innerHTML = `
-    <button type="button" data-side-note-action="insert-text" data-block-index="${blockIndex}">Text below</button>
-    <button type="button" data-side-note-action="insert-ink" data-block-index="${blockIndex}">Draw below</button>
-    <button class="danger" type="button" data-side-note-action="remove-block" data-block-index="${blockIndex}">Remove</button>
+    <button class="danger" type="button" data-side-note-action="remove-block" data-block-id="${escapeAttr(blockId)}">Remove</button>
   `;
   return controls;
+}
+
+function createPinnedInsertionBoundary(doc, annotationId, boundary = {}) {
+  const row = doc.createElement('div');
+  row.className = 'reader-side-note-insertion-row';
+  row.dataset.annotationId = annotationId;
+  if (boundary.beforeBlockId) row.dataset.beforeBlockId = boundary.beforeBlockId;
+  if (boundary.afterBlockId) row.dataset.afterBlockId = boundary.afterBlockId;
+  row.addEventListener('pointerdown', preserveSideNoteActionClick);
+  row.innerHTML = `
+    <span>Add here:</span>
+    <button type="button" data-side-note-action="insert-text">Text</button>
+    <button type="button" data-side-note-action="insert-ink">Draw</button>
+    <button type="button" data-side-note-action="insert-image">Picture</button>
+  `;
+  return row;
 }
 
 function preserveSideNoteActionClick(event) {
@@ -4763,7 +5014,10 @@ function injectReaderStyles(doc) {
     .reader-side-note-warning { display: block; margin: 0 0 .3rem; color: #9b2f23; font: 11px/1.3 ui-sans-serif, system-ui, sans-serif; }
     .reader-side-note-title:empty::before, .reader-side-note-body:empty::before { content: attr(data-placeholder); color: rgba(21, 21, 21, .34); pointer-events: none; }
     .reader-side-note-body { display: block; min-height: 1.45em; margin-top: .18rem; white-space: pre-wrap; overflow-wrap: break-word; }
-    .reader-side-note.is-collapsed .reader-side-note-body, .reader-side-note.is-collapsed .reader-side-note-blank, .reader-side-note.is-collapsed .reader-side-note-ink-wrap, .reader-side-note.is-collapsed .reader-pinned-block-controls { display: none !important; }
+    .reader-side-note-body.is-rendered { min-height: 0; white-space: normal; cursor: default; }
+    .reader-side-note-body.is-rendered > :first-child { margin-top: 0; }
+    .reader-side-note-body.is-rendered > :last-child { margin-bottom: 0; }
+    .reader-side-note.is-collapsed .reader-side-note-body, .reader-side-note.is-collapsed .reader-side-note-blank, .reader-side-note.is-collapsed .reader-side-note-ink-wrap, .reader-side-note.is-collapsed .reader-side-note-text-block, .reader-side-note.is-collapsed .reader-side-note-image-block, .reader-side-note.is-collapsed .reader-pinned-note-block-tools, .reader-side-note.is-collapsed .reader-side-note-insertion-row { display: none !important; }
     .reader-side-note-blank { display: block; width: 100%; aspect-ratio: 16 / 9; margin-top: .35rem; border: 1px solid transparent; border-radius: 4px; cursor: text; }
     .reader-side-note.is-active .reader-side-note-blank:hover, .reader-side-note-blank:focus-visible { border-color: rgba(216, 199, 168, .72); background: rgba(122, 61, 0, .04); outline: none; }
     .reader-side-note-title[contenteditable], .reader-side-note-body[contenteditable] { outline: 0; }
@@ -4771,6 +5025,22 @@ function injectReaderStyles(doc) {
     .reader-pinned-note-block-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .35rem; margin: .28rem 0 .6rem; font: 12px/1.2 ui-sans-serif, system-ui, sans-serif; }
     .reader-pinned-note-block-tools button { border: 1px solid #d8c7a8; border-radius: 4px; padding: .2rem .42rem; background: #fffdf8; color: #7a3d00; font: inherit; cursor: pointer; }
     .reader-pinned-note-block-tools button.danger { color: #8f1f12; border-color: #e1b6ad; }
+    .reader-side-note-text-block { position: relative; }
+    .reader-side-note-text-mode { display: block; margin: .18rem 0 .3rem auto; border: 1px solid #d8c7a8; border-radius: 4px; padding: .16rem .38rem; background: #fffdf8; color: #7a3d00; font: 11px/1.2 ui-sans-serif, system-ui, sans-serif; cursor: pointer; }
+    .reader-side-note-insertion-row { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: .28rem; margin: .38rem 0; color: #7b6a55; font: 11px/1.2 ui-sans-serif, system-ui, sans-serif; }
+    .reader-side-note-insertion-row button { border: 1px solid #d8c7a8; border-radius: 4px; padding: .18rem .38rem; background: #fffdf8; color: #7a3d00; font: inherit; cursor: pointer; }
+    .reader-side-note-image-block { width: 100%; margin: .38rem 0; }
+    .reader-side-note-image-frame { display: grid; place-items: center; width: 100%; margin-inline: auto; overflow: hidden; border: 1px solid #e2d5bd; border-radius: 4px; background: rgba(255,253,248,.72); }
+    .reader-side-note-image { display: block; width: 100%; max-width: 100%; height: auto; object-fit: contain; }
+    .reader-side-note-image-placeholder { box-sizing: border-box; max-width: 100%; padding: .65rem; color: #7b6a55; font: 12px/1.35 ui-sans-serif, system-ui, sans-serif; text-align: center; overflow-wrap: anywhere; }
+    .reader-side-note-image-tools { margin-top: .24rem; color: #7b6a55; font: 11px/1.2 ui-sans-serif, system-ui, sans-serif; }
+    .reader-side-note-image-tools label { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .35rem; }
+    .reader-side-note-image-tools input { min-width: 0; border: 1px solid #d8c7a8; border-radius: 4px; padding: .18rem .3rem; background: #fffdf8; color: #151515; }
+    .note-markdown-math-display { display: block; max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+    .note-markdown-math-error { display: inline-block; max-width: 100%; color: #9b2f23; overflow-wrap: anywhere; }
+    .note-markdown pre { max-width: 100%; overflow: auto; padding: .45rem; border-radius: 4px; background: rgba(52,38,18,.06); }
+    .note-markdown code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88em; overflow-wrap: anywhere; }
+    .note-markdown a { color: #7a3d00; text-decoration-thickness: .08em; text-underline-offset: .14em; }
     .reader-side-note-tools { position: sticky; z-index: 4; top: .2rem; left: 0; display: flex; flex-wrap: wrap; width: fit-content; max-width: 100%; gap: 3px; margin: 0 0 .35rem 0; padding: .16rem; border: 1px solid rgba(216, 199, 168, .88); border-radius: 5px; background: rgba(255, 253, 248, .94); box-shadow: 0 6px 16px rgba(52, 38, 18, .12); opacity: 1; transition: opacity 120ms ease; }
     .reader-side-note:not(.is-active):not(.is-editing) .reader-side-note-tools { opacity: .78; }
     .reader-side-note-card:hover .reader-side-note-tools, .reader-side-note.is-active .reader-side-note-tools, .reader-side-note.is-editing .reader-side-note-tools { opacity: 1; }
@@ -6249,23 +6519,23 @@ function redrawSideInkCanvases(doc) {
     .map((canvas) => {
       const note = canvas.closest('.reader-side-note');
       const annotationId = note?.dataset.annotationId;
-      const blockIndex = Number(canvas.dataset.blockIndex);
-      if (!annotationId || !Number.isInteger(blockIndex)) return null;
-      return { canvas, annotationId, blockIndex };
+      const blockId = canvas.dataset.blockId;
+      if (!annotationId || !blockId) return null;
+      return { canvas, annotationId, blockId };
     })
     .filter(Boolean);
-  const liveEntries = entries.filter((entry) => isLiveSideInkCanvas(entry.annotationId, entry.blockIndex));
-  const inactiveEntries = entries.filter((entry) => !isLiveSideInkCanvas(entry.annotationId, entry.blockIndex));
-  for (const { canvas, annotationId, blockIndex } of liveEntries) {
-    drawSideInkCanvas(canvas, annotationId, blockIndex);
+  const liveEntries = entries.filter((entry) => isLiveSideInkCanvas(entry.annotationId, entry.blockId));
+  const inactiveEntries = entries.filter((entry) => !isLiveSideInkCanvas(entry.annotationId, entry.blockId));
+  for (const { canvas, annotationId, blockId } of liveEntries) {
+    drawSideInkCanvas(canvas, annotationId, blockId);
   }
   if (state.sideInkSession) return;
   if (state.layoutDragSession) {
     deferInactiveSideInkRedrawUntilLayoutDragEnd(doc);
     return;
   }
-  for (const { canvas, annotationId, blockIndex } of inactiveEntries) {
-    drawSideInkCanvas(canvas, annotationId, blockIndex);
+  for (const { canvas, annotationId, blockId } of inactiveEntries) {
+    drawSideInkCanvas(canvas, annotationId, blockId);
   }
 }
 
@@ -6412,19 +6682,34 @@ function sideNoteTitle(annotation) {
 function sideNoteContentBlocks(annotation) {
   const rawBlocks = Array.isArray(annotation.note?.blocks) ? annotation.note.blocks : [];
   if (rawBlocks.length && rawBlocks.every(isRuntimeSideNoteBlock)) return rawBlocks;
-  const blocks = rawBlocks.map(normalizeSideNoteBlock).filter(Boolean);
+  const blocks = rawBlocks.map((block, index) => normalizeSideNoteBlock(block, annotation, index)).filter(Boolean);
   if (blocks.length) return blocks;
   const legacyBlocks = [];
   const markdown = annotation.note?.markdown || '';
   const ink = normalizeSideNoteInk(annotation.note?.ink);
-  if (markdown || !ink.strokes.length) legacyBlocks.push({ type: 'text', markdown });
-  if (ink.strokes.length) legacyBlocks.push({ type: 'ink', ink });
+  if (markdown || !ink.strokes.length) legacyBlocks.push({
+    id: deterministicLegacyBlockId(annotation, legacyBlocks.length, 'text'),
+    type: 'text',
+    markdown
+  });
+  if (ink.strokes.length) legacyBlocks.push({
+    id: deterministicLegacyBlockId(annotation, legacyBlocks.length, 'ink'),
+    type: 'ink',
+    ink
+  });
   return legacyBlocks;
 }
 
 function isRuntimeSideNoteBlock(block) {
+  if (!isSideNoteBlockId(block?.id)) return false;
   if (block?.type === 'blank') return true;
   if (block?.type === 'text') return typeof block.markdown === 'string';
+  if (block?.type === 'image') {
+    return typeof block.assetPath === 'string'
+      && typeof block.mimeType === 'string'
+      && Number.isFinite(Number(block.intrinsicWidth))
+      && Number.isFinite(Number(block.intrinsicHeight));
+  }
   if (block?.type !== 'ink') return false;
   const ink = block.ink;
   if (!ink || ink.v != null || !Array.isArray(ink.strokes)) return false;
@@ -6442,11 +6727,64 @@ function isRuntimeInkStroke(stroke) {
   ));
 }
 
-function normalizeSideNoteBlock(block) {
-  if (block?.type === 'blank') return { type: 'blank' };
-  if (block?.type === 'text') return { type: 'text', markdown: block.markdown || '' };
-  if (block?.type === 'ink') return { type: 'ink', ink: normalizeSideNoteInk(block.ink) };
+function normalizeSideNoteBlock(block, annotation, index) {
+  const id = isSideNoteBlockId(block?.id)
+    ? block.id
+    : deterministicLegacyBlockId(annotation, index, block?.type || 'blank');
+  if (block?.type === 'blank') return { id, type: 'blank' };
+  if (block?.type === 'text') return { id, type: 'text', markdown: String(block.markdown || '') };
+  if (block?.type === 'ink') return { id, type: 'ink', ink: normalizeSideNoteInk(block.ink) };
+  if (block?.type === 'image') {
+    return {
+      id,
+      type: 'image',
+      assetPath: String(block.assetPath || ''),
+      mimeType: String(block.mimeType || ''),
+      intrinsicWidth: Number(block.intrinsicWidth),
+      intrinsicHeight: Number(block.intrinsicHeight),
+      alt: String(block.alt || ''),
+      originalName: String(block.originalName || '')
+    };
+  }
   return null;
+}
+
+function isSideNoteBlockId(value) {
+  return typeof value === 'string' && /^blk_[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(value);
+}
+
+function deterministicLegacyBlockId(annotation, index, type) {
+  const input = `${annotation?.id || 'note'}:${Number(index) || 0}:${type || 'block'}`;
+  let hash = 2166136261;
+  for (let cursor = 0; cursor < input.length; cursor += 1) {
+    hash ^= input.charCodeAt(cursor);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `blk_legacy_${(hash >>> 0).toString(36)}`;
+}
+
+function newSideNoteBlockId() {
+  const value = globalThis.crypto?.randomUUID?.()
+    || `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+  return `blk_${String(value).replace(/[^A-Za-z0-9_-]/g, '_')}`;
+}
+
+function newSideNoteBlock(type) {
+  if (type === 'ink') {
+    return { id: newSideNoteBlockId(), type: 'ink', ink: { strokes: [], height: INK_CANVAS_HEIGHT.default } };
+  }
+  if (type === 'blank') return { id: newSideNoteBlockId(), type: 'blank' };
+  return { id: newSideNoteBlockId(), type: 'text', markdown: '' };
+}
+
+function sideNoteBlockIndex(annotation, blockId) {
+  if (!blockId) return -1;
+  return sideNoteContentBlocks(annotation).findIndex((block) => block.id === blockId);
+}
+
+function sideNoteBlockById(annotation, blockId) {
+  const index = sideNoteBlockIndex(annotation, blockId);
+  return index >= 0 ? sideNoteContentBlocks(annotation)[index] : null;
 }
 
 function normalizeSideNoteInk(ink) {
@@ -6476,7 +6814,7 @@ function legacyNoteFieldsFromBlocks(blocks) {
 
 async function handleSideInkAction(event, annotationId, action) {
   const toolbar = event.target?.closest?.('.reader-side-note-ink-toolbar');
-  const blockIndex = Number(toolbar?.dataset?.blockIndex);
+  const blockId = toolbar?.dataset?.blockId || '';
   if (action === 'ink-tool-pen') {
     state.inkTool = 'pen';
     syncInkToolUi();
@@ -6500,14 +6838,14 @@ async function handleSideInkAction(event, annotationId, action) {
     syncInkToolUi();
     return;
   }
-  if (!Number.isInteger(blockIndex)) return;
-  if (action === 'ink-undo') await undoSideInk(annotationId, blockIndex);
-  if (action === 'ink-redo') await redoSideInk(annotationId, blockIndex);
-  if (action === 'ink-clear') requestClearSideInk(annotationId, blockIndex, event.target);
+  if (!blockId) return;
+  if (action === 'ink-undo') await undoSideInk(annotationId, blockId);
+  if (action === 'ink-redo') await redoSideInk(annotationId, blockId);
+  if (action === 'ink-clear') requestClearSideInk(annotationId, blockId, event.target);
 }
 
-function sideInkHistoryKey(annotationId, blockIndex) {
-  return `${annotationId}:${blockIndex}`;
+function sideInkHistoryKey(annotationId, blockId) {
+  return `${annotationId}:${blockId}`;
 }
 
 function syncInkToolUi(doc = getFrameDoc()) {
@@ -6530,20 +6868,20 @@ function syncInkToolUi(doc = getFrameDoc()) {
   });
 }
 
-function sideInkHistory(annotationId, blockIndex) {
-  const key = sideInkHistoryKey(annotationId, blockIndex);
+function sideInkHistory(annotationId, blockId) {
+  const key = sideInkHistoryKey(annotationId, blockId);
   if (!state.sideInkHistory.has(key)) state.sideInkHistory.set(key, { undo: [], redo: [] });
   return state.sideInkHistory.get(key);
 }
 
-async function undoSideInk(annotationId, blockIndex) {
-  const history = sideInkHistory(annotationId, blockIndex);
+async function undoSideInk(annotationId, blockId) {
+  const history = sideInkHistory(annotationId, blockId);
   const action = history.undo.pop();
   if (!action) return;
   const annotation = state.annotations.find((item) => item.id === annotationId);
   if (!annotation) return;
   const blocks = sideNoteContentBlocks(annotation);
-  const block = blocks[blockIndex];
+  const block = blocks.find((item) => item.id === blockId);
   if (block?.type !== 'ink') return;
   if (action.type === 'add') {
     block.ink.strokes.pop();
@@ -6555,14 +6893,14 @@ async function undoSideInk(annotationId, blockIndex) {
   await saveAnnotationBlocks(annotation, blocks, { render: false });
 }
 
-async function redoSideInk(annotationId, blockIndex) {
-  const history = sideInkHistory(annotationId, blockIndex);
+async function redoSideInk(annotationId, blockId) {
+  const history = sideInkHistory(annotationId, blockId);
   const action = history.redo.pop();
   if (!action) return;
   const annotation = state.annotations.find((item) => item.id === annotationId);
   if (!annotation) return;
   const blocks = sideNoteContentBlocks(annotation);
-  const block = blocks[blockIndex];
+  const block = blocks.find((item) => item.id === blockId);
   if (block?.type !== 'ink') return;
   if (action.type === 'add') {
     block.ink.strokes.push(action.stroke);
@@ -6574,16 +6912,16 @@ async function redoSideInk(annotationId, blockIndex) {
   await saveAnnotationBlocks(annotation, blocks, { render: false });
 }
 
-async function clearSideInk(annotationId, blockIndex) {
+async function clearSideInk(annotationId, blockId) {
   const annotation = state.annotations.find((item) => item.id === annotationId);
-  if (!annotation || !Number.isInteger(blockIndex)) return;
+  if (!annotation || !blockId) return;
   const before = cloneAnnotation(annotation);
   const blocks = sideNoteContentBlocks(annotation);
-  const block = blocks[blockIndex];
+  const block = blocks.find((item) => item.id === blockId);
   if (block?.type !== 'ink' || !block.ink.strokes.length) return;
   const removed = block.ink.strokes.slice();
   block.ink.strokes = [];
-  const history = sideInkHistory(annotationId, blockIndex);
+  const history = sideInkHistory(annotationId, blockId);
   history.undo.push({ type: 'erase', strokes: removed });
   history.redo = [];
   redrawSideInkCanvases(getFrameDoc());
@@ -6591,10 +6929,10 @@ async function clearSideInk(annotationId, blockIndex) {
   recordAnnotationHistory('drawing clear', before, updated, annotationId);
 }
 
-function requestClearSideInk(annotationId, blockIndex, anchorElement) {
+function requestClearSideInk(annotationId, blockId, anchorElement) {
   const annotation = state.annotations.find((item) => item.id === annotationId);
-  if (!annotation || !Number.isInteger(blockIndex) || !anchorElement) return;
-  const block = sideNoteContentBlocks(annotation)[blockIndex];
+  if (!annotation || !blockId || !anchorElement) return;
+  const block = sideNoteBlockById(annotation, blockId);
   if (block?.type !== 'ink' || !block.ink.strokes.length) return;
   closeDeleteConfirmPopovers();
   const doc = anchorElement.ownerDocument;
@@ -6624,19 +6962,20 @@ function requestClearSideInk(annotationId, blockIndex, anchorElement) {
   installInlineConfirmPopover(popover, anchorElement, {
     cancelButton: cancel,
     confirmButton,
-    onConfirm: () => clearSideInk(annotationId, blockIndex)
+    onConfirm: () => clearSideInk(annotationId, blockId)
   });
 }
 
 async function saveAnnotationBlocks(annotation, blocks, options = {}) {
+  await flushPendingAnnotationBlockSave(annotation.id);
   const legacy = legacyNoteFieldsFromBlocks(blocks);
   const payload = applyAnnotationBlocksLocally(annotation, blocks, legacy);
   return persistAnnotationBlocks(payload, options);
 }
 
-async function persistAnnotationBlocks(annotation, options = {}, revision = null) {
-  const updated = annotationWithRuntimeInk(await storage.updateAnnotation(state.docId, annotation.id, annotationForStorage(annotation)));
-  if (revision === null || state.annotationBlockSaveRevisions.get(annotation.id) === revision) {
+async function persistAnnotationBlocks(annotation, options = {}, revision = null, docId = state.docId) {
+  const updated = annotationWithRuntimeInk(await storage.updateAnnotation(docId, annotation.id, annotationForStorage(annotation)));
+  if (state.docId === docId && (revision === null || state.annotationBlockSaveRevisions.get(annotation.id) === revision)) {
     state.annotations = state.annotations.map((item) => item.id === annotation.id ? updated : item);
     state.activeAnnotationId = annotation.id;
   }
@@ -6651,6 +6990,7 @@ function applyAnnotationBlocksLocally(annotation, blocks, legacy = legacyNoteFie
     ...annotation,
     note: {
       ...(annotation.note || {}),
+      schemaVersion: 2,
       ...legacy,
       blocks
     }
@@ -6668,6 +7008,7 @@ function annotationForStorage(annotation) {
     ...annotation,
     note: {
       ...annotation.note,
+      schemaVersion: 2,
       ...legacy,
       blocks
     }
@@ -6682,6 +7023,7 @@ function annotationWithRuntimeInk(annotation) {
     ...annotation,
     note: {
       ...annotation.note,
+      schemaVersion: 2,
       ...legacy,
       blocks
     }
@@ -6690,15 +7032,17 @@ function annotationWithRuntimeInk(annotation) {
 
 function blocksForStorage(blocks) {
   return blocks.map((block) => {
-    if (block?.type === 'ink') return { type: 'ink', ink: encodeInkForStorage(block.ink) };
-    if (block?.type === 'text') return { type: 'text', markdown: block.markdown || '' };
-    if (block?.type === 'blank') return { type: 'blank' };
+    if (block?.type === 'ink') return { id: block.id, type: 'ink', ink: encodeInkForStorage(block.ink) };
+    if (block?.type === 'text') return { id: block.id, type: 'text', markdown: block.markdown || '' };
+    if (block?.type === 'blank') return { id: block.id, type: 'blank' };
+    if (block?.type === 'image') return { ...block };
     return block;
   }).filter(Boolean);
 }
 
 function queueSaveAnnotationBlocks(annotation, blocks, options = {}) {
   const key = annotation.id;
+  const docId = state.docId;
   const legacy = legacyNoteFieldsFromBlocks(blocks);
   const payload = applyAnnotationBlocksLocally(annotation, blocks, legacy);
   const revision = (state.annotationBlockSaveRevisions.get(key) || 0) + 1;
@@ -6711,17 +7055,20 @@ function queueSaveAnnotationBlocks(annotation, blocks, options = {}) {
       clearTimeout(existingTimer.timer);
       existingTimer.resolve?.(payload);
     }
-    const enqueue = () => {
-      if (waitForInkIdle && state.sideInkSession) {
+    let enqueued = false;
+    const enqueue = (force = false) => {
+      if (enqueued) return;
+      if (!force && waitForInkIdle && state.sideInkSession) {
         const timer = setTimeout(enqueue, delayMs || INK_SAVE_IDLE_DELAY_MS);
-        state.sideInkSaveTimers.set(key, { timer, resolve, reject });
+        state.sideInkSaveTimers.set(key, { timer, resolve, reject, flush: () => enqueue(true) });
         return;
       }
+      enqueued = true;
       state.sideInkSaveTimers.delete(key);
       const previous = state.annotationBlockSaveQueues.get(key) || Promise.resolve();
       const next = previous
         .catch(() => {})
-        .then(() => persistAnnotationBlocks(payload, options, revision));
+        .then(() => persistAnnotationBlocks(payload, options, revision, docId));
       const queued = next.finally(() => {
         if (state.annotationBlockSaveQueues.get(key) === queued) {
           state.annotationBlockSaveQueues.delete(key);
@@ -6732,11 +7079,29 @@ function queueSaveAnnotationBlocks(annotation, blocks, options = {}) {
     };
     if (delayMs || waitForInkIdle) {
       const timer = setTimeout(enqueue, delayMs || INK_SAVE_IDLE_DELAY_MS);
-      state.sideInkSaveTimers.set(key, { timer, resolve, reject });
+      state.sideInkSaveTimers.set(key, { timer, resolve, reject, flush: () => enqueue(true) });
     } else {
       enqueue();
     }
   });
+}
+
+async function flushPendingAnnotationBlockSave(annotationId) {
+  const pendingTimer = state.sideInkSaveTimers.get(annotationId);
+  if (pendingTimer) {
+    clearTimeout(pendingTimer.timer);
+    pendingTimer.flush?.();
+  }
+  const pending = state.annotationBlockSaveQueues.get(annotationId);
+  if (pending) await pending;
+}
+
+async function flushAllPendingAnnotationBlockSaves() {
+  const ids = new Set([
+    ...state.sideInkSaveTimers.keys(),
+    ...state.annotationBlockSaveQueues.keys()
+  ]);
+  await Promise.all([...ids].map((annotationId) => flushPendingAnnotationBlockSave(annotationId)));
 }
 
 function annotationHighlightTargets(annotation) {
@@ -6985,90 +7350,129 @@ function nearestAnchorForDocumentY(doc, y) {
   return best;
 }
 
-function beginInlineTextEdit(annotationId, note, focusField = 'body', pointerEvent = null) {
+function beginInlineTextEdit(annotationId, note, focusField = 'body', pointerEvent = null, requestedBlockId = '') {
   const annotation = state.annotations.find((item) => item.id === annotationId);
   if (!annotation) return;
   const title = note.querySelector('.reader-side-note-title');
   const bodies = Array.from(note.querySelectorAll('.reader-side-note-body'));
   const clickedBody = pointerEvent?.target?.closest?.('.reader-side-note-body');
-  const body = bodies.includes(clickedBody) ? clickedBody : bodies[0] || null;
+  const body = bodies.includes(clickedBody)
+    ? clickedBody
+    : bodies.find((item) => item.dataset.blockId === requestedBlockId) || bodies[0] || null;
   if (!body && focusField !== 'title') return;
-  if (note.classList.contains('is-editing')) {
-    const activeField = focusField === 'title' && title ? title : body || title;
-    activeField.focus({ preventScroll: true });
-    if (!editableSelectionActive(activeField)) placeCaretFromPoint(activeField, pointerEvent);
+  const field = focusField === 'title' && title ? title : body;
+  if (!field) return;
+  const existing = note.querySelector('.reader-side-note-title[contenteditable], .reader-side-note-body[contenteditable]');
+  if (existing && existing !== field) {
+    finishInlineTextEdit(annotationId, note)
+      .then(() => {
+        const rerendered = getFrameDoc().querySelector(`.reader-side-note[data-annotation-id="${cssEscape(annotationId)}"]`);
+        if (rerendered) beginInlineTextEdit(annotationId, rerendered, focusField, pointerEvent, requestedBlockId);
+      })
+      .catch((error) => setStatus(error.message, true));
+    return;
+  }
+  if (field.isContentEditable) {
+    field.focus({ preventScroll: true });
+    if (!editableSelectionActive(field)) placeCaretFromPoint(field, pointerEvent);
     return;
   }
   note.classList.add('is-editing');
-  if (title) {
-    title.contentEditable = 'plaintext-only';
-    title.dataset.originalText = title.textContent;
+  let modeButton = null;
+  if (field === body) {
+    const block = sideNoteBlockById(annotation, body.dataset.blockId);
+    if (block?.type !== 'text') return;
+    body.textContent = block.markdown;
+    body.classList.remove('is-rendered', 'note-markdown');
+    body.tabIndex = 0;
+    modeButton = body.closest('.reader-side-note-text-block')?.querySelector('.reader-side-note-text-mode') || null;
+    if (modeButton) {
+      modeButton.dataset.sideNoteAction = 'render-text';
+      modeButton.textContent = 'Render';
+      modeButton.hidden = body.dataset.hasRenderableSyntax !== 'true';
+    }
   }
-  if (body) body.contentEditable = 'plaintext-only';
-  for (const item of bodies) {
-    item.contentEditable = 'plaintext-only';
-    item.dataset.originalText = item.textContent;
-  }
-  const focusElement = focusField === 'title' && title ? title : body || title;
-  focusElement.focus({ preventScroll: true });
-  placeCaretFromPoint(focusElement, pointerEvent);
+  field.contentEditable = 'plaintext-only';
+  field.dataset.originalText = editablePlainText(field);
+  field.focus({ preventScroll: true });
+  placeCaretFromPoint(field, pointerEvent);
 
-  const editableElements = [title, ...bodies].filter(Boolean);
-  const onInput = () => requestSideNoteLayout(note.ownerDocument);
+  const onInput = () => {
+    requestSideNoteLayout(note.ownerDocument);
+    if (field !== body || !modeButton) return;
+    const previousTimer = state.noteMarkdownAnalysisTimers.get(body);
+    if (previousTimer) clearTimeout(previousTimer);
+    const timer = setTimeout(async () => {
+      const source = editablePlainText(body);
+      try {
+        const analysis = await analyzeNoteMarkdown(source);
+        if (!body.isConnected || !body.isContentEditable || editablePlainText(body) !== source) return;
+        modeButton.hidden = !analysis.hasRenderableSyntax;
+        body.dataset.hasRenderableSyntax = analysis.hasRenderableSyntax ? 'true' : 'false';
+      } catch {
+        modeButton.hidden = true;
+      }
+    }, 120);
+    state.noteMarkdownAnalysisTimers.set(body, timer);
+  };
   const onKeyDown = (event) => {
     if (event.key === 'Escape') {
-      if (title) title.textContent = title.dataset.originalText || '';
-      for (const item of bodies) item.textContent = item.dataset.originalText || '';
+      field.textContent = field.dataset.originalText || '';
       note.dataset.cancelInlineSave = 'true';
+      event.preventDefault();
       event.currentTarget.blur();
     }
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      event.preventDefault();
       event.currentTarget.blur();
     }
   };
   const onBlur = () => {
     window.setTimeout(() => {
-      if (editableElements.includes(note.ownerDocument.activeElement)) return;
+      if (field === note.ownerDocument.activeElement) return;
       finishInlineTextEdit(annotationId, note).catch((error) => setStatus(error.message, true));
     }, 0);
   };
-  for (const element of editableElements) {
-    element.addEventListener('input', onInput);
-    element.addEventListener('keydown', onKeyDown);
-    element.addEventListener('blur', onBlur);
-  }
+  field.addEventListener('input', onInput);
+  field.addEventListener('keydown', onKeyDown);
+  field.addEventListener('blur', onBlur, { once: true });
 }
 
 async function finishInlineTextEdit(annotationId, note) {
-  const title = note.querySelector('.reader-side-note-title');
-  const bodies = Array.from(note.querySelectorAll('.reader-side-note-body'));
-  const editableElements = [title, ...bodies].filter(Boolean);
-  for (const element of editableElements) element.removeAttribute('contenteditable');
+  const field = note.querySelector('.reader-side-note-title[contenteditable], .reader-side-note-body[contenteditable]');
+  if (!field) return;
+  const isTitle = field.classList.contains('reader-side-note-title');
+  const blockId = field.dataset.blockId || '';
+  const value = editablePlainText(field);
+  field.removeAttribute('contenteditable');
   note.classList.remove('is-editing');
   if (note.dataset.cancelInlineSave === 'true') {
     delete note.dataset.cancelInlineSave;
-    requestSideNoteLayout(note.ownerDocument);
+    renderAnnotations();
     flushDeferredPdfFullRefresh(note.ownerDocument);
     return;
   }
-  await saveInlineNoteText(annotationId, note, title?.textContent || '', bodies);
+  await saveInlineNoteField(annotationId, { title: isTitle ? value : undefined, blockId, markdown: isTitle ? undefined : value });
 }
 
-async function saveInlineNoteText(annotationId, note, title, bodies) {
+async function saveInlineNoteField(annotationId, update = {}) {
   const annotation = state.annotations.find((item) => item.id === annotationId);
   if (!annotation) return;
+  await flushPendingAnnotationBlockSave(annotationId);
   const before = cloneAnnotation(annotation);
-  const blocks = sideNoteContentBlocks(annotation).map((block, index) => {
-    if (block.type !== 'text') return block;
-    const body = bodies.find((item) => Number(item.dataset.blockIndex) === index);
-    return { type: 'text', markdown: body?.textContent || '' };
-  });
+  const blocks = sideNoteContentBlocks(annotation);
+  if (update.blockId) {
+    const block = blocks.find((item) => item.id === update.blockId);
+    if (block?.type !== 'text') return;
+    block.markdown = String(update.markdown || '');
+  }
   const legacy = legacyNoteFieldsFromBlocks(blocks);
   const payload = {
     ...annotation,
     note: {
       ...annotation.note,
-      title,
+      title: update.title === undefined ? annotation.note?.title || '' : String(update.title || ''),
+      schemaVersion: 2,
       ...legacy,
       blocks
     }
@@ -7266,6 +7670,7 @@ async function finishNavigatorTitleEdit(annotationId, titleElement) {
 async function saveNavigatorNoteTitle(annotationId, title) {
   const annotation = state.annotations.find((item) => item.id === annotationId);
   if (!annotation) return;
+  await flushPendingAnnotationBlockSave(annotationId);
   const before = cloneAnnotation(annotation);
   const blocks = sideNoteContentBlocks(annotation);
   const legacy = legacyNoteFieldsFromBlocks(blocks);
@@ -7296,9 +7701,11 @@ function createNavigatorNoteContent(annotation) {
     if (block.type === 'text') {
       if (!block.markdown?.trim()) continue;
       const text = document.createElement('div');
-      text.className = 'note-card-content-text';
+      text.className = 'note-card-content-text note-markdown';
+      text.dataset.blockId = block.id;
       text.textContent = block.markdown || '';
       content.append(text);
+      renderNavigatorMarkdownBlock(text, block.id, block.markdown || '');
       hasContent = true;
       continue;
     }
@@ -7309,12 +7716,19 @@ function createNavigatorNoteContent(annotation) {
       const canvas = document.createElement('canvas');
       canvas.className = 'note-card-ink';
       canvas.dataset.annotationId = annotation.id;
-      canvas.dataset.blockIndex = String(index);
+      canvas.dataset.blockId = block.id;
       canvas.setAttribute('role', 'img');
       canvas.setAttribute('aria-label', drawingCanvasLabel(annotation, block));
       wrap.append(canvas);
       content.append(wrap);
       requestAnimationFrame(() => drawInkPreview(canvas, block.ink));
+      hasContent = true;
+      continue;
+    }
+    if (block.type === 'image') {
+      const imageBlock = createSideNoteImageBlock(document, annotation, block);
+      imageBlock.classList.add('note-card-image-block');
+      content.append(imageBlock);
       hasContent = true;
       continue;
     }
@@ -7326,6 +7740,17 @@ function createNavigatorNoteContent(annotation) {
     content.append(empty);
   }
   return content;
+}
+
+async function renderNavigatorMarkdownBlock(element, blockId, source) {
+  try {
+    const rendered = await renderNoteMarkdown(source);
+    if (!element.isConnected || element.dataset.blockId !== blockId) return;
+    ensureNoteMarkdownStyles(element.ownerDocument);
+    element.innerHTML = rendered.html;
+  } catch {
+    if (element.isConnected) element.textContent = source;
+  }
 }
 
 function navigatorContentId(annotationId) {
@@ -7413,6 +7838,8 @@ function annotationTitle(annotation) {
     .filter((block) => block.type === 'ink')
     .reduce((count, block) => count + block.ink.strokes.length, 0);
   if (strokes) return `Drawing note (${strokes} stroke${strokes === 1 ? '' : 's'})`;
+  const picture = sideNoteContentBlocks(annotation).find((block) => block.type === 'image');
+  if (picture) return picture.alt?.trim() || picture.originalName?.trim() || 'Picture note';
   return 'Empty side note';
 }
 
@@ -7584,6 +8011,39 @@ function romanToInteger(value) {
   return total || null;
 }
 
+function editablePlainText(element) {
+  if (!element) return '';
+  if (typeof element.innerText === 'string') return element.innerText.replace(/\r\n?/g, '\n');
+
+  const blockTags = new Set([
+    'ADDRESS', 'ARTICLE', 'ASIDE', 'BLOCKQUOTE', 'DIV', 'FIGCAPTION', 'FIGURE',
+    'FOOTER', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HEADER', 'LI', 'MAIN',
+    'NAV', 'OL', 'P', 'PRE', 'SECTION', 'UL'
+  ]);
+  let output = '';
+  const walk = (parent) => {
+    const children = Array.from(parent?.childNodes || []);
+    children.forEach((child, index) => {
+      if (child?.nodeType === 3) {
+        output += child.nodeValue || '';
+        return;
+      }
+      if (child?.nodeType !== 1) return;
+      const tagName = String(child.tagName || child.nodeName || '').toUpperCase();
+      if (tagName === 'BR') {
+        output += '\n';
+        return;
+      }
+      const isBlock = blockTags.has(tagName);
+      if (isBlock && output && !output.endsWith('\n')) output += '\n';
+      walk(child);
+      if (isBlock && index < children.length - 1 && !output.endsWith('\n')) output += '\n';
+    });
+  };
+  walk(element);
+  return output.replace(/\r\n?/g, '\n');
+}
+
 function readableSnippet(value, maxLength) {
   const snippet = String(value || '').replace(/\s+/g, ' ').trim();
   if (snippet.length <= maxLength) return snippet;
@@ -7648,9 +8108,9 @@ function syncSideInkToolbars(doc) {
     note.querySelectorAll('.reader-side-note-ink-toolbar').forEach((toolbar) => toolbar.remove());
     if (annotationId !== state.activeAnnotationId) return;
     note.querySelectorAll('.reader-side-note-ink').forEach((canvas) => {
-      const blockIndex = Number(canvas.dataset.blockIndex);
-      if (!Number.isInteger(blockIndex)) return;
-      const toolbar = createSideInkToolbar(doc, annotationId, blockIndex);
+      const blockId = canvas.dataset.blockId;
+      if (!blockId) return;
+      const toolbar = createSideInkToolbar(doc, annotationId, blockId);
       const wrap = canvas.closest('.reader-side-note-ink-wrap') || canvas.parentElement;
       wrap.append(toolbar);
     });
@@ -7963,8 +8423,10 @@ function closeDeleteConfirmPopovers() {
 }
 
 async function deleteAnnotation(annotationId) {
-  const annotation = state.annotations.find((item) => item.id === annotationId);
+  let annotation = state.annotations.find((item) => item.id === annotationId);
   if (!annotation) return;
+  await flushPendingAnnotationBlockSave(annotationId);
+  annotation = state.annotations.find((item) => item.id === annotationId) || annotation;
   const before = cloneAnnotation(annotation);
   await storage.deleteAnnotation(state.docId, annotationId);
   state.activeAnnotationId = null;
@@ -7998,25 +8460,91 @@ function togglePinnedNote(annotationId) {
 async function handlePinnedNoteBlockAction(annotationId, action, target) {
   const annotation = state.annotations.find((item) => item.id === annotationId);
   if (!annotation || state.pinnedAnnotationId !== annotationId) return;
+  const boundary = target?.closest?.('.reader-side-note-insertion-row');
+  const beforeBlockId = boundary?.dataset?.beforeBlockId || '';
+  const afterBlockId = boundary?.dataset?.afterBlockId || '';
+  if (action === 'insert-image') {
+    pickSideNoteImageForBoundary(annotationId, { beforeBlockId, afterBlockId }, target?.ownerDocument || getFrameDoc());
+    return;
+  }
   const before = cloneAnnotation(annotation);
   const blocks = sideNoteContentBlocks(annotation);
-  const blockIndex = Number(target?.dataset?.blockIndex);
-  const insertAt = Number.isInteger(blockIndex) ? blockIndex + 1 : blocks.length;
+  const blockId = target?.dataset?.blockId || '';
+  const beforeIndex = beforeBlockId ? blocks.findIndex((block) => block.id === beforeBlockId) : -1;
+  const afterIndex = afterBlockId ? blocks.findIndex((block) => block.id === afterBlockId) : -1;
+  const insertAt = beforeIndex >= 0 ? beforeIndex : afterIndex >= 0 ? afterIndex + 1 : blocks.length;
+  let insertedBlock = null;
   if (action === 'insert-text') {
-    blocks.splice(insertAt, 0, { type: 'text', markdown: '' });
+    insertedBlock = newSideNoteBlock('text');
+    if (blocks.length === 1 && blocks[0]?.type === 'blank') blocks[0] = insertedBlock;
+    else blocks.splice(insertAt, 0, insertedBlock);
   } else if (action === 'insert-ink') {
-    blocks.splice(insertAt, 0, { type: 'ink', ink: { strokes: [], height: INK_CANVAS_HEIGHT.default } });
+    insertedBlock = newSideNoteBlock('ink');
+    if (blocks.length === 1 && blocks[0]?.type === 'blank') blocks[0] = insertedBlock;
+    else blocks.splice(insertAt, 0, insertedBlock);
   } else if (action === 'remove-block') {
-    if (!Number.isInteger(blockIndex)) return;
+    const blockIndex = blocks.findIndex((block) => block.id === blockId);
+    if (blockIndex < 0) return;
     if (blocks.length <= 1) {
-      blocks.splice(0, blocks.length, { ...BLANK_NOTE_BLOCK });
+      blocks.splice(0, blocks.length, newSideNoteBlock('blank'));
     } else {
       blocks.splice(blockIndex, 1);
     }
-  }
+  } else return;
   const updated = await saveAnnotationBlocks(annotation, blocks);
   const label = action === 'remove-block' ? 'note block deletion' : 'note block insertion';
   recordAnnotationHistory(label, before, updated, annotationId);
+  if (insertedBlock) focusInsertedSideNoteBlock(annotationId, insertedBlock);
+}
+
+function pickSideNoteImageForBoundary(annotationId, boundary = {}, doc = getFrameDoc()) {
+  const input = doc.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/png,image/jpeg,image/webp';
+  input.hidden = true;
+  doc.body.append(input);
+  input.addEventListener('change', () => {
+    const file = input.files?.[0];
+    input.remove();
+    if (!file) return;
+    insertNoteImageAtBoundary(annotationId, file, boundary).catch((error) => setStatus(error.message, true));
+  }, { once: true });
+  input.addEventListener('cancel', () => input.remove(), { once: true });
+  input.click();
+}
+
+export async function insertNoteImageAtBoundary(annotationId, file, boundary = {}) {
+  const annotation = state.annotations.find((item) => item.id === annotationId);
+  if (!annotation || !file || typeof file.arrayBuffer !== 'function') return null;
+  await flushPendingAnnotationBlockSave(annotationId);
+  const before = cloneAnnotation(annotation);
+  const options = {};
+  if (boundary.beforeBlockId) options.beforeBlockId = boundary.beforeBlockId;
+  else if (boundary.afterBlockId) options.afterBlockId = boundary.afterBlockId;
+  const result = await storage.insertNoteImage(state.docId, annotationId, file, options);
+  const updated = annotationWithRuntimeInk(result.annotation);
+  state.annotations = state.annotations.map((item) => item.id === annotationId ? updated : item);
+  state.activeAnnotationId = annotationId;
+  recordAnnotationHistory('picture insertion', before, updated, annotationId);
+  renderAnnotations();
+  renderNoteList();
+  scheduleSplitNotesStateBroadcast();
+  focusInsertedSideNoteBlock(annotationId, result.block);
+  setStatus('Picture added to note.');
+  return result;
+}
+
+function focusInsertedSideNoteBlock(annotationId, block) {
+  requestAnimationFrame(() => {
+    const note = getFrameDoc()?.querySelector?.(`.reader-side-note[data-annotation-id="${cssEscape(annotationId)}"]`);
+    if (!note || !block?.id) return;
+    if (block.type === 'text') {
+      beginInlineTextEdit(annotationId, note, 'body', null, block.id);
+      return;
+    }
+    const target = note.querySelector(`[data-block-id="${cssEscape(block.id)}"]`);
+    target?.focus?.({ preventScroll: true });
+  });
 }
 
 function setMode(mode) {
@@ -8540,8 +9068,8 @@ function beginSideInkPointerDown(canvas, event) {
   }
   const note = canvas.closest('.reader-side-note');
   const annotationId = note?.dataset?.annotationId;
-  const blockIndex = Number(canvas.dataset.blockIndex);
-  if (!annotationId || !Number.isInteger(blockIndex) || annotationId !== state.activeAnnotationId) return;
+  const blockId = canvas.dataset.blockId;
+  if (!annotationId || !blockId || annotationId !== state.activeAnnotationId) return;
   const pointerId = event.pointerId ?? 'mouse';
   event.preventDefault();
   event.stopPropagation();
@@ -8557,12 +9085,12 @@ function beginSideInkPointerDown(canvas, event) {
     const annotation = state.annotations.find((item) => item.id === annotationId);
     if (!annotation) return;
     const blocks = sideNoteContentBlocks(annotation);
-    const block = blocks[blockIndex];
+    const block = blocks.find((item) => item.id === blockId);
     if (block?.type !== 'ink') return;
     state.sideInkSession = {
       tool,
       annotationId,
-      blockIndex,
+      blockId,
       pointerId,
       canvas,
       blocks,
@@ -8584,7 +9112,7 @@ function beginSideInkPointerDown(canvas, event) {
   state.sideInkSession = {
     tool,
     annotationId,
-    blockIndex,
+    blockId,
     pointerId,
     canvas,
     startedAt: Number.isFinite(event.timeStamp) ? event.timeStamp : performance.now(),
@@ -8696,7 +9224,7 @@ function onSideInkPointerUp(event, sessionCanvas = null, options = {}) {
     const annotation = state.annotations.find((item) => item.id === session.annotationId);
     if (!annotation) return;
     const blocks = session.blocks;
-    const block = blocks[session.blockIndex];
+    const block = blocks.find((item) => item.id === session.blockId);
     if (block?.type !== 'ink') return;
     const { kept, removed } = commitPendingEraseStrokes(block.ink.strokes, session.pendingEraseStrokes);
     if (!removed.length) {
@@ -8705,7 +9233,7 @@ function onSideInkPointerUp(event, sessionCanvas = null, options = {}) {
     }
     block.ink.strokes = kept;
     applyAnnotationBlocksLocally(annotation, blocks);
-    const history = sideInkHistory(session.annotationId, session.blockIndex);
+    const history = sideInkHistory(session.annotationId, session.blockId);
     history.undo.push({ type: 'erase', strokes: removed });
     history.redo = [];
     queueSaveAnnotationBlocks(annotation, blocks, {
@@ -8725,13 +9253,13 @@ function onSideInkPointerUp(event, sessionCanvas = null, options = {}) {
   const annotation = state.annotations.find((item) => item.id === session.annotationId);
   if (!annotation) return;
   const blocks = sideNoteContentBlocks(annotation);
-  const block = blocks[session.blockIndex];
+  const block = blocks.find((item) => item.id === session.blockId);
   if (block?.type !== 'ink') return;
   block.ink.strokes.push(finalizedStroke);
   updateInkLogicalBottomForStroke(block.ink, finalizedStroke);
   const wrap = canvas.closest?.('.reader-side-note-ink-wrap');
   if (wrap) applyInkCanvasHeight(block.ink, wrap);
-  const history = sideInkHistory(session.annotationId, session.blockIndex);
+  const history = sideInkHistory(session.annotationId, session.blockId);
   history.undo.push({ type: 'add', stroke: finalizedStroke });
   history.redo = [];
   applyAnnotationBlocksLocally(annotation, blocks);
@@ -8751,69 +9279,69 @@ function currentInkLineWidth() {
   return clampNumber(state.inkWidth, 1, 24, 3);
 }
 
-function drawSideInkCanvas(canvas, annotationId, blockIndex, activeStroke = null) {
-  const sessionBlock = activeSideInkSessionBlock(annotationId, blockIndex);
-  const resizeBlock = activeSideInkResizeSessionBlock(annotationId, blockIndex);
+function drawSideInkCanvas(canvas, annotationId, blockId, activeStroke = null) {
+  const sessionBlock = activeSideInkSessionBlock(annotationId, blockId);
+  const resizeBlock = activeSideInkResizeSessionBlock(annotationId, blockId);
   const annotation = annotationIndexById().get(annotationId);
-  const block = sessionBlock || resizeBlock || sideNoteContentBlocks(annotation)?.[blockIndex];
+  const block = sessionBlock || resizeBlock || sideNoteBlockById(annotation, blockId);
   const wrap = canvas.closest('.reader-side-note-ink-wrap');
   const active = activeStroke || (
     state.sideInkSession?.tool === 'pen'
       && state.sideInkSession.annotationId === annotationId
-      && state.sideInkSession.blockIndex === blockIndex
+      && state.sideInkSession.blockId === blockId
       ? state.sideInkSession.stroke
       : null
   );
   if (block?.type === 'ink' && wrap && !active) applyInkCanvasHeight(block.ink, wrap);
   const renderOptions = {
-    pendingEraseStrokes: sideInkPendingEraseStrokes(annotationId, blockIndex),
+    pendingEraseStrokes: sideInkPendingEraseStrokes(annotationId, blockId),
     useCommittedCache: true
   };
-  if (!isLiveSideInkCanvas(annotationId, blockIndex)) {
+  if (!isLiveSideInkCanvas(annotationId, blockId)) {
     renderOptions.backingRatio = INK_INACTIVE_BACKING_RATIO;
   }
   drawInkSurface(canvas, block?.ink?.strokes || [], active, renderOptions);
 }
 
-function isLiveSideInkCanvas(annotationId, blockIndex) {
-  if (!annotationId || !Number.isInteger(blockIndex)) return false;
+function isLiveSideInkCanvas(annotationId, blockId) {
+  if (!annotationId || !blockId) return false;
   if (annotationId === state.activeAnnotationId) return true;
   if (
     state.sideInkSession
     && state.sideInkSession.annotationId === annotationId
-    && state.sideInkSession.blockIndex === blockIndex
+    && state.sideInkSession.blockId === blockId
   ) {
     return true;
   }
   if (
     state.sideInkResizeSession
     && state.sideInkResizeSession.annotationId === annotationId
-    && state.sideInkResizeSession.blockIndex === blockIndex
+    && state.sideInkResizeSession.blockId === blockId
   ) {
     return true;
   }
   return false;
 }
 
-function activeSideInkSessionBlock(annotationId, blockIndex) {
+function activeSideInkSessionBlock(annotationId, blockId) {
   const session = state.sideInkSession;
   if (!session || session.tool !== 'eraser') return null;
-  if (session.annotationId !== annotationId || session.blockIndex !== blockIndex) return null;
-  const block = session.blocks?.[blockIndex];
+  if (session.annotationId !== annotationId || session.blockId !== blockId) return null;
+  const block = session.blocks?.find((item) => item.id === blockId);
   return block?.type === 'ink' ? block : null;
 }
 
-function activeSideInkResizeSessionBlock(annotationId, blockIndex) {
+function activeSideInkResizeSessionBlock(annotationId, blockId) {
   const session = state.sideInkResizeSession;
-  if (!session || session.annotationId !== annotationId || session.blockIndex !== blockIndex) return null;
-  const block = session.blocks?.[blockIndex];
+  if (!session || session.annotationId !== annotationId || session.blockId !== blockId) return null;
+  const block = session.blocks?.find((item) => item.id === blockId);
   return block?.type === 'ink' ? block : null;
 }
 
-function sideInkPendingEraseStrokes(annotationId, blockIndex) {
+function sideInkPendingEraseStrokes(annotationId, blockId) {
   const session = state.sideInkSession;
   if (!session || session.tool !== 'eraser') return null;
-  if (session.annotationId !== annotationId || session.blockIndex !== blockIndex) return null;
+  if (session.annotationId !== annotationId || session.blockId !== blockId) return null;
   return session.pendingEraseStrokes || null;
 }
 
@@ -9004,8 +9532,8 @@ function requestSideInkRender(canvas) {
     for (const item of canvases) {
       const note = item.closest('.reader-side-note');
       const annotationId = note?.dataset?.annotationId;
-      const blockIndex = Number(item.dataset.blockIndex);
-      if (annotationId && Number.isInteger(blockIndex)) drawSideInkCanvas(item, annotationId, blockIndex);
+      const blockId = item.dataset.blockId;
+      if (annotationId && blockId) drawSideInkCanvas(item, annotationId, blockId);
     }
   });
 }
@@ -9278,10 +9806,10 @@ function redrawNavigatorInkPreviews() {
   if (!els.noteList || !isNotesPanelExpanded()) return;
   els.noteList.querySelectorAll('.note-card-ink').forEach((canvas) => {
     const annotationId = canvas.dataset.annotationId;
-    const blockIndex = Number(canvas.dataset.blockIndex);
-    if (!annotationId || !Number.isInteger(blockIndex)) return;
+    const blockId = canvas.dataset.blockId;
+    if (!annotationId || !blockId) return;
     const annotation = state.annotations.find((item) => item.id === annotationId);
-    const block = sideNoteContentBlocks(annotation)?.[blockIndex];
+    const block = sideNoteBlockById(annotation, blockId);
     if (block?.type === 'ink') drawInkPreview(canvas, block.ink);
   });
 }

@@ -194,7 +194,7 @@ function parseBundleFolderFiles(files) {
   const cleanFiles = normalizeFolderFiles(files);
   const packageFiles = cleanFiles.filter((file) => file.path !== PACKAGE_LOCK_PATH);
   const manifest = readJsonFile(packageFiles, 'manifest.json');
-  if (manifest?.format !== 'annotator-bundle' || Number(manifest.formatVersion) !== 1) {
+  if (manifest?.format !== 'annotator-bundle' || ![1, 2].includes(Number(manifest.formatVersion))) {
     throw new Error('Unsupported annotator bundle folder format.');
   }
   validatePackageLock(cleanFiles, 'bundle', manifest);
