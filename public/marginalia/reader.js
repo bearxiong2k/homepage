@@ -4444,8 +4444,7 @@ function attachMarker(doc, annotation) {
       blank.tabIndex = 0;
       blank.addEventListener('pointerdown', onSideNoteBlankPointerDown);
       card.append(blank);
-      if (isPinned) card.append(createPinnedBlockControls(doc, block.id));
-      if (isPinned) card.append(createPinnedInsertionBoundary(doc, annotation.id, { afterBlockId: block.id }));
+      if (isPinned) card.append(createPinnedInsertionBoundary(doc, annotation.id, { afterBlockId: block.id }, block.id));
       return;
     }
     if (block.type === 'ink') {
@@ -4479,8 +4478,7 @@ function attachMarker(doc, annotation) {
         const toolbar = createSideInkToolbar(doc, annotation.id, block.id);
         inkWrap.append(toolbar);
       }
-      if (isPinned) card.append(createPinnedBlockControls(doc, block.id));
-      if (isPinned) card.append(createPinnedInsertionBoundary(doc, annotation.id, { afterBlockId: block.id }));
+      if (isPinned) card.append(createPinnedInsertionBoundary(doc, annotation.id, { afterBlockId: block.id }, block.id));
       return;
     }
     if (block.type === 'image') {
@@ -4488,8 +4486,7 @@ function attachMarker(doc, annotation) {
     } else {
       card.append(createSideNoteTextBlock(doc, annotation, block, index));
     }
-    if (isPinned) card.append(createPinnedBlockControls(doc, block.id));
-    if (isPinned) card.append(createPinnedInsertionBoundary(doc, annotation.id, { afterBlockId: block.id }));
+    if (isPinned) card.append(createPinnedInsertionBoundary(doc, annotation.id, { afterBlockId: block.id }, block.id));
   });
   note.append(card);
   layer.append(note);
@@ -4887,17 +4884,7 @@ function remappedPointerEventForCanvas(canvas, sourceEvent, normalizedPoint) {
   };
 }
 
-function createPinnedBlockControls(doc, blockId) {
-  const controls = doc.createElement('div');
-  controls.className = 'reader-pinned-note-block-tools';
-  controls.addEventListener('pointerdown', preserveSideNoteActionClick);
-  controls.innerHTML = `
-    <button class="danger" type="button" data-side-note-action="remove-block" data-block-id="${escapeAttr(blockId)}">Remove</button>
-  `;
-  return controls;
-}
-
-function createPinnedInsertionBoundary(doc, annotationId, boundary = {}) {
+function createPinnedInsertionBoundary(doc, annotationId, boundary = {}, removableBlockId = '') {
   const row = doc.createElement('div');
   row.className = 'reader-side-note-insertion-row';
   row.dataset.annotationId = annotationId;
@@ -4905,6 +4892,7 @@ function createPinnedInsertionBoundary(doc, annotationId, boundary = {}) {
   if (boundary.afterBlockId) row.dataset.afterBlockId = boundary.afterBlockId;
   row.addEventListener('pointerdown', preserveSideNoteActionClick);
   row.innerHTML = `
+    ${removableBlockId ? `<button class="danger reader-side-note-remove-block" type="button" data-side-note-action="remove-block" data-block-id="${escapeAttr(removableBlockId)}">Remove</button>` : ''}
     <span>Add here:</span>
     <button type="button" data-side-note-action="insert-text">Text</button>
     <button type="button" data-side-note-action="insert-ink">Draw</button>
@@ -5017,18 +5005,16 @@ function injectReaderStyles(doc) {
     .reader-side-note-body.is-rendered { min-height: 0; white-space: normal; cursor: default; }
     .reader-side-note-body.is-rendered > :first-child { margin-top: 0; }
     .reader-side-note-body.is-rendered > :last-child { margin-bottom: 0; }
-    .reader-side-note.is-collapsed .reader-side-note-body, .reader-side-note.is-collapsed .reader-side-note-blank, .reader-side-note.is-collapsed .reader-side-note-ink-wrap, .reader-side-note.is-collapsed .reader-side-note-text-block, .reader-side-note.is-collapsed .reader-side-note-image-block, .reader-side-note.is-collapsed .reader-pinned-note-block-tools, .reader-side-note.is-collapsed .reader-side-note-insertion-row { display: none !important; }
+    .reader-side-note.is-collapsed .reader-side-note-body, .reader-side-note.is-collapsed .reader-side-note-blank, .reader-side-note.is-collapsed .reader-side-note-ink-wrap, .reader-side-note.is-collapsed .reader-side-note-text-block, .reader-side-note.is-collapsed .reader-side-note-image-block, .reader-side-note.is-collapsed .reader-side-note-insertion-row { display: none !important; }
     .reader-side-note-blank { display: block; width: 100%; aspect-ratio: 16 / 9; margin-top: .35rem; border: 1px solid transparent; border-radius: 4px; cursor: text; }
     .reader-side-note.is-active .reader-side-note-blank:hover, .reader-side-note-blank:focus-visible { border-color: rgba(216, 199, 168, .72); background: rgba(122, 61, 0, .04); outline: none; }
     .reader-side-note-title[contenteditable], .reader-side-note-body[contenteditable] { outline: 0; }
     .reader-side-note.is-constrained .reader-side-note-body { overflow: hidden; }
-    .reader-pinned-note-block-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .35rem; margin: .28rem 0 .6rem; font: 12px/1.2 ui-sans-serif, system-ui, sans-serif; }
-    .reader-pinned-note-block-tools button { border: 1px solid #d8c7a8; border-radius: 4px; padding: .2rem .42rem; background: #fffdf8; color: #7a3d00; font: inherit; cursor: pointer; }
-    .reader-pinned-note-block-tools button.danger { color: #8f1f12; border-color: #e1b6ad; }
     .reader-side-note-text-block { position: relative; }
     .reader-side-note-text-mode { display: block; margin: .18rem 0 .3rem auto; border: 1px solid #d8c7a8; border-radius: 4px; padding: .16rem .38rem; background: #fffdf8; color: #7a3d00; font: 11px/1.2 ui-sans-serif, system-ui, sans-serif; cursor: pointer; }
-    .reader-side-note-insertion-row { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: .28rem; margin: .38rem 0; color: #7b6a55; font: 11px/1.2 ui-sans-serif, system-ui, sans-serif; }
+    .reader-side-note-insertion-row { display: flex; align-items: center; justify-content: flex-end; flex-wrap: nowrap; gap: .28rem; margin: .38rem 0; color: #7b6a55; font: 11px/1.2 ui-sans-serif, system-ui, sans-serif; }
     .reader-side-note-insertion-row button { border: 1px solid #d8c7a8; border-radius: 4px; padding: .18rem .38rem; background: #fffdf8; color: #7a3d00; font: inherit; cursor: pointer; }
+    .reader-side-note-insertion-row .reader-side-note-remove-block { margin-right: auto; color: #8f1f12; border-color: #e1b6ad; }
     .reader-side-note-image-block { width: 100%; margin: .38rem 0; }
     .reader-side-note-image-frame { display: grid; place-items: center; width: 100%; margin-inline: auto; overflow: hidden; border: 1px solid #e2d5bd; border-radius: 4px; background: rgba(255,253,248,.72); }
     .reader-side-note-image { display: block; width: 100%; max-width: 100%; height: auto; object-fit: contain; }
@@ -8500,7 +8486,7 @@ async function handlePinnedNoteBlockAction(annotationId, action, target) {
 function pickSideNoteImageForBoundary(annotationId, boundary = {}, doc = getFrameDoc()) {
   const input = doc.createElement('input');
   input.type = 'file';
-  input.accept = 'image/png,image/jpeg,image/webp';
+  input.accept = '.jpg,.jpeg,image/jpeg,.png,image/png,.webp,image/webp';
   input.hidden = true;
   doc.body.append(input);
   input.addEventListener('change', () => {

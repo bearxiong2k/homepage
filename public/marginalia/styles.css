@@ -762,7 +762,6 @@ body.has-pinned-note .notes-tab-arrow {
 }
 
 .split-side-note-tools button.danger,
-.split-note-block-tools button.danger,
 .split-side-note-ink-tools button.danger {
   color: #8f1f12;
   border-color: #e1b6ad;
@@ -778,7 +777,6 @@ body.has-pinned-note .notes-tab-arrow {
 .split-side-note.is-collapsed .split-side-note-ink-wrap,
 .split-side-note.is-collapsed .split-side-note-text-block,
 .split-side-note.is-collapsed .split-side-note-image-block,
-.split-side-note.is-collapsed .split-note-block-tools,
 .split-side-note.is-collapsed .split-note-insertion-row,
 .split-side-note.is-collapsed .split-side-note-status {
   display: none !important;
@@ -861,25 +859,6 @@ body.has-pinned-note .notes-tab-arrow {
   font: inherit;
 }
 
-.split-note-block-tools {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.35rem;
-  margin: 0.32rem 0 0.62rem;
-  font: 12px/1.2 ui-sans-serif, system-ui, sans-serif;
-}
-
-.split-note-block-tools button {
-  border: 1px solid #d8c7a8;
-  border-radius: 4px;
-  padding: 0.2rem 0.42rem;
-  background: #fffdf8;
-  color: #7a3d00;
-  font: inherit;
-  cursor: pointer;
-}
-
 .split-side-note-text-block {
   position: relative;
   clear: both;
@@ -901,7 +880,7 @@ body.has-pinned-note .notes-tab-arrow {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.28rem;
   clear: both;
   margin: 0.38rem 0;
@@ -917,6 +896,12 @@ body.has-pinned-note .notes-tab-arrow {
   color: #7a3d00;
   font: inherit;
   cursor: pointer;
+}
+
+.split-note-insertion-row .split-note-remove-block {
+  margin-right: auto;
+  border-color: #e1b6ad;
+  color: #8f1f12;
 }
 
 .split-side-note-image-block,

@@ -216,7 +216,6 @@ function sideNoteBlocksHtml(annotation) {
   if (blocks.length === 1 && blocks[0]?.type === 'blank') return insertionBoundaryHtml({});
   const parts = [insertionBoundaryHtml({ beforeBlockId: blocks[0]?.id })];
   blocks.forEach((block) => {
-    const blockControls = blockControlHtml(block.id);
     if (block?.type === 'ink') {
       const height = normalizeInkHeight(block.ink?.height);
       parts.push(`
@@ -230,7 +229,6 @@ function sideNoteBlocksHtml(annotation) {
             <button type="button" data-split-note-action="clear-ink" data-block-id="${escapeHtml(block.id)}">Clear</button>
           </div>
         </div>
-        ${blockControls}
       `);
     } else if (block?.type === 'image') {
       parts.push(`
@@ -241,7 +239,6 @@ function sideNoteBlocksHtml(annotation) {
           </div>
           <label class="split-side-note-image-alt">Alt text<input type="text" maxlength="500" value="${escapeHtml(block.alt || '')}" data-split-note-action="image-alt" data-block-id="${escapeHtml(block.id)}"></label>
         </div>
-        ${blockControls}
       `);
     } else {
       const text = block?.type === 'text' ? block.markdown || '' : '';
@@ -250,25 +247,17 @@ function sideNoteBlocksHtml(annotation) {
           <div class="split-side-note-body" tabindex="0" data-block-id="${escapeHtml(block.id)}" data-placeholder="Note">${escapeHtml(text)}</div>
           <button type="button" class="split-side-note-text-mode" data-split-note-action="edit-text" data-block-id="${escapeHtml(block.id)}" hidden>Edit</button>
         </div>
-        ${blockControls}
       `);
     }
-    parts.push(insertionBoundaryHtml({ afterBlockId: block.id }));
+    parts.push(insertionBoundaryHtml({ afterBlockId: block.id }, block.id));
   });
   return parts.join('');
 }
 
-function blockControlHtml(blockId) {
-  return `
-    <div class="split-note-block-tools">
-      <button type="button" class="danger" data-split-note-action="remove-block" data-block-id="${escapeHtml(blockId)}">Remove</button>
-    </div>
-  `;
-}
-
-function insertionBoundaryHtml(boundary = {}) {
+function insertionBoundaryHtml(boundary = {}, removableBlockId = '') {
   return `
     <div class="split-note-insertion-row" ${boundary.beforeBlockId ? `data-before-block-id="${escapeHtml(boundary.beforeBlockId)}"` : ''} ${boundary.afterBlockId ? `data-after-block-id="${escapeHtml(boundary.afterBlockId)}"` : ''}>
+      ${removableBlockId ? `<button type="button" class="danger split-note-remove-block" data-split-note-action="remove-block" data-block-id="${escapeHtml(removableBlockId)}">Remove</button>` : ''}
       <span>Add here:</span>
       <button type="button" data-split-note-action="insert-text">Text</button>
       <button type="button" data-split-note-action="insert-ink">Draw</button>
@@ -723,7 +712,7 @@ function scheduleSplitMarkdownAnalysis(body) {
 function pickSplitNoteImage(annotationId, boundary = {}) {
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = 'image/png,image/jpeg,image/webp';
+  input.accept = '.jpg,.jpeg,image/jpeg,.png,image/png,.webp,image/webp';
   input.hidden = true;
   document.body.append(input);
   input.addEventListener('change', () => {

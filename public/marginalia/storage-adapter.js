@@ -1627,7 +1627,7 @@ export async function validateNoteImageFile(file) {
     throw new Error('Pictures must be 20 MiB or smaller.');
   }
   const metadata = noteImageMetadataFromBytes(data);
-  const declaredType = String(file.type || '').toLowerCase();
+  const declaredType = normalizeNoteImageMimeType(file.type);
   if (declaredType && declaredType !== metadata.mimeType) {
     throw new Error(`The picture contents do not match its declared ${declaredType} type.`);
   }
@@ -1647,6 +1647,11 @@ export async function validateNoteImageFile(file) {
     originalName,
     alt: defaultNoteImageAlt(originalName)
   };
+}
+
+function normalizeNoteImageMimeType(value) {
+  const mimeType = String(value || '').toLowerCase();
+  return mimeType === 'image/jpg' || mimeType === 'image/pjpeg' ? 'image/jpeg' : mimeType;
 }
 
 export function noteImageMetadataFromBytes(input) {
