@@ -718,6 +718,8 @@ body.has-pinned-note .notes-tab-arrow {
 
 .split-side-note-body.is-rendered {
   white-space: normal;
+  cursor: text;
+  user-select: text;
 }
 
 .split-side-note-body.is-rendered > :first-child {
@@ -864,9 +866,22 @@ body.has-pinned-note .notes-tab-arrow {
   clear: both;
 }
 
+.split-side-note-text-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin: 0.18rem 0 0.32rem;
+}
+
+.split-side-note-render-feedback {
+  color: #7b6a55;
+  font: 11px/1.2 ui-sans-serif, system-ui, sans-serif;
+}
+
 .split-side-note-text-mode {
   display: block;
-  margin: 0.18rem 0 0.32rem auto;
+  margin: 0;
   border: 1px solid #d8c7a8;
   border-radius: 4px;
   padding: 0.16rem 0.38rem;
@@ -874,6 +889,10 @@ body.has-pinned-note .notes-tab-arrow {
   color: #7a3d00;
   font: 11px/1.2 ui-sans-serif, system-ui, sans-serif;
   cursor: pointer;
+}
+
+.split-side-note-text-mode[hidden] {
+  display: none;
 }
 
 .split-note-insertion-row {

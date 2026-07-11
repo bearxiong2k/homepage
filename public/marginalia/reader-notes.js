@@ -80,6 +80,7 @@ function init() {
   els.expandAllNotesBtn?.addEventListener('click', toggleExpandAllNotes);
   els.noteList.addEventListener('click', onNavigatorClick);
   els.canvas.addEventListener('click', onSideNoteClick);
+  els.canvas.addEventListener('dblclick', onSideNoteDoubleClick);
   els.canvas.addEventListener('pointerdown', (event) => {
     if (event.target?.closest?.('.split-side-note-text-mode')) event.preventDefault();
   });
@@ -245,7 +246,10 @@ function sideNoteBlocksHtml(annotation) {
       parts.push(`
         <div class="split-side-note-text-block" data-block-id="${escapeHtml(block.id)}">
           <div class="split-side-note-body" tabindex="0" data-block-id="${escapeHtml(block.id)}" data-placeholder="Note">${escapeHtml(text)}</div>
-          <button type="button" class="split-side-note-text-mode" data-split-note-action="edit-text" data-block-id="${escapeHtml(block.id)}" hidden>Edit</button>
+          <div class="split-side-note-text-actions">
+            <span class="split-side-note-render-feedback" aria-live="polite" hidden></span>
+            <button type="button" class="split-side-note-text-mode" data-split-note-action="edit-text" data-block-id="${escapeHtml(block.id)}" hidden>Edit</button>
+          </div>
         </div>
       `);
     }
@@ -299,6 +303,7 @@ async function renderSplitMarkdownBlock(body, button, blockId, source) {
       body.classList.remove('is-rendered', 'note-markdown');
       body.tabIndex = 0;
       button.hidden = true;
+      setSplitRenderFeedback(button, '');
       return;
     }
     ensureNoteMarkdownStyles(document);
@@ -309,9 +314,18 @@ async function renderSplitMarkdownBlock(body, button, blockId, source) {
     button.hidden = false;
     button.textContent = 'Edit';
     button.dataset.splitNoteAction = 'edit-text';
+    setSplitRenderFeedback(button, '');
   } catch {
     if (body.isConnected) body.textContent = source;
   }
+}
+
+function setSplitRenderFeedback(button, message = '') {
+  const feedback = button?.closest?.('.split-side-note-text-actions')
+    ?.querySelector?.('.split-side-note-render-feedback');
+  if (!feedback) return;
+  feedback.textContent = message;
+  feedback.hidden = !message;
 }
 
 async function hydrateSplitImage(image, placeholder, block) {
@@ -533,7 +547,8 @@ function onSideNoteClick(event) {
     return;
   }
   if (action === 'render-text') {
-    finishSplitTextEdit(annotationId, actionButton.dataset.blockId, { save: true });
+    tryRenderSplitTextBlock(annotationId, actionButton.dataset.blockId)
+      .catch((error) => setStatus(error.message, true));
     return;
   }
   if (action === 'insert-text' || action === 'insert-ink' || action === 'insert-image') {
@@ -588,6 +603,15 @@ function onSideNoteClick(event) {
   }
   if (event.target?.closest?.('[contenteditable], input, canvas, .split-side-note-ink-tools, .is-rendered')) return;
   state.channel?.post('activate-annotation', { annotationId });
+}
+
+function onSideNoteDoubleClick(event) {
+  const body = event.target?.closest?.('.split-side-note-body.is-rendered');
+  const note = body?.closest?.('.split-side-note');
+  if (!body || !note) return;
+  event.preventDefault();
+  event.stopPropagation();
+  beginSplitTextEdit(note.dataset.annotationId, body.dataset.blockId);
 }
 
 function onSideNoteInput(event) {
@@ -664,9 +688,28 @@ function beginSplitTextEdit(annotationId, blockId) {
   body.tabIndex = 0;
   button.dataset.splitNoteAction = 'render-text';
   button.textContent = 'Render';
-  button.hidden = body.dataset.hasRenderableSyntax !== 'true';
+  button.hidden = false;
+  setSplitRenderFeedback(button, '');
   body.focus({ preventScroll: true });
   placeCaretAtEnd(body);
+}
+
+async function tryRenderSplitTextBlock(annotationId, blockId) {
+  const note = els.canvas.querySelector(`.split-side-note[data-annotation-id="${cssEscape(annotationId)}"]`);
+  const body = note?.querySelector(`.split-side-note-body[data-block-id="${cssEscape(blockId)}"]`);
+  const button = note?.querySelector(`.split-side-note-text-mode[data-block-id="${cssEscape(blockId)}"]`);
+  if (!body?.isContentEditable || !button) return;
+  const source = editablePlainText(body);
+  const rendered = await renderNoteMarkdown(source);
+  if (!body.isConnected || !body.isContentEditable || editablePlainText(body) !== source) return;
+  body.dataset.hasRenderableSyntax = rendered.hasRenderableSyntax ? 'true' : 'false';
+  if (!rendered.hasRenderableSyntax) {
+    setSplitRenderFeedback(button, 'No markdown to render');
+    body.focus({ preventScroll: true });
+    return;
+  }
+  setSplitRenderFeedback(button, '');
+  finishSplitTextEdit(annotationId, blockId, { save: true });
 }
 
 function finishSplitTextEdit(annotationId, blockId, options = {}) {
@@ -700,10 +743,10 @@ function scheduleSplitMarkdownAnalysis(body) {
     try {
       const result = await analyzeNoteMarkdown(source);
       if (!body.isConnected || !body.isContentEditable || editablePlainText(body) !== source) return;
-      button.hidden = !result.hasRenderableSyntax;
+      button.hidden = false;
       body.dataset.hasRenderableSyntax = result.hasRenderableSyntax ? 'true' : 'false';
     } catch {
-      button.hidden = true;
+      button.hidden = false;
     }
   }, 120);
   state.markdownAnalysisTimers.set(body, timer);

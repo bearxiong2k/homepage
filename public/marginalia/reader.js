@@ -1785,6 +1785,7 @@ function editableSelectionActive(element) {
 
 function onFrameClick(event) {
   const frameDoc = getFrameDoc();
+  const sideNoteAction = event.target?.closest?.('.reader-side-note [data-side-note-action]');
   const noteLink = event.target?.closest?.('.reader-side-note-body.is-rendered a[href]');
   if (noteLink) {
     openRenderedSideNoteLink(noteLink, frameDoc, event);
@@ -1798,13 +1799,16 @@ function onFrameClick(event) {
   ) {
     return;
   }
+  if (!sideNoteAction
+    && event.target?.closest?.('.reader-side-note-body.is-rendered')
+    && frameTextSelectionActive(frameDoc)) return;
   if (state.suppressPdfHighlightClick) {
     state.suppressPdfHighlightClick = false;
     event.preventDefault();
     event.stopPropagation();
     return;
   }
-  if (state.currentDocument?.sourceType !== 'pdf' && frameTextSelectionActive(frameDoc)) {
+  if (!sideNoteAction && state.currentDocument?.sourceType !== 'pdf' && frameTextSelectionActive(frameDoc)) {
     return;
   }
   if (event.target?.closest?.('.reader-layout-resizer')) {
@@ -1851,7 +1855,8 @@ function onFrameClick(event) {
       return;
     }
     if (action === 'render-text') {
-      finishInlineTextEdit(annotationId, sideNote).catch((error) => setStatus(error.message, true));
+      tryRenderInlineTextBlock(annotationId, sideNote, event.target)
+        .catch((error) => setStatus(error.message, true));
       return;
     }
     if (action === 'insert-text' || action === 'insert-ink' || action === 'insert-image' || action === 'remove-block') {
@@ -1985,6 +1990,19 @@ function onFrameDoubleClick(event) {
       }
       createBlankSideNoteAt(event).catch((error) => setStatus(error.message, true));
     }
+    return;
+  }
+  const renderedBody = event.target?.closest?.('.reader-side-note-body.is-rendered');
+  if (renderedBody) {
+    event.preventDefault();
+    event.stopPropagation();
+    beginInlineTextEdit(
+      sideNote.dataset.annotationId,
+      sideNote,
+      'body',
+      event,
+      renderedBody.dataset.blockId || ''
+    );
     return;
   }
   event.preventDefault();
@@ -4187,6 +4205,7 @@ function buildAnnotationResolutionMap(doc, annotations) {
 
 function resolveAnnotationTarget(doc, target, targetIndex = 0, primary = false) {
   if (!target) return unresolvedTarget(targetIndex, primary, 'missing-target');
+  if (isPendingPdfTargetPage(doc, target)) return pendingTarget(targetIndex, primary, null, target);
   let element = resolveTargetElement(doc, target);
   const quoteRepair = !element && target.type === 'text'
     ? uniqueQuoteRepairMatch(doc, target)
@@ -4219,6 +4238,17 @@ function resolveAnnotationTarget(doc, target, targetIndex = 0, primary = false) 
     anchorElement: element,
     target
   };
+}
+
+function isPendingPdfTargetPage(doc, target) {
+  if (state.currentDocument?.sourceType !== 'pdf'
+    || !['text', 'pdf-page-point', 'pdf-rect'].includes(target?.type)) return false;
+  const pageIndex = pdfPageIndexFromTarget(target);
+  if (!Number.isInteger(pageIndex) || pageIndex < 0) return false;
+  const pageCount = Number(doc?.documentElement?.dataset?.pdfPageCount);
+  if (Number.isFinite(pageCount) && pageCount > 0 && pageIndex >= pageCount) return false;
+  if (doc.querySelector(`[data-pdf-page-index="${cssEscape(String(pageIndex))}"]`)) return false;
+  return doc?.documentElement?.dataset?.pdfPagesReady !== 'true';
 }
 
 function uniqueQuoteRepairMatch(doc, target) {
@@ -4513,7 +4543,14 @@ function createSideNoteTextBlock(doc, annotation, block, index) {
   modeButton.textContent = 'Edit';
   modeButton.hidden = true;
   modeButton.addEventListener('pointerdown', preserveSideNoteActionClick);
-  wrapper.append(body, modeButton);
+  const actions = doc.createElement('div');
+  actions.className = 'reader-side-note-text-actions';
+  const feedback = doc.createElement('span');
+  feedback.className = 'reader-side-note-render-feedback';
+  feedback.setAttribute('aria-live', 'polite');
+  feedback.hidden = true;
+  actions.append(feedback, modeButton);
+  wrapper.append(body, actions);
   renderSideNoteMarkdownBlock(body, modeButton, block.id, block.markdown, doc);
   return wrapper;
 }
@@ -4535,6 +4572,7 @@ async function renderSideNoteMarkdownBlock(body, modeButton, blockId, source, do
       body.textContent = source;
       body.tabIndex = 0;
       modeButton.hidden = true;
+      setSideNoteRenderFeedback(modeButton, '');
       delete body.dataset.hasRenderableSyntax;
       return;
     }
@@ -4546,6 +4584,7 @@ async function renderSideNoteMarkdownBlock(body, modeButton, blockId, source, do
     modeButton.dataset.sideNoteAction = 'edit-text';
     modeButton.textContent = 'Edit';
     modeButton.hidden = false;
+    setSideNoteRenderFeedback(modeButton, '');
     requestSideNoteLayout(doc);
   } catch {
     if (!body.isConnected || body.dataset.markdownRevision !== revision) return;
@@ -4553,7 +4592,16 @@ async function renderSideNoteMarkdownBlock(body, modeButton, blockId, source, do
     body.textContent = source;
     body.tabIndex = 0;
     modeButton.hidden = true;
+    setSideNoteRenderFeedback(modeButton, '');
   }
+}
+
+function setSideNoteRenderFeedback(modeButton, message = '') {
+  const feedback = modeButton?.closest?.('.reader-side-note-text-actions')
+    ?.querySelector?.('.reader-side-note-render-feedback');
+  if (!feedback) return;
+  feedback.textContent = message;
+  feedback.hidden = !message;
 }
 
 function createSideNoteImageBlock(doc, annotation, block, options = {}) {
@@ -5002,7 +5050,7 @@ function injectReaderStyles(doc) {
     .reader-side-note-warning { display: block; margin: 0 0 .3rem; color: #9b2f23; font: 11px/1.3 ui-sans-serif, system-ui, sans-serif; }
     .reader-side-note-title:empty::before, .reader-side-note-body:empty::before { content: attr(data-placeholder); color: rgba(21, 21, 21, .34); pointer-events: none; }
     .reader-side-note-body { display: block; min-height: 1.45em; margin-top: .18rem; white-space: pre-wrap; overflow-wrap: break-word; }
-    .reader-side-note-body.is-rendered { min-height: 0; white-space: normal; cursor: default; }
+    .reader-side-note-body.is-rendered { min-height: 0; white-space: normal; cursor: text; user-select: text; }
     .reader-side-note-body.is-rendered > :first-child { margin-top: 0; }
     .reader-side-note-body.is-rendered > :last-child { margin-bottom: 0; }
     .reader-side-note.is-collapsed .reader-side-note-body, .reader-side-note.is-collapsed .reader-side-note-blank, .reader-side-note.is-collapsed .reader-side-note-ink-wrap, .reader-side-note.is-collapsed .reader-side-note-text-block, .reader-side-note.is-collapsed .reader-side-note-image-block, .reader-side-note.is-collapsed .reader-side-note-insertion-row { display: none !important; }
@@ -5011,7 +5059,10 @@ function injectReaderStyles(doc) {
     .reader-side-note-title[contenteditable], .reader-side-note-body[contenteditable] { outline: 0; }
     .reader-side-note.is-constrained .reader-side-note-body { overflow: hidden; }
     .reader-side-note-text-block { position: relative; }
-    .reader-side-note-text-mode { display: block; margin: .18rem 0 .3rem auto; border: 1px solid #d8c7a8; border-radius: 4px; padding: .16rem .38rem; background: #fffdf8; color: #7a3d00; font: 11px/1.2 ui-sans-serif, system-ui, sans-serif; cursor: pointer; }
+    .reader-side-note-text-actions { display: flex; align-items: center; justify-content: flex-end; gap: .4rem; margin: .18rem 0 .3rem; }
+    .reader-side-note-render-feedback { color: #7b6a55; font: 11px/1.2 ui-sans-serif, system-ui, sans-serif; }
+    .reader-side-note-text-mode { display: block; margin: 0; border: 1px solid #d8c7a8; border-radius: 4px; padding: .16rem .38rem; background: #fffdf8; color: #7a3d00; font: 11px/1.2 ui-sans-serif, system-ui, sans-serif; cursor: pointer; }
+    .reader-side-note-text-mode[hidden] { display: none; }
     .reader-side-note-insertion-row { display: flex; align-items: center; justify-content: flex-end; flex-wrap: nowrap; gap: .28rem; margin: .38rem 0; color: #7b6a55; font: 11px/1.2 ui-sans-serif, system-ui, sans-serif; }
     .reader-side-note-insertion-row button { border: 1px solid #d8c7a8; border-radius: 4px; padding: .18rem .38rem; background: #fffdf8; color: #7a3d00; font: inherit; cursor: pointer; }
     .reader-side-note-insertion-row .reader-side-note-remove-block { margin-right: auto; color: #8f1f12; border-color: #e1b6ad; }
@@ -7375,7 +7426,8 @@ function beginInlineTextEdit(annotationId, note, focusField = 'body', pointerEve
     if (modeButton) {
       modeButton.dataset.sideNoteAction = 'render-text';
       modeButton.textContent = 'Render';
-      modeButton.hidden = body.dataset.hasRenderableSyntax !== 'true';
+      modeButton.hidden = false;
+      setSideNoteRenderFeedback(modeButton, '');
     }
   }
   field.contentEditable = 'plaintext-only';
@@ -7386,6 +7438,7 @@ function beginInlineTextEdit(annotationId, note, focusField = 'body', pointerEve
   const onInput = () => {
     requestSideNoteLayout(note.ownerDocument);
     if (field !== body || !modeButton) return;
+    setSideNoteRenderFeedback(modeButton, '');
     const previousTimer = state.noteMarkdownAnalysisTimers.get(body);
     if (previousTimer) clearTimeout(previousTimer);
     const timer = setTimeout(async () => {
@@ -7393,10 +7446,10 @@ function beginInlineTextEdit(annotationId, note, focusField = 'body', pointerEve
       try {
         const analysis = await analyzeNoteMarkdown(source);
         if (!body.isConnected || !body.isContentEditable || editablePlainText(body) !== source) return;
-        modeButton.hidden = !analysis.hasRenderableSyntax;
+        modeButton.hidden = false;
         body.dataset.hasRenderableSyntax = analysis.hasRenderableSyntax ? 'true' : 'false';
       } catch {
-        modeButton.hidden = true;
+        modeButton.hidden = false;
       }
     }, 120);
     state.noteMarkdownAnalysisTimers.set(body, timer);
@@ -7422,6 +7475,23 @@ function beginInlineTextEdit(annotationId, note, focusField = 'body', pointerEve
   field.addEventListener('input', onInput);
   field.addEventListener('keydown', onKeyDown);
   field.addEventListener('blur', onBlur, { once: true });
+}
+
+async function tryRenderInlineTextBlock(annotationId, note, modeButton) {
+  const blockId = modeButton?.dataset?.blockId || '';
+  const body = note?.querySelector?.(`.reader-side-note-body[data-block-id="${cssEscape(blockId)}"]`);
+  if (!body?.isContentEditable) return;
+  const source = editablePlainText(body);
+  const rendered = await renderNoteMarkdown(source);
+  if (!body.isConnected || !body.isContentEditable || editablePlainText(body) !== source) return;
+  body.dataset.hasRenderableSyntax = rendered.hasRenderableSyntax ? 'true' : 'false';
+  if (!rendered.hasRenderableSyntax) {
+    setSideNoteRenderFeedback(modeButton, 'No markdown to render');
+    body.focus({ preventScroll: true });
+    return;
+  }
+  setSideNoteRenderFeedback(modeButton, '');
+  await finishInlineTextEdit(annotationId, note);
 }
 
 async function finishInlineTextEdit(annotationId, note) {
