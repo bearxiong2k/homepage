@@ -179,9 +179,26 @@
 
     .pdf-zoom-mark {
       display: block;
-      height: 11px;
-      font-size: 13px;
-      line-height: 1;
+      position: relative;
+      width: 9px;
+      height: 9px;
+      margin: 0 0 2px -1px;
+      border: 1.5px solid currentColor;
+      border-radius: 50%;
+      box-sizing: border-box;
+    }
+
+    .pdf-zoom-mark::after {
+      content: '';
+      position: absolute;
+      width: 5px;
+      height: 1.5px;
+      right: -4px;
+      bottom: -2px;
+      border-radius: 1px;
+      background: currentColor;
+      transform: rotate(45deg);
+      transform-origin: left center;
     }
 
     #pdfStatus {
@@ -378,7 +395,7 @@
         <span id="pageTotalLabel" class="pdf-page-total">/ -</span>
       </label>
       <button id="horizontalPanLockBtn" class="pdf-lock-button" type="button" title="Lock horizontal movement" aria-label="Lock horizontal movement" aria-pressed="false"><span class="pdf-lock-mark" aria-hidden="true"></span><span class="pdf-pan-mark" aria-hidden="true">↔</span></button>
-      <button id="zoomLockBtn" class="pdf-lock-button is-active" type="button" title="Unlock zoom from PDF panel" aria-label="Unlock zoom from PDF panel" aria-pressed="true"><span class="pdf-lock-mark" aria-hidden="true"></span><span class="pdf-zoom-mark" aria-hidden="true">±</span></button>
+      <button id="zoomLockBtn" class="pdf-lock-button is-active" type="button" title="Unlock zoom from PDF panel" aria-label="Unlock zoom from PDF panel" aria-pressed="true"><span class="pdf-lock-mark" aria-hidden="true"></span><span class="pdf-zoom-mark" aria-hidden="true"></span></button>
       <span id="pdfStatus" role="status">Loading PDF...</span>
     </div>
   </div>
