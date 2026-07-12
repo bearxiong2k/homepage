@@ -1630,14 +1630,14 @@ export async function validateNoteImageFile(file) {
   }
   const metadata = noteImageMetadataFromBytes(data);
   const declaredType = normalizeNoteImageMimeType(file.type);
-  if (declaredType && declaredType !== metadata.mimeType) {
-    throw new Error(`The picture contents do not match its declared ${declaredType} type.`);
+  if (declaredType && !isSupportedNoteImageMimeType(declaredType)) {
+    throw new Error(`The selected file declares an unsupported ${declaredType} type.`);
   }
   const pixels = metadata.intrinsicWidth * metadata.intrinsicHeight;
   if (!Number.isSafeInteger(pixels) || pixels > NOTE_IMAGE_MAX_PIXELS) {
     throw new Error('Pictures must contain no more than 40 megapixels.');
   }
-  await verifyNoteImageDecode(file, data, metadata);
+  await verifyNoteImageDecode(data, metadata);
   const originalName = sanitizeNoteImageFilename(file.name, metadata.mimeType);
   return {
     data,
@@ -1653,7 +1653,13 @@ export async function validateNoteImageFile(file) {
 
 function normalizeNoteImageMimeType(value) {
   const mimeType = String(value || '').toLowerCase();
-  return mimeType === 'image/jpg' || mimeType === 'image/pjpeg' ? 'image/jpeg' : mimeType;
+  if (mimeType === 'image/jpg' || mimeType === 'image/pjpeg') return 'image/jpeg';
+  if (mimeType === 'image/x-png') return 'image/png';
+  return mimeType;
+}
+
+function isSupportedNoteImageMimeType(value) {
+  return ['image/png', 'image/jpeg', 'image/webp'].includes(value);
 }
 
 export function noteImageMetadataFromBytes(input) {
@@ -1780,10 +1786,8 @@ function checkedNoteImageMetadata(mimeType, extension, intrinsicWidth, intrinsic
   return { mimeType, extension, intrinsicWidth: width, intrinsicHeight: height };
 }
 
-async function verifyNoteImageDecode(file, bytes, expected) {
-  const blob = typeof Blob === 'function' && file instanceof Blob
-    ? file
-    : new Blob([bytes], { type: expected.mimeType });
+async function verifyNoteImageDecode(bytes, expected) {
+  const blob = new Blob([bytes], { type: expected.mimeType });
   if (typeof createImageBitmap === 'function') {
     let bitmap = null;
     try {
