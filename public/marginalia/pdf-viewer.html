@@ -263,9 +263,16 @@
       box-shadow: 0 12px 34px rgba(40, 32, 20, 0.18);
     }
 
-    .pdf-page.is-zoom-resize-preview > * {
-      transform: scale(var(--pdf-zoom-resize-preview-factor, 1));
+    .pdf-page-surface {
+      position: absolute;
+      top: 0;
+      left: 0;
+      overflow: hidden;
       transform-origin: top left;
+    }
+
+    .pdf-page.is-zoom-resize-preview > .pdf-page-surface {
+      transform: scale(var(--pdf-zoom-resize-preview-factor, 1));
     }
 
     .pdf-page-gap {

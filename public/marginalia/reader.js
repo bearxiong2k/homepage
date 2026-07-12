@@ -1610,7 +1610,7 @@ function onFramePointerDown(event) {
   const start = pdfLocalPointFromEvent(event, pageRect);
   const overlay = page.ownerDocument.createElement('div');
   overlay.className = 'reader-pdf-highlight-draft';
-  page.append(overlay);
+  (page.querySelector(':scope > .pdf-page-surface') || page).append(overlay);
   state.pdfHighlightSession = {
     page,
     overlay,
@@ -4285,7 +4285,7 @@ function applyPdfRectHighlight(doc, annotation, target = annotation.target, targ
   highlight.style.top = `${clampNumber(rect.y, 0, 1, 0) * 100}%`;
   highlight.style.width = `${clampNumber(rect.width, 0, 1, 0) * 100}%`;
   highlight.style.height = `${clampNumber(rect.height, 0, 1, 0) * 100}%`;
-  page.append(highlight);
+  (page.querySelector(':scope > .pdf-page-surface') || page).append(highlight);
 }
 
 function buildAnnotationResolutionMap(doc, annotations) {
@@ -6003,6 +6003,7 @@ function onLayoutResizerPointerDown(event) {
     previewRaf: 0
   };
   state.layoutDragSession = session;
+  cancelPendingSideNoteLayout(doc);
   dispatchSideNoteLayoutChange(doc, layoutMetrics(doc), {
     phase: 'start',
     reason: 'layout-resizer',
@@ -6076,13 +6077,13 @@ function updateLayoutFromDrag(doc, handle, clientX, anchor) {
   if (!layoutFractionsDiffer(previousLayout, nextLayout)) return false;
   state.layoutWidths = nextLayout;
   updateResponsiveReaderLayout(doc, { notify: false });
-  if (!state.readingMode) requestSideNoteLayout(doc);
   restoreViewportAnchor(doc, anchor);
   const metrics = layoutMetrics(doc);
   dispatchSideNoteLayoutChange(doc, metrics, {
     phase: 'preview',
     reason: 'layout-resizer'
   });
+  if (!state.readingMode) previewSideNoteLayout(doc);
   const handleElement = state.layoutDragSession?.handleElement;
   if (handleElement?.isConnected) {
     handleElement.style.left = `${Math.round(metrics.sourceNoteX)}px`;
@@ -6103,6 +6104,7 @@ function commitLayoutResize(doc, previousLayout, input) {
     reason: 'layout-resizer',
     input
   });
+  if (!state.readingMode) requestSideNoteLayout(doc);
   return true;
 }
 
@@ -6662,6 +6664,31 @@ function layoutSideNotes(doc) {
     if (activeNote) activeNote.note.style.zIndex = String(notes.length + 10);
   }
   requestAnimationFrame(() => redrawSideInkCanvases(doc));
+}
+
+function previewSideNoteLayout(doc) {
+  if (!doc) return;
+  const metrics = layoutMetrics(doc);
+  if (!sideNotesVisibleForMetrics(metrics)) return;
+  const layer = doc.querySelector('.reader-side-note-layer');
+  if (!layer) return;
+  layer.style.left = `${doc.defaultView.scrollX + Math.max(0, metrics.viewportWidth - metrics.noteLayerWidth)}px`;
+  const annotationsById = annotationIndexById();
+  for (const note of doc.querySelectorAll('.reader-side-note:not(.is-pinned)')) {
+    const annotation = annotationsById.get(note.dataset.annotationId);
+    if (!annotation) continue;
+    const position = sideNotePosition(doc, annotation);
+    if (!position) continue;
+    note.style.left = '0px';
+    note.style.top = `${position.top}px`;
+  }
+}
+
+function cancelPendingSideNoteLayout(doc) {
+  if (!state.sideNoteLayoutRaf || state.sideNoteLayoutDoc !== doc) return;
+  cancelAnimationFrame(state.sideNoteLayoutRaf);
+  state.sideNoteLayoutRaf = 0;
+  state.sideNoteLayoutDoc = null;
 }
 
 function requestSideNoteLayout(doc = getFrameDoc()) {

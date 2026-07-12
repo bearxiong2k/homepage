@@ -205,14 +205,18 @@ async function createPageShell(pdf, pageNumber) {
   pageEl.dataset.renderState = 'pending';
   pageEl.setAttribute('aria-label', `PDF page ${pageNumber}`);
 
+  const surfaceEl = document.createElement('div');
+  surfaceEl.className = 'pdf-page-surface';
   const placeholder = document.createElement('div');
   placeholder.className = 'pdf-page-placeholder';
   placeholder.setAttribute('aria-hidden', 'true');
   placeholder.textContent = `Page ${pageNumber}`;
-  pageEl.append(placeholder);
+  surfaceEl.append(placeholder);
+  pageEl.append(surfaceEl);
   const record = {
     page,
     pageEl,
+    surfaceEl,
     baseViewport,
     cssScale: 1,
     renderTask: null,
@@ -524,7 +528,7 @@ function forceDrainRenderQueue() {
 }
 
 async function renderPage(record, generation, renderToken) {
-  const { page, pageEl, cssScale } = record;
+  const { page, pageEl, surfaceEl, cssScale } = record;
   const outputScale = Math.min(window.devicePixelRatio || 1, MAX_DEVICE_SCALE);
   const canvas = document.createElement('canvas');
   canvas.className = 'pdf-page-canvas';
@@ -541,9 +545,7 @@ async function renderPage(record, generation, renderToken) {
   canvas.height = Math.ceil(outputViewport.height);
   canvas.style.width = `${Math.ceil(cssViewport.width)}px`;
   canvas.style.height = `${Math.ceil(cssViewport.height)}px`;
-  pageEl.style.width = `${Math.ceil(cssViewport.width)}px`;
-  pageEl.style.height = `${Math.ceil(cssViewport.height)}px`;
-  pageEl.style.minHeight = `${Math.ceil(cssViewport.height)}px`;
+  setPageDimensions(record, cssViewport);
 
   record.renderTask?.cancel();
   record.textLayer?.cancel();
@@ -558,10 +560,10 @@ async function renderPage(record, generation, renderToken) {
   if (record.renderToken !== renderToken || generation !== zoomGeneration) return;
 
   pageEl.querySelector('.pdf-page-placeholder')?.remove();
-  const oldCanvas = pageEl.querySelector('.pdf-page-canvas');
-  const oldTextLayer = pageEl.querySelector('.pdf-page-text-layer');
+  const oldCanvas = surfaceEl.querySelector('.pdf-page-canvas');
+  const oldTextLayer = surfaceEl.querySelector('.pdf-page-text-layer');
   if (oldCanvas) oldCanvas.replaceWith(canvas);
-  else pageEl.prepend(canvas);
+  else surfaceEl.prepend(canvas);
   oldTextLayer?.remove();
   canvas.after(textLayerEl);
   record.textLayerEl = textLayerEl;
@@ -605,12 +607,12 @@ function releasePageSurface(pageNumber, record, options = {}) {
   }
   record.pageEl.querySelector('.pdf-page-text-layer')?.remove();
   record.pageEl.querySelector('.pdf-selection-layer')?.remove();
-  if (options.keepPlaceholder !== false && !record.pageEl.querySelector('.pdf-page-placeholder')) {
+  if (options.keepPlaceholder !== false && !record.surfaceEl.querySelector('.pdf-page-placeholder')) {
     const placeholder = document.createElement('div');
     placeholder.className = 'pdf-page-placeholder';
     placeholder.setAttribute('aria-hidden', 'true');
     placeholder.textContent = `Page ${pageNumber}`;
-    record.pageEl.append(placeholder);
+    record.surfaceEl.append(placeholder);
   }
   record.pageEl.dataset.renderState = 'pending';
   record.pageEl.dataset.textLayer = 'pending';
@@ -730,11 +732,20 @@ function updatePageGeometry(record) {
   if (!record) return;
   record.cssScale = pageCssScale(record.baseViewport);
   const viewport = record.page.getViewport({ scale: record.cssScale });
-  record.pageEl.style.width = `${Math.ceil(viewport.width)}px`;
-  record.pageEl.style.height = `${Math.ceil(viewport.height)}px`;
-  record.pageEl.style.minHeight = `${Math.ceil(viewport.height)}px`;
+  setPageDimensions(record, viewport);
   record.pageEl.dataset.zoom = String(Number(record.cssScale.toFixed(4)));
   schedulePageMetricsRefresh();
+}
+
+function setPageDimensions(record, viewport, options = {}) {
+  const width = Math.ceil(viewport.width);
+  const height = Math.ceil(viewport.height);
+  record.pageEl.style.width = `${width}px`;
+  record.pageEl.style.height = `${height}px`;
+  record.pageEl.style.minHeight = `${height}px`;
+  if (options.surface === false) return;
+  record.surfaceEl.style.width = `${width}px`;
+  record.surfaceEl.style.height = `${height}px`;
 }
 
 function schedulePageMetricsRefresh() {
@@ -918,9 +929,7 @@ function previewPanelResize() {
   previewZoomScale = nextState.scale;
   for (const [, record] of orderedPageRecords()) {
     const viewport = record.page.getViewport({ scale: previewZoomScale });
-    record.pageEl.style.width = `${Math.ceil(viewport.width)}px`;
-    record.pageEl.style.height = `${Math.ceil(viewport.height)}px`;
-    record.pageEl.style.minHeight = `${Math.ceil(viewport.height)}px`;
+    setPageDimensions(record, viewport, { surface: false });
     record.pageEl.style.setProperty(
       '--pdf-zoom-resize-preview-factor',
       String(previewScaleFactor(previewZoomScale, record.cssScale))
@@ -994,9 +1003,7 @@ function clearZoomResizePreview(options = {}) {
     record.pageEl.style.removeProperty('--pdf-zoom-resize-preview-factor');
     if (!options.restoreCommittedGeometry) continue;
     const viewport = record.page.getViewport({ scale: record.cssScale });
-    record.pageEl.style.width = `${Math.ceil(viewport.width)}px`;
-    record.pageEl.style.height = `${Math.ceil(viewport.height)}px`;
-    record.pageEl.style.minHeight = `${Math.ceil(viewport.height)}px`;
+    setPageDimensions(record, viewport);
   }
   if (options.restoreCommittedGeometry) commitPageGeometryMetrics();
 }
@@ -1419,11 +1426,12 @@ function clearSelectionOverlay() {
 }
 
 function getSelectionLayer(pageEl) {
-  let layer = pageEl.querySelector(':scope > .pdf-selection-layer');
+  const surface = pageEl.querySelector(':scope > .pdf-page-surface') || pageEl;
+  let layer = surface.querySelector(':scope > .pdf-selection-layer');
   if (!layer) {
     layer = document.createElement('div');
     layer.className = 'pdf-selection-layer';
-    pageEl.append(layer);
+    surface.append(layer);
   }
   return layer;
 }
