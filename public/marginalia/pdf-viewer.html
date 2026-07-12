@@ -149,7 +149,7 @@
       backdrop-filter: blur(4px);
     }
 
-    .pdf-pan-lock-button {
+    .pdf-lock-button {
       display: inline-flex;
       flex-direction: column;
       align-items: center;
@@ -171,6 +171,13 @@
     }
 
     .pdf-pan-mark {
+      display: block;
+      height: 11px;
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    .pdf-zoom-mark {
       display: block;
       height: 11px;
       font-size: 13px;
@@ -213,7 +220,7 @@
 
     #pdfRoot {
       display: grid;
-      justify-content: center;
+      justify-content: start;
       gap: 18px;
       width: max-content;
       min-width: 100%;
@@ -225,17 +232,23 @@
       transform-origin: top left;
     }
 
-    @supports (justify-content: safe center) {
+    @supports (justify-content: safe start) {
       #pdfRoot {
-        justify-content: safe center;
+        justify-content: safe start;
       }
     }
 
     .pdf-page {
       position: relative;
+      justify-self: start;
       overflow: hidden;
       background: white;
       box-shadow: 0 12px 34px rgba(40, 32, 20, 0.18);
+    }
+
+    .pdf-page.is-zoom-resize-preview > * {
+      transform: scale(var(--pdf-zoom-resize-preview-factor, 1));
+      transform-origin: top left;
     }
 
     .pdf-page-gap {
@@ -364,7 +377,8 @@
         <input id="pageNumberInput" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" value="1" aria-label="PDF page number" aria-describedby="pdfStatus" aria-errormessage="pdfStatus">
         <span id="pageTotalLabel" class="pdf-page-total">/ -</span>
       </label>
-      <button id="horizontalPanLockBtn" class="pdf-pan-lock-button" type="button" title="Lock horizontal movement" aria-label="Lock horizontal movement" aria-pressed="false"><span class="pdf-lock-mark" aria-hidden="true"></span><span class="pdf-pan-mark" aria-hidden="true">↔</span></button>
+      <button id="horizontalPanLockBtn" class="pdf-lock-button" type="button" title="Lock horizontal movement" aria-label="Lock horizontal movement" aria-pressed="false"><span class="pdf-lock-mark" aria-hidden="true"></span><span class="pdf-pan-mark" aria-hidden="true">↔</span></button>
+      <button id="zoomLockBtn" class="pdf-lock-button is-active" type="button" title="Unlock zoom from PDF panel" aria-label="Unlock zoom from PDF panel" aria-pressed="true"><span class="pdf-lock-mark" aria-hidden="true"></span><span class="pdf-zoom-mark" aria-hidden="true">±</span></button>
       <span id="pdfStatus" role="status">Loading PDF...</span>
     </div>
   </div>

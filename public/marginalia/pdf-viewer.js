@@ -14,6 +14,11 @@ import {
   virtualGapHeight
 } from './pdf-page-window.js';
 import { marginaliaPerformanceTrace } from './performance-trace.js';
+import {
+  horizontalOffsetForPanelResize,
+  previewScaleFactor,
+  zoomStateForPanelResize
+} from './pdf-zoom-lock.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdfjs/pdf.worker.mjs', location.href).href;
 const PDFJS_ASSETS = {
@@ -37,6 +42,7 @@ const pageNumberInput = document.querySelector('#pageNumberInput');
 const pageTotalLabel = document.querySelector('#pageTotalLabel');
 const pageIndicator = document.querySelector('#pageIndicator');
 const horizontalPanLockBtn = document.querySelector('#horizontalPanLockBtn');
+const zoomLockBtn = document.querySelector('#zoomLockBtn');
 const toolbar = document.querySelector('#pdfToolbar');
 const toolbarToggleBtn = document.querySelector('#toolbarToggleBtn');
 const pageRecords = new Map();
@@ -59,6 +65,7 @@ const ZOOM_STEP_RATIO = 0.1;
 const PDF_READ_AHEAD_PREVIOUS = 1;
 const PDF_READ_AHEAD_NEXT = 2;
 const PDF_PAGE_GAP = 18;
+const PDF_SCROLL_ANCHOR_VIEWPORT_RATIO = 0.35;
 const pdfPerformance = marginaliaPerformanceTrace('pdf');
 let activeRenderCount = 0;
 let activeTextLayerRenderCount = 0;
@@ -72,6 +79,9 @@ let pageMetricsRaf = 0;
 let pageControlsRaf = 0;
 let textSelectionDrag = null;
 let horizontalPanLocked = false;
+let zoomLocked = true;
+let previewZoomScale = null;
+let panelResizeSession = null;
 let pdfWindowScrolling = false;
 let pdfWindowScrollIdleTimer = 0;
 let readAheadRequestId = 0;
@@ -94,6 +104,7 @@ zoomOutBtn?.addEventListener('click', () => stepZoom(-1));
 zoomInBtn?.addEventListener('click', () => stepZoom(1));
 fitWidthBtn?.addEventListener('click', () => setZoomMode('fit-width'));
 horizontalPanLockBtn?.addEventListener('click', toggleHorizontalPanLock);
+zoomLockBtn?.addEventListener('click', toggleZoomLock);
 toolbarToggleBtn?.addEventListener('click', toggleToolbarCollapsed);
 zoomInput?.addEventListener('change', commitZoomInput);
 zoomInput?.addEventListener('keydown', (event) => {
@@ -139,6 +150,7 @@ window.addEventListener('scroll', handlePdfWindowScroll, { passive: true });
 pdfViewport?.addEventListener('scroll', handlePdfViewportScroll, { passive: true });
 
 syncHorizontalPanLock();
+syncZoomLock();
 installPdfLongTaskObserver();
 
 renderPdf().catch((error) => {
@@ -313,7 +325,12 @@ function removeQueuedPage(pageNumber) {
 function restoreVirtualScrollAnchor(anchor) {
   if (!anchor) return;
   const metric = pageMetrics[anchor.pageNumber - 1];
-  const nextY = scrollYForPageMetric(metric, anchor.ratio, window.innerHeight);
+  const nextY = scrollYForPageMetric(
+    metric,
+    anchor.ratio,
+    window.innerHeight,
+    PDF_SCROLL_ANCHOR_VIEWPORT_RATIO
+  );
   if (Number.isFinite(nextY) && Math.abs(nextY - window.scrollY) > 0.5) {
     window.scrollTo(window.scrollX, nextY);
   }
@@ -746,7 +763,9 @@ function rebuildPageMetrics() {
     rootTop: window.scrollY + rootRect.top,
     paddingTop,
     gap,
-    zoomScale: Number.isFinite(zoomScale) ? zoomScale : 1,
+    zoomScale: Number.isFinite(previewZoomScale)
+      ? previewZoomScale
+      : Number.isFinite(zoomScale) ? zoomScale : 1,
     fallbackBaseHeight,
     baseHeights: pageBaseHeights
   });
@@ -788,16 +807,18 @@ function availablePdfWidth() {
 
 function setZoomMode(mode) {
   if (mode !== 'fit-width') return;
+  clearPanelResizeState();
   zoomRatio = 1;
   zoomScale = representativeFitScale() * zoomRatio;
-  refreshZoomedPages();
+  refreshZoomedPages({ relativeHorizontal: true });
 }
 
 function setExplicitZoomRatio(ratio) {
   if (!Number.isFinite(ratio)) return;
+  clearPanelResizeState();
   zoomRatio = ratio;
   zoomScale = clamp(representativeFitScale() * zoomRatio, MIN_PAGE_SCALE, MAX_PAGE_SCALE);
-  refreshZoomedPages();
+  refreshZoomedPages({ relativeHorizontal: true });
 }
 
 function commitZoomInput() {
@@ -817,25 +838,189 @@ function scheduleZoomRefresh() {
   zoomRefreshRaf = requestAnimationFrame(() => {
     zoomRefreshRaf = 0;
     if (!pdfDocument || !pageRecords.size) return;
-    const nextScale = clamp(representativeFitScale() * zoomRatio, MIN_PAGE_SCALE, MAX_PAGE_SCALE);
+    if (!zoomLocked) {
+      clearZoomResizePreview({ restoreCommittedGeometry: true });
+      zoomRatio = currentRepresentativeZoomRatio();
+      syncZoomControls();
+      restoreHorizontalPan(captureHorizontalPan(), { relative: false });
+      return;
+    }
+    const nextState = zoomStateForPanelResize({
+      locked: true,
+      fitScale: representativeFitScale(),
+      committedScale: zoomScale,
+      relativeRatio: zoomRatio,
+      minScale: MIN_PAGE_SCALE,
+      maxScale: MAX_PAGE_SCALE
+    });
+    const nextScale = nextState.scale;
     if (Number.isFinite(zoomScale) && Math.abs(nextScale - zoomScale) < 0.0001) {
       syncZoomControls();
       return;
     }
     zoomScale = nextScale;
-    refreshZoomedPages();
+    zoomRatio = nextState.relativeRatio;
+    refreshZoomedPages({ relativeHorizontal: true });
   });
 }
 
 function handleReaderSideNoteLayoutChange(event) {
-  if (event.detail?.phase !== 'commit') return;
-  scheduleZoomRefresh();
+  const phase = event.detail?.phase;
+  if (phase === 'start') {
+    beginPanelResize();
+    return;
+  }
+  if (phase === 'preview') {
+    previewPanelResize();
+    return;
+  }
+  if (phase === 'commit') {
+    commitPanelResize();
+    return;
+  }
+  if (phase === 'cancel') cancelPanelResize();
 }
 
-function refreshZoomedPages() {
+function beginPanelResize() {
   if (!pdfDocument) return;
-  const anchor = captureScrollAnchor();
-  const horizontalPan = captureHorizontalPan();
+  clearZoomResizePreview({ restoreCommittedGeometry: true });
+  panelResizeSession = {
+    anchor: captureScrollAnchor(),
+    horizontalPan: captureHorizontalPan(),
+    scrollY: window.scrollY,
+    committedScale: Number.isFinite(zoomScale) ? zoomScale : currentRepresentativeScale(),
+    relativeRatio: currentRepresentativeZoomRatio()
+  };
+  document.documentElement.dataset.pdfPanelResize = 'active';
+}
+
+function previewPanelResize() {
+  if (!pdfDocument) return;
+  if (!panelResizeSession) beginPanelResize();
+  const session = panelResizeSession;
+  if (!session) return;
+  if (!zoomLocked) {
+    clearZoomResizePreview({ restoreCommittedGeometry: true });
+    zoomRatio = session.committedScale / representativeFitScale();
+    syncZoomControls();
+    window.scrollTo(window.scrollX, session.scrollY);
+    restoreHorizontalPan(session.horizontalPan, { relative: false, defer: false });
+    return;
+  }
+  const nextState = zoomStateForPanelResize({
+    locked: true,
+    fitScale: representativeFitScale(),
+    committedScale: session.committedScale,
+    relativeRatio: session.relativeRatio,
+    minScale: MIN_PAGE_SCALE,
+    maxScale: MAX_PAGE_SCALE
+  });
+  previewZoomScale = nextState.scale;
+  for (const [, record] of orderedPageRecords()) {
+    const viewport = record.page.getViewport({ scale: previewZoomScale });
+    record.pageEl.style.width = `${Math.ceil(viewport.width)}px`;
+    record.pageEl.style.height = `${Math.ceil(viewport.height)}px`;
+    record.pageEl.style.minHeight = `${Math.ceil(viewport.height)}px`;
+    record.pageEl.style.setProperty(
+      '--pdf-zoom-resize-preview-factor',
+      String(previewScaleFactor(previewZoomScale, record.cssScale))
+    );
+    record.pageEl.classList.add('is-zoom-resize-preview');
+  }
+  commitPageGeometryMetrics();
+  restoreVirtualScrollAnchor(session.anchor);
+  restoreHorizontalPan(session.horizontalPan, { relative: true, defer: false });
+  document.documentElement.dataset.pdfZoomPreview = String(Number(previewZoomScale.toFixed(4)));
+}
+
+function commitPanelResize() {
+  const session = panelResizeSession || {
+    anchor: captureScrollAnchor(),
+    horizontalPan: captureHorizontalPan(),
+    scrollY: window.scrollY,
+    committedScale: Number.isFinite(zoomScale) ? zoomScale : currentRepresentativeScale(),
+    relativeRatio: zoomRatio
+  };
+  panelResizeSession = null;
+  delete document.documentElement.dataset.pdfPanelResize;
+  if (!zoomLocked) {
+    clearZoomResizePreview({ restoreCommittedGeometry: true });
+    zoomScale = session.committedScale;
+    zoomRatio = zoomScale / representativeFitScale();
+    syncZoomControls();
+    window.scrollTo(window.scrollX, session.scrollY);
+    restoreHorizontalPan(session.horizontalPan, { relative: false });
+    return;
+  }
+  const nextState = zoomStateForPanelResize({
+    locked: true,
+    fitScale: representativeFitScale(),
+    committedScale: session.committedScale,
+    relativeRatio: session.relativeRatio,
+    minScale: MIN_PAGE_SCALE,
+    maxScale: MAX_PAGE_SCALE
+  });
+  zoomScale = nextState.scale;
+  zoomRatio = nextState.relativeRatio;
+  refreshZoomedPages({
+    anchor: session.anchor,
+    horizontalPan: session.horizontalPan,
+    relativeHorizontal: true
+  });
+}
+
+function cancelPanelResize() {
+  const session = panelResizeSession;
+  panelResizeSession = null;
+  delete document.documentElement.dataset.pdfPanelResize;
+  clearZoomResizePreview({ restoreCommittedGeometry: true });
+  if (!session) return;
+  window.scrollTo(window.scrollX, session.scrollY);
+  restoreHorizontalPan(session.horizontalPan, { relative: zoomLocked, defer: false });
+}
+
+function clearPanelResizeState() {
+  panelResizeSession = null;
+  delete document.documentElement.dataset.pdfPanelResize;
+  clearZoomResizePreview({ restoreCommittedGeometry: true });
+}
+
+function clearZoomResizePreview(options = {}) {
+  if (!Number.isFinite(previewZoomScale) && !root.querySelector('.is-zoom-resize-preview')) return;
+  previewZoomScale = null;
+  delete document.documentElement.dataset.pdfZoomPreview;
+  for (const [, record] of orderedPageRecords()) {
+    record.pageEl.classList.remove('is-zoom-resize-preview');
+    record.pageEl.style.removeProperty('--pdf-zoom-resize-preview-factor');
+    if (!options.restoreCommittedGeometry) continue;
+    const viewport = record.page.getViewport({ scale: record.cssScale });
+    record.pageEl.style.width = `${Math.ceil(viewport.width)}px`;
+    record.pageEl.style.height = `${Math.ceil(viewport.height)}px`;
+    record.pageEl.style.minHeight = `${Math.ceil(viewport.height)}px`;
+  }
+  if (options.restoreCommittedGeometry) commitPageGeometryMetrics();
+}
+
+function commitPageGeometryMetrics() {
+  if (pageMetricsRaf) cancelAnimationFrame(pageMetricsRaf);
+  pageMetricsRaf = 0;
+  rebuildPageMetrics();
+  updateVirtualGapHeights();
+}
+
+function updateVirtualGapHeights() {
+  root.querySelectorAll('.pdf-page-gap').forEach((gap) => {
+    const startPage = Number(gap.dataset.startPage);
+    const endPage = Number(gap.dataset.endPage);
+    gap.style.height = `${Math.max(1, virtualGapHeight(pageMetrics, startPage, endPage, PDF_PAGE_GAP))}px`;
+  });
+}
+
+function refreshZoomedPages(options = {}) {
+  if (!pdfDocument) return;
+  const anchor = options.anchor || captureScrollAnchor();
+  const horizontalPan = options.horizontalPan || captureHorizontalPan();
+  clearZoomResizePreview({ restoreCommittedGeometry: false });
   zoomGeneration += 1;
   renderQueue.length = 0;
   textLayerQueue.length = 0;
@@ -855,9 +1040,10 @@ function refreshZoomedPages() {
     observer?.observe(record.pageEl);
     notifyPageChanged(pageNumber, 'shell');
   }
+  commitPageGeometryMetrics();
   syncZoomControls();
   restoreScrollAnchor(anchor);
-  restoreHorizontalPan(horizontalPan);
+  restoreHorizontalPan(horizontalPan, { relative: options.relativeHorizontal !== false });
   requestReadAheadPages(anchor?.pageNumber || currentPageNumber, { forceDrain: true });
   queueInitialVisiblePages({ priority: true });
 }
@@ -872,18 +1058,21 @@ function captureHorizontalPan() {
   };
 }
 
-function restoreHorizontalPan(pan) {
+function restoreHorizontalPan(pan, options = {}) {
   if (!pdfViewport || !pan) return;
-  requestAnimationFrame(() => {
+  const restore = () => {
     const maxScroll = maxHorizontalPanOffset();
-    const restoredLeft = horizontalPanLocked
-      ? clamp(pan.left, 0, maxScroll)
-      : maxScroll > 0
-        ? clamp(pan.ratio * maxScroll, 0, maxScroll)
-        : 0;
+    const restoredLeft = horizontalOffsetForPanelResize({
+      relative: options.relative !== false,
+      left: pan.left,
+      ratio: pan.ratio,
+      maxOffset: maxScroll
+    });
     if (horizontalPanLocked) setLockedHorizontalPanOffset(restoredLeft);
     else setHorizontalScrollLeft(restoredLeft);
-  });
+  };
+  if (options.defer === false) restore();
+  else requestAnimationFrame(restore);
 }
 
 function stepZoom(direction) {
@@ -1339,7 +1528,7 @@ function syncPageControls(options = {}) {
 }
 
 function visiblePageState() {
-  const probeDocumentY = window.scrollY + window.innerHeight * 0.38;
+  const probeDocumentY = window.scrollY + window.innerHeight * PDF_SCROLL_ANCHOR_VIEWPORT_RATIO;
   const metric = metricForDocumentY(pageMetrics, probeDocumentY);
   if (!metric) return null;
   return {
@@ -1373,6 +1562,23 @@ function syncHorizontalPanLock() {
   horizontalPanLockBtn.setAttribute('aria-pressed', String(horizontalPanLocked));
   horizontalPanLockBtn.title = horizontalPanLocked ? 'Unlock horizontal movement' : 'Lock horizontal movement';
   horizontalPanLockBtn.setAttribute('aria-label', horizontalPanLocked ? 'Unlock horizontal movement' : 'Lock horizontal movement');
+}
+
+function toggleZoomLock() {
+  clearPanelResizeState();
+  zoomRatio = currentRepresentativeZoomRatio();
+  zoomLocked = !zoomLocked;
+  syncZoomLock();
+  syncZoomControls();
+}
+
+function syncZoomLock() {
+  document.documentElement.dataset.pdfZoomLock = zoomLocked ? 'locked' : 'unlocked';
+  if (!zoomLockBtn) return;
+  zoomLockBtn.classList.toggle('is-active', zoomLocked);
+  zoomLockBtn.setAttribute('aria-pressed', String(zoomLocked));
+  zoomLockBtn.title = zoomLocked ? 'Unlock zoom from PDF panel' : 'Lock zoom and position to PDF panel';
+  zoomLockBtn.setAttribute('aria-label', zoomLocked ? 'Unlock zoom from PDF panel' : 'Lock zoom and position to PDF panel');
 }
 
 function toggleToolbarCollapsed() {

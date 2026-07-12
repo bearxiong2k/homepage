@@ -5957,8 +5957,20 @@ function onLayoutResizerKeyDown(event) {
   event.preventDefault();
   event.stopPropagation();
   const anchor = captureViewportAnchor(doc);
+  dispatchSideNoteLayoutChange(doc, layoutMetrics(doc), {
+    phase: 'start',
+    reason: 'layout-resizer',
+    input: 'keyboard'
+  });
   updateLayoutFromDrag(doc, 'source-notes', Math.max(320, doc.defaultView.innerWidth) * next, anchor);
-  commitLayoutResize(doc, previousLayout, 'keyboard');
+  const committed = commitLayoutResize(doc, previousLayout, 'keyboard');
+  if (!committed) {
+    dispatchSideNoteLayoutChange(doc, layoutMetrics(doc), {
+      phase: 'cancel',
+      reason: 'layout-resizer',
+      input: 'keyboard'
+    });
+  }
   const metrics = layoutMetrics(doc);
   event.currentTarget.style.left = `${Math.round(metrics.sourceNoteX)}px`;
   event.currentTarget.setAttribute('aria-valuenow', String(Math.round(metrics.layout.sourceFraction * 100)));
@@ -5991,6 +6003,11 @@ function onLayoutResizerPointerDown(event) {
     previewRaf: 0
   };
   state.layoutDragSession = session;
+  dispatchSideNoteLayoutChange(doc, layoutMetrics(doc), {
+    phase: 'start',
+    reason: 'layout-resizer',
+    input: 'pointer'
+  });
 
   const flushPreview = () => {
     if (session.previewRaf) {
@@ -6031,7 +6048,14 @@ function onLayoutResizerPointerDown(event) {
       // Pointer capture may already be released after pointerup or pointercancel.
     }
     state.layoutDragSession = null;
-    commitLayoutResize(doc, session.initialLayout, 'pointer');
+    const committed = commitLayoutResize(doc, session.initialLayout, 'pointer');
+    if (!committed) {
+      dispatchSideNoteLayoutChange(doc, layoutMetrics(doc), {
+        phase: 'cancel',
+        reason: 'layout-resizer',
+        input: 'pointer'
+      });
+    }
     renderLayoutResizers(doc);
   };
   doc.addEventListener('pointermove', onMove);
@@ -6055,6 +6079,10 @@ function updateLayoutFromDrag(doc, handle, clientX, anchor) {
   if (!state.readingMode) requestSideNoteLayout(doc);
   restoreViewportAnchor(doc, anchor);
   const metrics = layoutMetrics(doc);
+  dispatchSideNoteLayoutChange(doc, metrics, {
+    phase: 'preview',
+    reason: 'layout-resizer'
+  });
   const handleElement = state.layoutDragSession?.handleElement;
   if (handleElement?.isConnected) {
     handleElement.style.left = `${Math.round(metrics.sourceNoteX)}px`;
