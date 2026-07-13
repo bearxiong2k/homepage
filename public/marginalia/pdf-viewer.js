@@ -824,7 +824,7 @@ function setZoomMode(mode) {
   clearPanelResizeState();
   zoomRatio = 1;
   zoomScale = representativeFitScale() * zoomRatio;
-  refreshZoomedPages({ relativeHorizontal: true });
+  refreshZoomedPages({ relativeHorizontal: false });
   notifyPdfViewStateChange();
 }
 
@@ -833,7 +833,7 @@ function setExplicitZoomRatio(ratio) {
   clearPanelResizeState();
   zoomRatio = ratio;
   zoomScale = clamp(representativeFitScale() * zoomRatio, MIN_PAGE_SCALE, MAX_PAGE_SCALE);
-  refreshZoomedPages({ relativeHorizontal: true });
+  refreshZoomedPages({ relativeHorizontal: false });
   notifyPdfViewStateChange();
 }
 
@@ -1663,7 +1663,8 @@ function clamp(value, min, max) {
 
 function maxHorizontalPanOffset() {
   if (!pdfViewport) return 0;
-  return Math.max(0, pdfViewport.scrollWidth - pdfViewport.clientWidth);
+  const contentWidth = root?.scrollWidth || pdfViewport.scrollWidth;
+  return Math.max(0, contentWidth - pdfViewport.clientWidth);
 }
 
 function setHorizontalScrollLeft(offset) {
