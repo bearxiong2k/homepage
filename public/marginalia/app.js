@@ -1,6 +1,6 @@
 import { APP_VERSION, APP_VERSION_LABEL } from './app-version.js';
 import { marginaliaPerformanceTrace } from './performance-trace.js';
-import { currentStorageMode, fetchNetworkAppVersion, registerServiceWorker, updateAppFromNetwork, urlWithStorage } from './runtime.js';
+import { checkNetworkAppVersion, currentStorageMode, registerServiceWorker, updateAppFromNetwork, urlWithStorage } from './runtime.js';
 import { createStorageAdapter } from './storage-adapter.js';
 import { downloadBytes } from './bundle.js';
 import {
@@ -30,7 +30,9 @@ const importHtmlBtn = document.querySelector('#importHtmlBtn');
 const importBundleBtn = document.querySelector('#importBundleBtn');
 const importLibraryBtn = document.querySelector('#importLibraryBtn');
 const saveLibraryBtn = document.querySelector('#saveLibraryBtn');
+const checkForUpdatesBtn = document.querySelector('#checkForUpdatesBtn');
 const updateAppBtn = document.querySelector('#updateAppBtn');
+const appUpdateStatus = document.querySelector('#appUpdateStatus');
 const clearLibraryBtn = document.querySelector('#clearLibraryBtn');
 const htmlFileInput = document.querySelector('#htmlFileInput');
 const replaceSourceFileInput = document.querySelector('#replaceSourceFileInput');
@@ -46,10 +48,18 @@ const LIBRARY_VIEW_MODE_KEY = 'marginalia-library-view-mode';
 const LIBRARY_COLLAPSED_FOLDERS_KEY = 'marginalia-library-collapsed-folders';
 const LIBRARY_DRAG_MIME = 'application/x-marginalia-library-item';
 const LIBRARY_SORT_ANIMATION_MS = 220;
+const APP_UPDATE_RECHECK_REASONS = new Set([
+  'activated-version-not-newer',
+  'candidate-version-mismatch',
+  'update-not-ready',
+  'version-unavailable',
+  'worker-not-newer'
+]);
 let activeDialog = null;
 let pendingReplaceSourceDocId = null;
 let availableNetworkVersion = null;
-let appUpdateCheckState = 'idle';
+let appUpdateState = 'idle';
+let appUpdateMessage = 'Check for updates before updating the app.';
 let libraryViewMode = loadLibraryViewMode();
 let libraryCollapsedFolderIds = loadLibraryCollapsedFolderIds();
 let libraryRenderModel = null;
@@ -71,6 +81,7 @@ async function init() {
   importLibraryBtn?.addEventListener('click', () => startLibraryImport().catch(showError));
   libraryFileInput?.addEventListener('change', () => importSelectedLibrary().catch(showError));
   saveLibraryBtn?.addEventListener('click', () => saveCurrentLibrary().catch(showError));
+  checkForUpdatesBtn?.addEventListener('click', () => checkForAvailableAppUpdate({ log: true }).catch(showError));
   updateAppBtn?.addEventListener('click', () => updateInstalledApp().catch(showError));
   clearLibraryBtn?.addEventListener('click', () => clearBrowserLibrary().catch(showError));
   installFileDropImport();
@@ -183,7 +194,6 @@ async function init() {
 function scheduleServiceWorkerStartup() {
   const start = () => {
     registerServiceWorker()
-      .then(() => checkForAvailableAppUpdate())
       .catch(() => {});
   };
   window.setTimeout(() => {
@@ -196,44 +206,59 @@ function scheduleServiceWorkerStartup() {
 }
 
 async function checkForAvailableAppUpdate(options = {}) {
-  appUpdateCheckState = 'checking';
+  if (['checking', 'updating'].includes(appUpdateState)) return null;
+  appUpdateState = 'checking';
+  appUpdateMessage = 'Checking for an available update...';
   syncAppUpdateUi();
+  if (options.log) appendLibraryLog(`Checking for updates. Current ${APP_VERSION_LABEL}.`);
   try {
-    const networkVersion = await fetchNetworkAppVersion();
-    availableNetworkVersion = networkVersion && !networkVersion.isCurrent ? networkVersion : null;
-    if (options.log) {
-      if (availableNetworkVersion) {
-        appendLibraryLog(`Update available: ${availableNetworkVersion.label}.`);
-      } else if (networkVersion?.isCurrent) {
-        appendLibraryLog(`Marginalia is already using ${networkVersion.label}.`);
-      } else {
-        appendLibraryLog('Could not read the hosted Marginalia app version. Check the network connection and try again.', true);
-      }
+    const result = await checkNetworkAppVersion();
+    if (result.status === 'available') {
+      availableNetworkVersion = result;
+      appUpdateState = 'available';
+      appUpdateMessage = `Update available: ${result.label}.`;
+      if (options.log) appendLibraryLog(appUpdateMessage);
+      return result;
     }
-    return networkVersion;
+    if (result.status === 'current') {
+      availableNetworkVersion = null;
+      appUpdateState = 'current';
+      appUpdateMessage = `${APP_VERSION_LABEL} is up to date.`;
+      if (options.log) appendLibraryLog(appUpdateMessage);
+      return result;
+    }
+    appUpdateState = 'check-error';
+    appUpdateMessage = result.error || 'Could not check for updates. Try again.';
+    if (options.log) appendLibraryLog(appUpdateMessage, true);
+    return result;
+  } catch (error) {
+    appUpdateState = 'check-error';
+    appUpdateMessage = 'Could not check for updates. Check the connection and try again.';
+    if (options.log) appendLibraryLog(appUpdateMessage, true);
+    throw error;
   } finally {
-    appUpdateCheckState = 'idle';
     syncAppUpdateUi();
   }
 }
 
 function syncAppUpdateUi() {
   const hasAvailableUpdate = Boolean(availableNetworkVersion);
-  if (appVersionEl) {
-    if (appUpdateCheckState === 'checking') {
-      appVersionEl.textContent = `${APP_VERSION_LABEL} · Checking for updates...`;
-    } else if (hasAvailableUpdate) {
-      appVersionEl.textContent = `${APP_VERSION_LABEL} · Update available: ${availableNetworkVersion.label}`;
-    } else {
-      appVersionEl.textContent = APP_VERSION_LABEL;
-    }
+  const isBusy = ['checking', 'updating'].includes(appUpdateState);
+  if (appVersionEl) appVersionEl.textContent = APP_VERSION_LABEL;
+  if (checkForUpdatesBtn) {
+    checkForUpdatesBtn.disabled = isBusy;
+    checkForUpdatesBtn.textContent = appUpdateState === 'checking' ? 'Checking...' : 'Check for updates';
   }
   if (updateAppBtn) {
-    updateAppBtn.textContent = hasAvailableUpdate ? 'Update app' : 'Check for updates';
+    updateAppBtn.disabled = isBusy || !hasAvailableUpdate;
+    updateAppBtn.textContent = appUpdateState === 'updating' ? 'Updating...' : 'Update app';
     updateAppBtn.title = hasAvailableUpdate
       ? `Update to ${availableNetworkVersion.label}`
-      : 'Check the hosted Marginalia app version';
-    if (appUpdateCheckState === 'checking') updateAppBtn.textContent = 'Checking...';
+      : 'Check for an available update first';
+  }
+  if (appUpdateStatus) {
+    appUpdateStatus.textContent = appUpdateMessage;
+    appUpdateStatus.dataset.state = appUpdateState;
   }
 }
 
@@ -1552,39 +1577,62 @@ async function forgetCurrentLibraryHandle() {
 }
 
 async function updateInstalledApp() {
-  if (!updateAppBtn) return;
-  updateAppBtn.disabled = true;
-  appendLibraryLog(`Checking homepage for the latest Marginalia app. Current ${APP_VERSION_LABEL}.`);
+  if (!updateAppBtn || !availableNetworkVersion || ['checking', 'updating'].includes(appUpdateState)) return;
+  const networkVersion = availableNetworkVersion;
+  appUpdateState = 'updating';
+  appUpdateMessage = 'Downloading and installing the update. This can take up to a minute...';
+  syncAppUpdateUi();
+  appendLibraryLog(`Updating Marginalia to ${networkVersion.label}.`);
   try {
-    const networkVersion = availableNetworkVersion || await checkForAvailableAppUpdate();
-    if (!networkVersion) {
-      appendLibraryLog('Could not read the hosted Marginalia app version. Check the network connection and try again.', true);
-      return;
-    }
-    const result = await updateAppFromNetwork({ expectedVersion: networkVersion.version });
+    const result = await updateAppFromNetwork({
+      currentVersion: APP_VERSION,
+      expectedVersion: networkVersion.version
+    });
     if (result.status === 'activated') {
-      appendLibraryLog(successMessage('Update', `Updated Marginalia to ${networkVersion.label}. Reloading the app...`));
+      appUpdateMessage = 'Update installed. Reloading this tab...';
+      appendLibraryLog(successMessage('Update', appUpdateMessage));
+      syncAppUpdateUi();
       reloadForAppUpdate(result.version || networkVersion.version);
       return;
     }
     if (result.status === 'already-current'
-      && result.version === networkVersion.version
       && APP_VERSION !== networkVersion.version) {
-      appendLibraryLog(successMessage('Update', `${networkVersion.label} is active. Reloading this tab...`));
-      reloadForAppUpdate(networkVersion.version);
+      appUpdateMessage = 'The update is active. Reloading this tab...';
+      appendLibraryLog(successMessage('Update', appUpdateMessage));
+      syncAppUpdateUi();
+      reloadForAppUpdate(result.version || networkVersion.version);
       return;
     }
     if (result.status === 'timed-out' || result.status === 'failed') {
-      appendLibraryLog(`Update did not activate. ${result.error || 'Keep this tab open and try again.'}`, true);
+      if (APP_UPDATE_RECHECK_REASONS.has(result.reason)) availableNetworkVersion = null;
+      appUpdateState = 'update-error';
+      appUpdateMessage = appUpdateErrorMessage(result);
+      appendLibraryLog(appUpdateMessage, true);
       return;
     }
-    const latest = networkVersion?.label || 'the latest app version available from the homepage';
     availableNetworkVersion = null;
-    appendLibraryLog(successMessage('Update', `Marginalia is already using ${latest}.`));
+    appUpdateState = 'current';
+    appUpdateMessage = `${APP_VERSION_LABEL} is up to date.`;
+    appendLibraryLog(successMessage('Update', appUpdateMessage));
   } finally {
-    updateAppBtn.disabled = false;
     syncAppUpdateUi();
   }
+}
+
+function appUpdateErrorMessage(result) {
+  if (['registration-timeout', 'update-check-timeout'].includes(result.reason)) {
+    return 'The browser is still preparing the update. Try Update app again in a moment.';
+  }
+  if (result.reason === 'installation-timeout') {
+    return 'The update is still downloading. Wait a moment, then choose Update app again.';
+  }
+  if (result.reason === 'activation-timeout') {
+    return 'The update downloaded but did not finish activating. Try Update app again.';
+  }
+  if (APP_UPDATE_RECHECK_REASONS.has(result.reason)) {
+    return 'The hosted update changed while it was being prepared. Check for updates again.';
+  }
+  return result.error || 'The update could not be installed. Try again.';
 }
 
 function localProfileStatusMarkup(profile, handleStatus) {

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Library - Marginalia</title>
-  <link rel="manifest" href="manifest.webmanifest?v=20260713-000022">
+  <link rel="manifest" href="manifest.webmanifest?v=20260713-153920">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -19,9 +19,13 @@
         <button id="importBundleBtn" type="button">Import bundle</button>
         <button id="importLibraryBtn" type="button">Import library</button>
         <button id="saveLibraryBtn" type="button">Save library</button>
-        <button id="updateAppBtn" type="button">Update app</button>
+        <div class="app-update-actions" role="group" aria-label="App updates">
+          <button id="checkForUpdatesBtn" type="button">Check for updates</button>
+          <button id="updateAppBtn" type="button" disabled>Update app</button>
+        </div>
         <button id="clearLibraryBtn" class="danger" type="button">Clear</button>
       </div>
+      <p id="appUpdateStatus" class="app-update-status small" role="status" aria-live="polite">Check for updates before updating the app.</p>
       <input id="htmlFileInput" type="file" accept=".html,.htm,text/html,.pdf,application/pdf" hidden>
       <input id="replaceSourceFileInput" type="file" accept=".html,.htm,text/html,.pdf,application/pdf" hidden>
       <input id="bundleFileInput" type="file" accept=".annotator.zip,.zip,application/zip" hidden>

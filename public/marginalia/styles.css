@@ -240,6 +240,28 @@ body.is-file-dragging .file-drop-catcher {
   line-height: 1.35;
 }
 
+.app-update-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+
+.app-update-status {
+  min-height: 1.35em;
+  margin: 12px 0 0;
+}
+
+.app-update-status[data-state="available"] {
+  color: #456833;
+}
+
+.app-update-status[data-state="check-error"],
+.app-update-status[data-state="update-error"] {
+  color: #9b352b;
+}
+
 .app-version-rail {
   width: 40px;
   margin: 2px 0 0;

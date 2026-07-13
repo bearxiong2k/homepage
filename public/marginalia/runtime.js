@@ -34,6 +34,7 @@ export async function updateAppFromNetwork(options = {}) {
   const serviceWorkerContainer = options.serviceWorkerContainer
     || (typeof navigator !== 'undefined' ? navigator.serviceWorker : null);
   const expectedVersion = normalizeAppVersion(options.expectedVersion);
+  const currentVersion = normalizeAppVersion(options.currentVersion || APP_VERSION);
   if (!serviceWorkerContainer) {
     return serviceWorkerUpdateResult('failed', {
       expectedVersion,
@@ -41,13 +42,30 @@ export async function updateAppFromNetwork(options = {}) {
       error: 'App updates require service worker support in this browser.'
     });
   }
-  const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : 12000;
+  const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Math.max(0, Number(options.timeoutMs)) : 60000;
+  const deadline = Date.now() + timeoutMs;
+  const remainingMs = () => Math.max(0, deadline - Date.now());
   let registration;
   try {
     registration = options.registration
-      || await serviceWorkerContainer.getRegistration(appBasePath())
-      || await serviceWorkerContainer.register(new URL('./service-worker.js', location.href), serviceWorkerOptions());
+      || await waitForAppUpdatePromise(
+        serviceWorkerContainer.getRegistration(appBasePath()),
+        remainingMs(),
+        'registration-timeout'
+      )
+      || await waitForAppUpdatePromise(
+        serviceWorkerContainer.register(new URL('./service-worker.js', location.href), serviceWorkerOptions()),
+        remainingMs(),
+        'registration-timeout'
+      );
   } catch (error) {
+    if (isAppUpdateTimeout(error)) {
+      return serviceWorkerUpdateResult('timed-out', {
+        expectedVersion,
+        reason: error.reason,
+        error: 'The browser took too long to prepare app updates. Try again.'
+      });
+    }
     return serviceWorkerUpdateResult('failed', {
       expectedVersion,
       reason: 'registration-failed',
@@ -55,14 +73,22 @@ export async function updateAppFromNetwork(options = {}) {
     });
   }
 
-  let observedWorker = registration.waiting || registration.installing || null;
+  const initialWorker = registration.installing || registration.waiting || null;
+  let observedWorker = null;
   const onUpdateFound = () => {
-    observedWorker = registration.installing || registration.waiting || observedWorker;
+    observedWorker = registration.installing || observedWorker;
   };
   registration.addEventListener?.('updatefound', onUpdateFound);
   try {
-    await registration.update();
+    await waitForAppUpdatePromise(registration.update(), remainingMs(), 'update-check-timeout');
   } catch (error) {
+    if (isAppUpdateTimeout(error)) {
+      return serviceWorkerUpdateResult('timed-out', {
+        expectedVersion,
+        reason: error.reason,
+        error: 'The browser is still checking for the update. Try Update app again in a moment.'
+      });
+    }
     return serviceWorkerUpdateResult('failed', {
       expectedVersion,
       reason: 'update-check-failed',
@@ -74,9 +100,10 @@ export async function updateAppFromNetwork(options = {}) {
 
   try {
     return await coordinateServiceWorkerActivation(registration, {
-      candidate: registration.waiting || registration.installing || observedWorker,
+      candidate: observedWorker || registration.installing || registration.waiting || initialWorker,
+      currentVersion,
       expectedVersion,
-      timeoutMs,
+      timeoutMs: remainingMs(),
       readWorkerVersion: options.readWorkerVersion
     });
   } catch (error) {
@@ -89,25 +116,60 @@ export async function updateAppFromNetwork(options = {}) {
 }
 
 export async function fetchNetworkAppVersion(options = {}) {
-  const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : 5000;
+  const result = await checkNetworkAppVersion(options);
+  return ['available', 'current'].includes(result.status) ? result : null;
+}
+
+export async function checkNetworkAppVersion(options = {}) {
+  const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Math.max(0, Number(options.timeoutMs)) : 12000;
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  const currentVersion = normalizeAppVersion(options.currentVersion || APP_VERSION);
+  const currentLabel = options.currentLabel || APP_VERSION_LABEL;
+  const fetchAppVersion = options.fetch || globalThis.fetch;
+  let timedOut = false;
+  const timeoutId = globalThis.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
   try {
-    const url = new URL('./app-version.js', location.href);
+    const url = new URL(options.url || './app-version.js', options.baseUrl || location.href);
     url.searchParams.set('version-check', String(Date.now()));
-    const response = await fetch(url, { cache: 'no-store', signal: controller.signal });
-    if (!response.ok) return null;
+    const response = await fetchAppVersion(url, { cache: 'no-store', signal: controller.signal });
+    if (!response.ok) {
+      return networkVersionCheckResult('failed', {
+        reason: 'http-error',
+        error: `The update check returned HTTP ${response.status}. Try again.`
+      });
+    }
     const source = await response.text();
-    return parseAppVersionModuleSource(source);
-  } catch {
-    return null;
+    const parsed = parseAppVersionModuleSource(source, currentVersion, currentLabel);
+    if (!parsed) {
+      return networkVersionCheckResult('failed', {
+        reason: 'invalid-response',
+        error: 'The hosted update information could not be read. Try again in a moment.'
+      });
+    }
+    const status = compareAppVersions(parsed.version, currentVersion) > 0 ? 'available' : 'current';
+    return networkVersionCheckResult(status, parsed);
+  } catch (error) {
+    if (timedOut || error?.name === 'AbortError') {
+      return networkVersionCheckResult('timed-out', {
+        reason: 'check-timeout',
+        error: 'The update check took too long. Check the connection and try again.'
+      });
+    }
+    return networkVersionCheckResult('failed', {
+      reason: 'network-error',
+      error: 'Could not reach the update server. Check the connection and try again.'
+    });
   } finally {
-    window.clearTimeout(timeoutId);
+    globalThis.clearTimeout(timeoutId);
   }
 }
 
 export async function coordinateServiceWorkerActivation(registration, options = {}) {
   const expectedVersion = normalizeAppVersion(options.expectedVersion);
+  const currentVersion = normalizeAppVersion(options.currentVersion);
   const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Math.max(0, Number(options.timeoutMs)) : 12000;
   const deadline = Date.now() + timeoutMs;
   const remainingMs = () => Math.max(0, deadline - Date.now());
@@ -134,15 +196,18 @@ export async function coordinateServiceWorkerActivation(registration, options = 
       return serviceWorkerUpdateResult('failed', {
         expectedVersion,
         reason: 'version-unavailable',
-        error: 'The active service worker did not report its app version.'
+        error: 'The installed app update could not be verified. Check for updates again.'
       });
     }
     if (expectedVersion && activeVersion !== expectedVersion) {
+      if (currentVersion && compareAppVersions(activeVersion, currentVersion) > 0) {
+        return serviceWorkerUpdateResult('already-current', { version: activeVersion, expectedVersion });
+      }
       return serviceWorkerUpdateResult('failed', {
         version: activeVersion,
         expectedVersion,
-        reason: 'active-version-mismatch',
-        error: `The active service worker is ${activeVersion}, not ${expectedVersion}.`
+        reason: 'update-not-ready',
+        error: 'The checked update is not ready yet. Try Update app again.'
       });
     }
     return serviceWorkerUpdateResult('already-current', { version: activeVersion, expectedVersion });
@@ -172,16 +237,26 @@ export async function coordinateServiceWorkerActivation(registration, options = 
     return serviceWorkerUpdateResult('failed', {
       expectedVersion,
       reason: 'version-unavailable',
-      error: 'The new service worker did not report its app version.'
+      error: 'The downloaded app update could not be verified. Check for updates again.'
     });
   }
-  if (expectedVersion && candidateVersion !== expectedVersion) {
+  if (currentVersion && compareAppVersions(candidateVersion, currentVersion) <= 0) {
     return serviceWorkerUpdateResult('failed', {
       version: candidateVersion,
       expectedVersion,
-      reason: 'candidate-version-mismatch',
-      error: `The installed service worker is ${candidateVersion}, not ${expectedVersion}.`
+      reason: 'worker-not-newer',
+      error: 'The browser did not download a newer app build. Check for updates again.'
     });
+  }
+  if (expectedVersion && candidateVersion !== expectedVersion) {
+    if (!currentVersion) {
+      return serviceWorkerUpdateResult('failed', {
+        version: candidateVersion,
+        expectedVersion,
+        reason: 'candidate-version-mismatch',
+        error: 'The hosted update changed while it was being prepared. Check for updates again.'
+      });
+    }
   }
 
   if (state !== 'activated') {
@@ -215,12 +290,12 @@ export async function coordinateServiceWorkerActivation(registration, options = 
   }
 
   const activeVersion = await reportedVersion(candidate) || candidateVersion;
-  if (expectedVersion && activeVersion !== expectedVersion) {
+  if (currentVersion && compareAppVersions(activeVersion, currentVersion) <= 0) {
     return serviceWorkerUpdateResult('failed', {
       version: activeVersion,
       expectedVersion,
-      reason: 'activated-version-mismatch',
-      error: `The activated service worker is ${activeVersion}, not ${expectedVersion}.`
+      reason: 'activated-version-not-newer',
+      error: 'The activated app build was not newer than the current one. Check for updates again.'
     });
   }
   return serviceWorkerUpdateResult('activated', { version: activeVersion, expectedVersion });
@@ -282,6 +357,35 @@ function requestServiceWorkerActivation(worker) {
   worker?.postMessage?.({ type: 'MARGINALIA_SKIP_WAITING' });
 }
 
+function waitForAppUpdatePromise(promise, timeoutMs, reason) {
+  if (timeoutMs <= 0) return Promise.reject(appUpdateTimeout(reason));
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      globalThis.clearTimeout(timeoutId);
+      callback(value);
+    };
+    const timeoutId = globalThis.setTimeout(() => finish(reject, appUpdateTimeout(reason)), timeoutMs);
+    Promise.resolve(promise).then(
+      (value) => finish(resolve, value),
+      (error) => finish(reject, error)
+    );
+  });
+}
+
+function appUpdateTimeout(reason) {
+  const error = new Error('App update timed out.');
+  error.name = 'MarginaliaAppUpdateTimeout';
+  error.reason = reason;
+  return error;
+}
+
+function isAppUpdateTimeout(error) {
+  return error?.name === 'MarginaliaAppUpdateTimeout';
+}
+
 function serviceWorkerUpdateResult(status, options = {}) {
   const result = {
     status,
@@ -299,6 +403,14 @@ function normalizeAppVersion(value) {
   return /^\d{8}-\d{6}$/.test(version) ? version : null;
 }
 
+export function compareAppVersions(left, right) {
+  const normalizedLeft = normalizeAppVersion(left);
+  const normalizedRight = normalizeAppVersion(right);
+  if (!normalizedLeft || !normalizedRight) return 0;
+  if (normalizedLeft === normalizedRight) return 0;
+  return normalizedLeft > normalizedRight ? 1 : -1;
+}
+
 function serviceWorkerOptions() {
   return {
     scope: appBasePath(),
@@ -309,8 +421,27 @@ function serviceWorkerOptions() {
 export function parseAppVersionModuleSource(source, currentVersion = APP_VERSION, currentLabel = APP_VERSION_LABEL) {
   const version = normalizeAppVersion(moduleStringExport(source, 'APP_VERSION'));
   if (!version) return null;
-  const label = moduleStringExport(source, 'APP_VERSION_LABEL') || `Version ${version}`;
+  const label = appVersionLabel(version);
   return { version, label, isCurrent: version === currentVersion, currentLabel };
+}
+
+function appVersionLabel(version) {
+  const match = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})$/.exec(version);
+  if (!match) return `Version ${version}`;
+  const [, year, month, day, hour, minute, second] = match;
+  return `Version ${year}-${month}-${day} ${hour}:${minute}:${second} CST`;
+}
+
+function networkVersionCheckResult(status, options = {}) {
+  return {
+    status,
+    ...(options.version ? { version: options.version } : {}),
+    ...(options.label ? { label: options.label } : {}),
+    ...(typeof options.isCurrent === 'boolean' ? { isCurrent: options.isCurrent } : {}),
+    ...(options.currentLabel ? { currentLabel: options.currentLabel } : {}),
+    ...(options.reason ? { reason: options.reason } : {}),
+    ...(options.error ? { error: String(options.error) } : {})
+  };
 }
 
 function moduleStringExport(source, exportName) {
