@@ -654,6 +654,11 @@ function onSideNoteKeyDown(event) {
     return;
   }
   if (!event.target?.closest?.('[contenteditable]')) return;
+  if (body && event.key === 'Tab' && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+    event.preventDefault();
+    insertTextAtEditableSelection(body, '\t');
+    return;
+  }
   if (body && event.key === 'Escape') {
     event.preventDefault();
     finishSplitTextEdit(note?.dataset.annotationId, body.dataset.blockId, { save: false });
@@ -664,6 +669,34 @@ function onSideNoteKeyDown(event) {
     if (body) finishSplitTextEdit(note?.dataset.annotationId, body.dataset.blockId, { save: true });
     else event.target.blur();
   }
+}
+
+function insertTextAtEditableSelection(element, text) {
+  const doc = element?.ownerDocument;
+  const selection = doc?.getSelection?.();
+  if (!doc || !selection) return false;
+  let range = selection.rangeCount ? selection.getRangeAt(0) : null;
+  if (!range || !element.contains(range.commonAncestorContainer)) {
+    range = doc.createRange();
+    range.selectNodeContents(element);
+    range.collapse(false);
+  }
+  range.deleteContents();
+  const textNode = doc.createTextNode(String(text || ''));
+  range.insertNode(textNode);
+  range.setStartAfter(textNode);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  const InputEventCtor = doc.defaultView?.InputEvent || doc.defaultView?.Event;
+  if (InputEventCtor) {
+    element.dispatchEvent(new InputEventCtor('input', {
+      bubbles: true,
+      inputType: 'insertText',
+      data: String(text || '')
+    }));
+  }
+  return true;
 }
 
 function onSideNotePaste(event) {

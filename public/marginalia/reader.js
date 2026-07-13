@@ -1530,8 +1530,9 @@ function handlePdfPageReady(doc, event) {
     for (const annotation of state.annotations) {
       if (!annotationPdfPageIndexes(annotation).includes(pageIndex)) continue;
       clearRenderedAnnotation(doc, annotation.id);
-      doc.querySelector(`.reader-side-note[data-annotation-id="${cssEscape(annotation.id)}"]`)?.remove();
       state.annotationResolution.set(annotation.id, buildAnnotationResolution(doc, annotation));
+      const note = doc.querySelector(`.reader-side-note[data-annotation-id="${cssEscape(annotation.id)}"]`);
+      if (annotation.id !== state.pinnedAnnotationId) note?.remove();
     }
     requestSideNoteLayout(doc);
     return;
@@ -4449,13 +4450,13 @@ function annotationResolution(annotation) {
 }
 
 function attachMarker(doc, annotation) {
+  const isPinned = annotation.id === state.pinnedAnnotationId;
   const block = resolveTargetElement(doc, annotation.target);
-  if (!block) return;
-  block.dataset.readerHasNotes = 'true';
+  if (!block && !isPinned) return;
+  if (block) block.dataset.readerHasNotes = 'true';
 
   const layer = getSideNoteLayer(doc);
   const note = doc.createElement('aside');
-  const isPinned = annotation.id === state.pinnedAnnotationId;
   const isCollapsed = state.collapsedSideNoteIds.has(annotation.id);
   note.className = [
     'reader-side-note',
@@ -4491,7 +4492,7 @@ function attachMarker(doc, annotation) {
   tools.addEventListener('pointerdown', preserveSideNoteActionClick);
   const hasHighlights = annotationHighlightTargets(annotation).length > 0;
   const canUseTextHighlights = compatibilityFeatureEnabled('singleBlockTextHighlights');
-  if (hasHighlights && compatibilityFeatureEnabled('focusMode')) {
+  if (compatibilityFeatureEnabled('focusMode')) {
     const focusButton = doc.createElement('button');
     focusButton.type = 'button';
     focusButton.className = `reader-side-note-tool ${annotation.id === state.focusModeAnnotationId ? 'is-active' : ''}`;
@@ -7327,7 +7328,7 @@ function toggleFocusMode(annotationId) {
     return;
   }
   const annotation = state.annotations.find((item) => item.id === annotationId);
-  if (!annotation || !annotationHighlightTargets(annotation).length) return;
+  if (!annotation) return;
   const pinned = state.pinnedAnnotationId === annotationId;
   if (state.focusModeAnnotationId === annotationId) {
     clearFocusModeState();
@@ -7622,6 +7623,11 @@ function beginInlineTextEdit(annotationId, note, focusField = 'body', pointerEve
     state.noteMarkdownAnalysisTimers.set(body, timer);
   };
   const onKeyDown = (event) => {
+    if (field === body && event.key === 'Tab' && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      event.preventDefault();
+      insertTextAtEditableSelection(field, '\t');
+      return;
+    }
     if (event.key === 'Escape') {
       field.textContent = field.dataset.originalText || '';
       note.dataset.cancelInlineSave = 'true';
@@ -7642,6 +7648,34 @@ function beginInlineTextEdit(annotationId, note, focusField = 'body', pointerEve
   field.addEventListener('input', onInput);
   field.addEventListener('keydown', onKeyDown);
   field.addEventListener('blur', onBlur, { once: true });
+}
+
+function insertTextAtEditableSelection(element, text) {
+  const doc = element?.ownerDocument;
+  const selection = doc?.getSelection?.();
+  if (!doc || !selection) return false;
+  let range = selection.rangeCount ? selection.getRangeAt(0) : null;
+  if (!range || !element.contains(range.commonAncestorContainer)) {
+    range = doc.createRange();
+    range.selectNodeContents(element);
+    range.collapse(false);
+  }
+  range.deleteContents();
+  const textNode = doc.createTextNode(String(text || ''));
+  range.insertNode(textNode);
+  range.setStartAfter(textNode);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  const InputEventCtor = doc.defaultView?.InputEvent || doc.defaultView?.Event;
+  if (InputEventCtor) {
+    element.dispatchEvent(new InputEventCtor('input', {
+      bubbles: true,
+      inputType: 'insertText',
+      data: String(text || '')
+    }));
+  }
+  return true;
 }
 
 async function tryRenderInlineTextBlock(annotationId, note, modeButton) {
