@@ -8401,12 +8401,25 @@ function syncJumpToNoteButton(doc = getFrameDoc()) {
   const escaped = cssEscape(state.activeAnnotationId);
   const note = doc.querySelector(`.reader-side-note[data-annotation-id="${escaped}"]`);
   if (!note) {
-    button.hidden = true;
+    const annotation = state.annotations.find((item) => item.id === state.activeAnnotationId);
+    const direction = detachedPdfSelectionJumpDirection(doc, annotation);
+    button.hidden = !direction;
+    if (direction) positionJumpToNoteButton(doc, button, direction);
     return;
   }
   const rect = note.getBoundingClientRect();
   button.hidden = rect.bottom >= 0 && rect.top <= doc.defaultView.innerHeight;
   if (!button.hidden) positionJumpToNoteButton(doc, button, rect.top < 0 ? 'above' : 'below');
+}
+
+function detachedPdfSelectionJumpDirection(doc, annotation) {
+  if (state.currentDocument?.sourceType !== 'pdf' || !annotation) return null;
+  const pageNumber = annotationPrimaryPdfPageNumber(annotation);
+  if (!pageNumber) return null;
+  const pageIndex = pageNumber - 1;
+  if (readerPositionPdfPageElementNow(doc, { pageIndex, pageNumber })) return null;
+  const currentPage = Number(doc.documentElement.dataset.pdfCurrentPage);
+  return Number.isFinite(currentPage) && pageNumber < currentPage ? 'above' : 'below';
 }
 
 function positionJumpToNoteButton(doc, button, direction = 'below') {
