@@ -22,12 +22,30 @@ export function appBasePath() {
 export async function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return false;
   try {
-    await navigator.serviceWorker.register(new URL('./service-worker.js', location.href), serviceWorkerOptions());
+    const registration = await navigator.serviceWorker.register(
+      new URL('./service-worker.js', location.href),
+      serviceWorkerOptions()
+    );
+    scheduleOfflineCacheWarm(navigator.serviceWorker, registration);
     return true;
   } catch (error) {
     console.warn('Service worker registration failed.', error);
     return false;
   }
+}
+
+export function requestServiceWorkerOfflineCacheWarm(worker) {
+  worker?.postMessage?.({ type: 'MARGINALIA_WARM_OFFLINE_CACHE' });
+}
+
+function scheduleOfflineCacheWarm(serviceWorkerContainer, registration) {
+  if (registration?.active) {
+    requestServiceWorkerOfflineCacheWarm(registration.active);
+    return;
+  }
+  serviceWorkerContainer?.ready
+    ?.then?.((readyRegistration) => requestServiceWorkerOfflineCacheWarm(readyRegistration?.active))
+    .catch?.(() => {});
 }
 
 export async function updateAppFromNetwork(options = {}) {

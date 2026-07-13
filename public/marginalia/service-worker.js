@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'marginalia-static-';
-const APP_VERSION = '20260713-153920';
+const APP_VERSION = '20260713-160849';
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 const PDFJS_CMAP_ASSETS = [
   '78-EUC-H.bcmap',
@@ -224,16 +224,28 @@ const APP_SHELLS = new Set([
   'pdf-viewer.html',
   'quick-start.html'
 ]);
-const STATIC_ASSETS = [
-  './index.html',
+const CORE_ASSETS = [
   './library.html',
+  './styles.css',
+  './app.js',
+  './app-version.js',
+  './runtime.js',
+  './storage-adapter.js',
+  './bundle.js',
+  './file-access.js',
+  './folder-package.js',
+  './library-package.js',
+  './performance-trace.js',
+  './ink-codec.js',
+  './manifest.webmanifest',
+  './assets/annotator-icon.svg'
+];
+const DEFERRED_ASSETS = [
+  './index.html',
   './reader.html',
   './reader-notes.html',
   './quick-start.html',
   './pdf-viewer.html',
-  './styles.css',
-  './app.js',
-  './app-version.js',
   './reader.js',
   './reader-notice.js',
   './reader-notes.js',
@@ -241,22 +253,12 @@ const STATIC_ASSETS = [
   './note-markdown.js',
   './note-math.js',
   './pdf-viewer.js',
-  './runtime.js',
-  './storage-adapter.js',
-  './bundle.js',
-  './file-access.js',
-  './folder-package.js',
-  './library-package.js',
   './pdf-targets.js',
   './scroll-position.js',
   './pdf-page-window.js',
   './pdf-zoom-lock.js',
-  './performance-trace.js',
-  './ink-codec.js',
   './ink-eraser.js',
   './target-resolution.js',
-  './manifest.webmanifest',
-  './assets/annotator-icon.svg',
   './assets/binder-clip-0.png',
   './assets/binder-clip-1.png',
   './assets/binder-clip-2.png',
@@ -278,11 +280,14 @@ const STATIC_ASSETS = [
   ...PDFJS_STANDARD_FONT_ASSETS.map((name) => `./vendor/pdfjs/standard_fonts/${name}`),
   ...PDFJS_ICC_ASSETS.map((name) => `./vendor/pdfjs/iccs/${name}`)
 ];
+const STATIC_ASSETS = [...CORE_ASSETS, ...DEFERRED_ASSETS];
+const CACHE_WARM_BATCH_SIZE = 8;
+let deferredCacheWarmPromise = null;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(STATIC_ASSETS.map((asset) => new URL(asset, self.registration.scope))))
+      .then((cache) => cache.addAll(assetUrls(CORE_ASSETS)))
   );
 });
 
@@ -305,6 +310,10 @@ self.addEventListener('message', (event) => {
   if (event.data?.type === 'MARGINALIA_SKIP_WAITING') {
     const activation = self.skipWaiting();
     event.waitUntil?.(activation);
+    return;
+  }
+  if (event.data?.type === 'MARGINALIA_WARM_OFFLINE_CACHE') {
+    event.waitUntil?.(warmDeferredCache());
   }
 });
 
@@ -391,4 +400,28 @@ function canonicalAssetUrl(url) {
 
 function isVersionCheck(url) {
   return url.pathname.endsWith('/app-version.js') && url.searchParams.has('version-check');
+}
+
+function assetUrls(assets) {
+  return assets.map((asset) => new URL(asset, self.registration.scope));
+}
+
+function warmDeferredCache() {
+  if (deferredCacheWarmPromise) return deferredCacheWarmPromise;
+  deferredCacheWarmPromise = cacheDeferredAssets()
+    .finally(() => {
+      deferredCacheWarmPromise = null;
+    });
+  return deferredCacheWarmPromise;
+}
+
+async function cacheDeferredAssets() {
+  const cache = await caches.open(CACHE_NAME);
+  const urls = assetUrls(DEFERRED_ASSETS);
+  const missing = (await Promise.all(urls.map(async (url) => await cache.match(url) ? null : url)))
+    .filter(Boolean);
+  for (let index = 0; index < missing.length; index += CACHE_WARM_BATCH_SIZE) {
+    const batch = missing.slice(index, index + CACHE_WARM_BATCH_SIZE);
+    await Promise.allSettled(batch.map((url) => cache.add(url)));
+  }
 }
