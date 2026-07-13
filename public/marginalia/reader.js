@@ -27,6 +27,7 @@ import {
   annotationPrimaryPdfPageNumber,
   pdfPageIndexFromTarget
 } from './pdf-targets.js';
+import { normalizePdfViewState } from './pdf-zoom-lock.js';
 import {
   metricForDocumentY,
   sortedScrollMetrics
@@ -68,6 +69,7 @@ const state = {
   readingMode: false,
   readingShowHighlights: true,
   pinnedAnnotationId: null,
+  pendingHighlightNavigatorJump: null,
   inkTool: 'pen',
   inkColor: '#1c1712',
   inkWidth: 3,
@@ -1143,6 +1145,7 @@ async function loadDocument(docId) {
   state.focusModeNoteViewportTop = null;
   state.focusModeAnchorViewportTop = null;
   state.pinnedAnnotationId = null;
+  state.pendingHighlightNavigatorJump = null;
   state.pdfDirtyPageIndexes.clear();
   state.pdfNeedsFullRefresh = false;
   state.pdfDeferredRefreshEffects = false;
@@ -1440,6 +1443,9 @@ async function instrumentIframe() {
   }, { passive: true });
   if (state.currentDocument?.sourceType === 'pdf') {
     doc.addEventListener('pdf-page-ready', (event) => handlePdfPageReady(doc, event));
+    doc.addEventListener('pdf-view-state-change', () => {
+      saveReaderScrollPosition(doc, { precise: true });
+    });
   }
   syncFrameModeClass(doc);
   await renderLatexMath(doc);
@@ -1502,6 +1508,7 @@ function scheduleFrameScrollWork(doc = getFrameDoc()) {
     state.frameScrollDoc = null;
     if (!frameDoc || frameDoc !== getFrameDoc()) return;
     saveReaderScrollPosition(frameDoc, { precise: false });
+    if (state.pinnedAnnotationId) syncPinnedHighlightNavigator(frameDoc);
     if (state.activeAnnotationId) syncJumpToNoteButton(frameDoc);
     if (state.quickMarks.length) {
       const now = performance.now();
@@ -1535,6 +1542,7 @@ function handlePdfPageReady(doc, event) {
       if (annotation.id !== state.pinnedAnnotationId) note?.remove();
     }
     requestSideNoteLayout(doc);
+    syncPinnedHighlightNavigator(doc);
     return;
   }
   state.pdfDirtyPageIndexes.add(pageIndex);
@@ -1579,6 +1587,7 @@ function flushPdfFrameRefresh(doc = getFrameDoc()) {
     syncJumpToNoteButton(doc);
   }
   retryPendingPdfAnnotationJump(doc, dirtyPageIndexes);
+  retryPendingHighlightNavigatorJump(doc);
   scheduleSplitNotesStateBroadcast(doc);
 }
 
@@ -3744,6 +3753,24 @@ function quickMarkTargetForAnchor(doc, anchor, documentY = null, documentX = nul
   const resolvedDocumentX = Number.isFinite(documentX)
     ? documentX
     : doc.defaultView.scrollX + anchorRect.left + Math.min(16, anchorRect.width / 2);
+  const pdfPage = anchor.closest?.('.pdf-page');
+  const pdfPageRect = pdfPage?.getBoundingClientRect?.();
+  const pdfPageHint = pdfPageRect?.width > 0 && pdfPageRect?.height > 0
+    ? {
+        pageX: clampNumber(
+          (resolvedDocumentX - doc.defaultView.scrollX - pdfPageRect.left) / pdfPageRect.width,
+          0,
+          1,
+          0
+        ),
+        pageY: clampNumber(
+          (resolvedDocumentY - doc.defaultView.scrollY - pdfPageRect.top) / pdfPageRect.height,
+          0,
+          1,
+          0
+        )
+      }
+    : {};
   return {
     target: {
       type: 'block',
@@ -3755,7 +3782,8 @@ function quickMarkTargetForAnchor(doc, anchor, documentY = null, documentX = nul
         documentX: resolvedDocumentX,
         documentY: resolvedDocumentY,
         anchorOffsetX: resolvedDocumentX - (doc.defaultView.scrollX + anchorRect.left),
-        anchorOffsetY: resolvedDocumentY - (doc.defaultView.scrollY + anchorRect.top)
+        anchorOffsetY: resolvedDocumentY - (doc.defaultView.scrollY + anchorRect.top),
+        ...pdfPageHint
       }
     },
     label: readableSnippet(textContent(anchor), 90)
@@ -3885,12 +3913,30 @@ function renderQuickMarks(doc = getFrameDoc()) {
     renderQuickMarkStack(doc);
     return;
   }
-  const layer = doc.createElement('div');
-  layer.className = 'reader-quick-clip-layer';
-  doc.body.append(layer);
+  let documentLayer = null;
+  const pageLayers = new Map();
   for (const mark of state.quickMarks) {
     const position = quickMarkPosition(doc, mark);
     if (!position) continue;
+    let layer = documentLayer;
+    let left = position.left;
+    let top = position.top;
+    if (position.pageSurface) {
+      layer = pageLayers.get(position.pageSurface);
+      if (!layer) {
+        layer = doc.createElement('div');
+        layer.className = 'reader-quick-clip-layer is-pdf-page-layer';
+        position.pageSurface.append(layer);
+        pageLayers.set(position.pageSurface, layer);
+      }
+      left = position.surfaceLeft;
+      top = position.surfaceTop;
+    } else if (!layer) {
+      layer = doc.createElement('div');
+      layer.className = 'reader-quick-clip-layer';
+      doc.body.append(layer);
+      documentLayer = layer;
+    }
     const button = doc.createElement('button');
     const label = quickMarkLabel(doc, mark);
     button.type = 'button';
@@ -3899,8 +3945,8 @@ function renderQuickMarks(doc = getFrameDoc()) {
     button.title = label;
     button.setAttribute('aria-label', label);
     button.style.setProperty('--clip-color', quickMarkColorValue(mark.colorIndex));
-    button.style.left = `${Math.round(position.left)}px`;
-    button.style.top = `${Math.round(position.top)}px`;
+    button.style.left = `${Math.round(left)}px`;
+    button.style.top = `${Math.round(top)}px`;
     button.addEventListener('click', (event) => {
       if (state.suppressQuickMarkClickId === mark.id) {
         state.suppressQuickMarkClickId = null;
@@ -3970,8 +4016,44 @@ function quickMarkPosition(doc, mark) {
   if (!anchor) return null;
   const rect = anchor.getBoundingClientRect();
   const hint = mark.target?.clientHint || {};
+  const page = anchor.closest?.('.pdf-page');
+  const pageSurface = page?.querySelector?.(':scope > .pdf-page-surface') || null;
+  const pageRect = page?.getBoundingClientRect?.();
+  const pageX = Number(hint.pageX);
+  const pageY = Number(hint.pageY);
+  if (pageSurface && pageRect?.width > 0 && pageRect?.height > 0
+    && Number.isFinite(pageX) && Number.isFinite(pageY)) {
+    const xRatio = clampNumber(pageX, 0, 1, 0);
+    const yRatio = clampNumber(pageY, 0, 1, 0);
+    const viewportLeft = pageRect.left + pageRect.width * xRatio;
+    const viewportTop = pageRect.top + pageRect.height * yRatio;
+    return {
+      left: doc.defaultView.scrollX + viewportLeft,
+      top: doc.defaultView.scrollY + viewportTop,
+      viewportTop,
+      pageSurface,
+      surfaceLeft: pageSurface.offsetWidth * xRatio,
+      surfaceTop: pageSurface.offsetHeight * yRatio
+    };
+  }
   const offsetX = Number.isFinite(Number(hint.anchorOffsetX)) ? Number(hint.anchorOffsetX) : Math.min(16, rect.width / 2);
   const offsetY = Number.isFinite(Number(hint.anchorOffsetY)) ? Number(hint.anchorOffsetY) : Math.min(16, rect.height / 2);
+  if (pageSurface && pageRect?.width > 0 && pageRect?.height > 0) {
+    const previewScaleX = pageSurface.offsetWidth > 0 ? pageRect.width / pageSurface.offsetWidth : 1;
+    const previewScaleY = pageSurface.offsetHeight > 0 ? pageRect.height / pageSurface.offsetHeight : 1;
+    const viewportLeft = rect.left + offsetX * previewScaleX;
+    const viewportTop = rect.top + offsetY * previewScaleY;
+    const xRatio = clampNumber((viewportLeft - pageRect.left) / pageRect.width, 0, 1, 0);
+    const yRatio = clampNumber((viewportTop - pageRect.top) / pageRect.height, 0, 1, 0);
+    return {
+      left: doc.defaultView.scrollX + viewportLeft,
+      top: doc.defaultView.scrollY + viewportTop,
+      viewportTop,
+      pageSurface,
+      surfaceLeft: pageSurface.offsetWidth * xRatio,
+      surfaceTop: pageSurface.offsetHeight * yRatio
+    };
+  }
   const left = doc.defaultView.scrollX + rect.left + offsetX;
   const top = doc.defaultView.scrollY + rect.top + offsetY;
   return {
@@ -4106,6 +4188,7 @@ function renderAnnotations() {
   if (sideNotesVisible) layoutSideNotes(doc);
   syncJumpToNoteButton(doc);
   renderLayoutEditor(doc);
+  retryPendingHighlightNavigatorJump(doc);
   syncFrameNotesPanelOverlayState(doc);
   renderQuickMarks(doc);
   scheduleSplitNotesStateBroadcast(doc);
@@ -5121,6 +5204,7 @@ function injectReaderStyles(doc) {
     .reader-jump-note-button { position: fixed; z-index: 40; border: 1px solid #b98b3d; border-radius: 999px; padding: .42rem .62rem; background: #fff5bd; color: #5d3700; font: 12px/1.2 ui-sans-serif, system-ui, sans-serif; box-shadow: 0 8px 22px rgba(52, 38, 18, .18); cursor: pointer; }
     .reader-jump-note-button[hidden] { display: none !important; }
     .reader-quick-clip-layer { position: absolute; z-index: 17; inset: 0 auto auto 0; width: 0; height: 0; pointer-events: none; }
+    .reader-quick-clip-layer.is-pdf-page-layer { inset: 0; width: 100%; height: 100%; }
     .reader-quick-clip { position: absolute; display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 0; background: transparent; box-shadow: none; transform: translate(-50%, -50%); pointer-events: auto; cursor: grab; }
     .reader-quick-clip:active { cursor: grabbing; }
     .reader-quick-clip.is-dragging { opacity: 0; pointer-events: none; }
@@ -5201,6 +5285,9 @@ function injectReaderStyles(doc) {
     .reader-layout-resizer { position: fixed; z-index: 79; top: 0; bottom: 0; width: 10px; margin-left: -5px; cursor: col-resize; user-select: none; touch-action: none; }
     .reader-layout-resizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 5px; border-left: 1px solid rgba(122, 61, 0, .42); }
     .reader-layout-resizer:hover::after, .reader-layout-resizer:focus-visible::after, .reader-layout-resizer.is-dragging::after { left: 4px; border-left-width: 3px; border-left-color: rgba(122, 61, 0, .76); }
+    .reader-highlight-navigator { position: fixed; z-index: 81; top: 0; bottom: 0; width: 18px; margin-left: -9px; pointer-events: none; }
+    .reader-highlight-navigator-marker { position: absolute; left: 50%; box-sizing: border-box; width: 13px; height: 5px; margin: 0; padding: 0; border: 1px solid rgba(122, 61, 0, .55); border-radius: 2px; background: rgba(242, 212, 141, .72); box-shadow: 0 1px 2px rgba(52, 38, 18, .14); opacity: .58; transform: translate(-50%, -50%); transform-origin: center; pointer-events: auto; cursor: pointer; transition: opacity 90ms ease, background-color 90ms ease, box-shadow 90ms ease, transform 90ms ease; }
+    .reader-highlight-navigator-marker:hover, .reader-highlight-navigator-marker:focus-visible { border-color: #7a3d00; background: #ffd75e; box-shadow: 0 0 0 2px rgba(255, 215, 94, .36), 0 2px 7px rgba(122, 61, 0, .32); opacity: 1; outline: none; transform: translate(-50%, -50%) scale(1.22); }
   `;
   doc.head.append(style);
 }
@@ -5919,7 +6006,7 @@ function renderLayoutEditor(doc) {
 }
 
 function renderLayoutResizers(doc) {
-  doc.querySelectorAll('.reader-layout-resizer').forEach((handle) => handle.remove());
+  doc.querySelectorAll('.reader-layout-resizer, .reader-highlight-navigator').forEach((element) => element.remove());
   const metrics = layoutMetrics(doc);
   if (state.splitNotesActive) return;
   if (state.readingMode && metrics.layout.noteFraction > 0) return;
@@ -5941,6 +6028,138 @@ function renderLayoutResizers(doc) {
   handle.addEventListener('pointerdown', onLayoutResizerPointerDown);
   handle.addEventListener('keydown', onLayoutResizerKeyDown);
   doc.body.append(handle);
+  renderPinnedHighlightNavigator(doc, metrics);
+}
+
+function renderPinnedHighlightNavigator(doc, metrics = layoutMetrics(doc)) {
+  if (!state.pinnedAnnotationId) return;
+  const annotation = state.annotations.find((item) => item.id === state.pinnedAnnotationId);
+  if (!annotation || !annotationHighlightTargets(annotation).length) return;
+  const navigator = doc.createElement('nav');
+  navigator.className = 'reader-highlight-navigator';
+  navigator.dataset.annotationId = annotation.id;
+  navigator.style.left = `${Math.round(metrics.sourceNoteX)}px`;
+  navigator.setAttribute('aria-label', 'Pinned note highlights');
+  doc.body.append(navigator);
+  syncPinnedHighlightNavigator(doc);
+}
+
+function syncPinnedHighlightNavigator(doc = getFrameDoc()) {
+  const navigator = doc?.querySelector?.('.reader-highlight-navigator');
+  if (!navigator || !state.pinnedAnnotationId || navigator.dataset.annotationId !== state.pinnedAnnotationId) return;
+  const annotation = state.annotations.find((item) => item.id === state.pinnedAnnotationId);
+  if (!annotation) {
+    navigator.remove();
+    return;
+  }
+  const entries = pinnedHighlightNavigatorEntries(doc, annotation);
+  const projected = projectPinnedHighlightMarkers(
+    entries,
+    (doc.defaultView.scrollY || 0) + doc.defaultView.innerHeight / 2,
+    doc.defaultView.innerHeight
+  );
+  const existing = new Map(Array.from(navigator.querySelectorAll('.reader-highlight-navigator-marker'))
+    .map((marker) => [Number(marker.dataset.targetIndex), marker]));
+  const total = projected.length;
+  for (const [ordinal, entry] of projected.entries()) {
+    let marker = existing.get(entry.targetIndex);
+    if (!marker) {
+      marker = doc.createElement('button');
+      marker.type = 'button';
+      marker.className = 'reader-highlight-navigator-marker';
+      marker.dataset.targetIndex = String(entry.targetIndex);
+      marker.addEventListener('pointerdown', (event) => event.stopPropagation());
+      marker.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        jumpToAnnotationHighlight(annotation.id, entry.targetIndex);
+      });
+      navigator.append(marker);
+    }
+    existing.delete(entry.targetIndex);
+    marker.style.top = `${entry.top.toFixed(2)}px`;
+    marker.title = `Highlight ${ordinal + 1} of ${total}`;
+    marker.setAttribute('aria-label', `Go to highlight ${ordinal + 1} of ${total}`);
+  }
+  existing.forEach((marker) => marker.remove());
+}
+
+function pinnedHighlightNavigatorEntries(doc, annotation) {
+  const view = doc.defaultView;
+  const currentPageIndex = Number(doc.documentElement.dataset.pdfCurrentPageIndex);
+  return annotationHighlightTargets(annotation).map(({ target, index }) => {
+    const selector = `.reader-highlight[data-annotation-id="${cssEscape(annotation.id)}"][data-target-index="${cssEscape(String(index))}"]`;
+    const rendered = Array.from(doc.querySelectorAll(selector));
+    if (rendered.length) {
+      const rects = rendered.flatMap((element) => {
+        const clientRects = Array.from(element.getClientRects?.() || []);
+        return clientRects.length ? clientRects : [element.getBoundingClientRect()];
+      });
+      const top = Math.min(...rects.map((rect) => rect.top));
+      const bottom = Math.max(...rects.map((rect) => rect.bottom));
+      if (Number.isFinite(top) && Number.isFinite(bottom)) {
+        return { targetIndex: index, documentY: (view.scrollY || 0) + (top + bottom) / 2 };
+      }
+    }
+    const resolved = resolvedTargetForAnnotation(annotation.id, index);
+    const rect = resolved?.element?.getBoundingClientRect?.() || resolved?.anchorElement?.getBoundingClientRect?.();
+    if (rect && Number.isFinite(rect.top)) {
+      return { targetIndex: index, documentY: (view.scrollY || 0) + rect.top + rect.height / 2 };
+    }
+    const pageIndex = pdfPageIndexFromTarget(target);
+    if (state.currentDocument?.sourceType === 'pdf' && Number.isInteger(pageIndex)) {
+      const pageDelta = pageIndex - (Number.isInteger(currentPageIndex) ? currentPageIndex : pageIndex);
+      const ratio = target.type === 'pdf-rect'
+        ? clampNumber(Number(target.rect?.y) + Number(target.rect?.height || 0) / 2, 0, 1, 0.5)
+        : clampNumber(target.pageY, 0, 1, 0.5);
+      return {
+        targetIndex: index,
+        documentY: (view.scrollY || 0) + view.innerHeight / 2 + pageDelta * view.innerHeight + (ratio - 0.5) * view.innerHeight
+      };
+    }
+    return null;
+  }).filter(Boolean);
+}
+
+function projectPinnedHighlightMarkers(entries, viewportCenter, viewportHeight, options) {
+  options ||= {};
+  const height = Math.max(1, Number(viewportHeight) || 1);
+  const edgePadding = clampNumber(options.edgePadding, 0, height / 2, 12);
+  const minTop = edgePadding;
+  const maxTop = Math.max(minTop, height - edgePadding);
+  const center = (minTop + maxTop) / 2;
+  const halfHeight = Math.max(1, (maxTop - minTop) / 2);
+  const scale = Math.max(1, Number(options.scale) || halfHeight);
+  const sorted = (entries || []).filter((entry) => Number.isFinite(Number(entry?.documentY)))
+    .slice()
+    .sort((first, second) => Number(first.documentY) - Number(second.documentY)
+      || Number(first.targetIndex) - Number(second.targetIndex));
+  if (!sorted.length) return [];
+  const basePositions = sorted.map((entry) => {
+    const distance = Number(entry.documentY) - Number(viewportCenter || 0);
+    const direction = Math.sign(distance);
+    return center + direction * (1 - Math.exp(-Math.abs(distance) / scale)) * halfHeight;
+  });
+  if (basePositions.length === 1) return [{ ...sorted[0], top: basePositions[0] }];
+  const available = Math.max(0, maxTop - minTop);
+  const minimumGap = Math.min(clampNumber(options.minimumGap, 0, available, 8), available / (basePositions.length - 1));
+  const corrected = basePositions.slice();
+  for (let index = 1; index < corrected.length; index += 1) {
+    corrected[index] = Math.max(corrected[index], corrected[index - 1] + minimumGap);
+  }
+  if (corrected.at(-1) > maxTop) {
+    corrected[corrected.length - 1] = maxTop;
+    for (let index = corrected.length - 2; index >= 0; index -= 1) {
+      corrected[index] = Math.min(corrected[index], corrected[index + 1] - minimumGap);
+    }
+  }
+  if (corrected[0] < minTop) {
+    corrected[0] = minTop;
+    for (let index = 1; index < corrected.length; index += 1) {
+      corrected[index] = Math.max(corrected[index], corrected[index - 1] + minimumGap);
+    }
+  }
+  return sorted.map((entry, index) => ({ ...entry, top: corrected[index] }));
 }
 
 function onLayoutResizerKeyDown(event) {
@@ -6091,6 +6310,8 @@ function updateLayoutFromDrag(doc, handle, clientX, anchor) {
     handleElement.setAttribute('aria-valuenow', String(Math.round(metrics.layout.sourceFraction * 100)));
     handleElement.setAttribute('aria-valuetext', `${Math.round(metrics.layout.sourceFraction * 100)} percent source width`);
   }
+  const highlightNavigator = doc.querySelector('.reader-highlight-navigator');
+  if (highlightNavigator) highlightNavigator.style.left = `${Math.round(metrics.sourceNoteX)}px`;
   syncJumpToNoteButton(doc);
   return true;
 }
@@ -6359,6 +6580,7 @@ function hasSavedReaderScrollPosition(position) {
       || position.id
       || Number.isFinite(Number(position.pageNumber))
       || Number.isFinite(Number(position.pageIndex))
+      || position.viewState
     )
   );
 }
@@ -6530,31 +6752,56 @@ function capturePdfReaderPosition(doc, base) {
   const pageNumber = Number(doc.documentElement.dataset.pdfCurrentPage);
   const pageIndex = Number(doc.documentElement.dataset.pdfCurrentPageIndex);
   const ratio = Number(doc.documentElement.dataset.pdfCurrentPageRatio);
-  if (!Number.isFinite(pageNumber) || pageNumber <= 0) return base;
+  const viewState = normalizePdfViewState({
+    zoomLocked: doc.documentElement.dataset.pdfZoomLock !== 'unlocked',
+    horizontalPanLocked: doc.documentElement.dataset.pdfHorizontalPan === 'locked',
+    zoomScale: doc.documentElement.dataset.pdfZoom,
+    zoomRatio: doc.documentElement.dataset.pdfZoomRatio,
+    horizontalLeft: doc.documentElement.dataset.pdfHorizontalOffset,
+    horizontalRatio: doc.documentElement.dataset.pdfHorizontalRatio
+  });
+  if (!Number.isFinite(pageNumber) || pageNumber <= 0) {
+    return viewState ? { ...base, version: 2, viewState } : base;
+  }
   return {
     ...base,
+    version: 2,
     pageIndex: Number.isFinite(pageIndex) && pageIndex >= 0 ? pageIndex : pageNumber - 1,
     pageNumber,
-    ratio: Number.isFinite(ratio) ? clampNumber(ratio, 0, 1, 0) : 0
+    ratio: Number.isFinite(ratio) ? clampNumber(ratio, 0, 1, 0) : 0,
+    ...(viewState ? { viewState } : {})
   };
 }
 
 async function restoreReaderScrollPosition(doc, position = state.pendingReaderPosition) {
   if (!state.docId || !doc?.defaultView || !position) return;
   state.pendingReaderPosition = null;
+  state.restoringScroll = true;
   let scrollY = null;
   if (state.currentDocument?.sourceType === 'pdf') {
+    await restorePdfViewState(doc, position.viewState);
     scrollY = await restoredPdfScrollY(doc, position);
   } else {
     scrollY = restoredHtmlScrollY(doc, position);
   }
   if (!Number.isFinite(scrollY)) scrollY = Number(position.scrollY);
-  if (!Number.isFinite(scrollY) || scrollY <= 0) return;
-  state.restoringScroll = true;
-  doc.defaultView.scrollTo(0, Math.max(0, scrollY));
+  if (Number.isFinite(scrollY) && scrollY > 0) {
+    doc.defaultView.scrollTo(0, Math.max(0, scrollY));
+  }
   window.setTimeout(() => {
     state.restoringScroll = false;
   }, 100);
+}
+
+function restorePdfViewState(doc, value) {
+  const viewState = normalizePdfViewState(value);
+  if (!viewState) return Promise.resolve(false);
+  doc.dispatchEvent(new doc.defaultView.CustomEvent('reader-pdf-restore-view-state', {
+    detail: { viewState }
+  }));
+  return new Promise((resolve) => {
+    doc.defaultView.requestAnimationFrame(() => resolve(true));
+  });
 }
 
 function restoredHtmlScrollY(doc, position) {
@@ -8467,6 +8714,56 @@ function jumpToAnnotation(annotationId) {
   syncJumpToNoteButton(doc);
 }
 
+function jumpToAnnotationHighlight(annotationId, targetIndex) {
+  const doc = getFrameDoc();
+  const annotation = state.annotations.find((item) => item.id === annotationId);
+  const target = targetIndex === 0 ? annotation?.target : annotation?.targets?.[targetIndex - 1];
+  if (!annotation || !target) return false;
+  activateAnnotation(annotationId, false);
+  if (scrollToRenderedAnnotationHighlight(doc, annotationId, targetIndex)) {
+    state.pendingHighlightNavigatorJump = null;
+    setStatus(`Moved to highlight ${targetIndex + 1}.`);
+    return true;
+  }
+  const pageIndex = pdfPageIndexFromTarget(target);
+  if (state.currentDocument?.sourceType === 'pdf' && Number.isInteger(pageIndex) && pageIndex >= 0) {
+    state.pendingHighlightNavigatorJump = { annotationId, targetIndex, pageIndex };
+    doc.dispatchEvent(new doc.defaultView.CustomEvent('reader-pdf-ensure-page', {
+      detail: { annotationId, targetIndex, pageIndex, pageNumber: pageIndex + 1 }
+    }));
+    setStatus(`Loading page ${pageIndex + 1} for highlight ${targetIndex + 1}...`);
+    return false;
+  }
+  setStatus('This highlight is not currently resolvable.', true);
+  return false;
+}
+
+function scrollToRenderedAnnotationHighlight(doc, annotationId, targetIndex) {
+  const selector = `.reader-highlight[data-annotation-id="${cssEscape(annotationId)}"][data-target-index="${cssEscape(String(targetIndex))}"]`;
+  const elements = Array.from(doc.querySelectorAll(selector));
+  if (!elements.length) return false;
+  const rects = elements.flatMap((element) => {
+    const clientRects = Array.from(element.getClientRects?.() || []);
+    return clientRects.length ? clientRects : [element.getBoundingClientRect()];
+  });
+  const top = Math.min(...rects.map((rect) => rect.top));
+  const bottom = Math.max(...rects.map((rect) => rect.bottom));
+  if (!Number.isFinite(top) || !Number.isFinite(bottom)) return false;
+  const destination = (doc.defaultView.scrollY || 0) + (top + bottom) / 2 - doc.defaultView.innerHeight / 2;
+  doc.defaultView.scrollTo(0, Math.max(0, destination));
+  requestAnimationFrame(() => syncPinnedHighlightNavigator(doc));
+  return true;
+}
+
+function retryPendingHighlightNavigatorJump(doc = getFrameDoc()) {
+  const pending = state.pendingHighlightNavigatorJump;
+  if (!pending || !doc || doc !== getFrameDoc()) return false;
+  if (!scrollToRenderedAnnotationHighlight(doc, pending.annotationId, pending.targetIndex)) return false;
+  state.pendingHighlightNavigatorJump = null;
+  setStatus(`Moved to highlight ${pending.targetIndex + 1}.`);
+  return true;
+}
+
 function requestPdfPageForAnnotationJump(doc, annotation) {
   if (state.currentDocument?.sourceType !== 'pdf' || !annotation) return false;
   const pageNumber = annotationPrimaryPdfPageNumber(annotation);
@@ -8701,6 +8998,9 @@ async function deleteAnnotation(annotationId) {
     state.pinnedAnnotationId = null;
     syncPinnedNoteChrome();
   }
+  if (state.pendingHighlightNavigatorJump?.annotationId === annotationId) {
+    state.pendingHighlightNavigatorJump = null;
+  }
   if (state.focusModeAnnotationId === annotationId) {
     state.focusModeAnnotationId = null;
     state.focusModeNoteTop = null;
@@ -8715,6 +9015,7 @@ async function deleteAnnotation(annotationId) {
 
 function togglePinnedNote(annotationId) {
   state.pinnedAnnotationId = state.pinnedAnnotationId === annotationId ? null : annotationId;
+  if (!state.pinnedAnnotationId) state.pendingHighlightNavigatorJump = null;
   state.activeAnnotationId = annotationId;
   syncPinnedNoteChrome();
   hideSelectionHighlightButton();

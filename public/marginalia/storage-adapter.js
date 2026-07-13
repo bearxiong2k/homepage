@@ -10,6 +10,7 @@ import {
 } from './library-package.js';
 import { encodeInkForStorage } from './ink-codec.js';
 import { marginaliaPerformanceTrace } from './performance-trace.js';
+import { normalizePdfViewState } from './pdf-zoom-lock.js';
 
 const DB_NAME = 'annotator-reader';
 const DB_VERSION = 5;
@@ -1409,7 +1410,7 @@ function normalizeReaderPosition(position) {
   const sourceType = position.sourceType === 'pdf' ? 'pdf' : 'html';
   const scrollY = Number(position.scrollY);
   const normalized = {
-    version: 1,
+    version: sourceType === 'pdf' ? 2 : 1,
     docId,
     sourceType,
     scrollY: Number.isFinite(scrollY) && scrollY > 0 ? scrollY : 0,
@@ -1422,6 +1423,8 @@ function normalizeReaderPosition(position) {
     if (Number.isFinite(pageNumber) && pageNumber > 0) normalized.pageNumber = Math.round(pageNumber);
     if (Number.isFinite(pageIndex) && pageIndex >= 0) normalized.pageIndex = Math.round(pageIndex);
     if (Number.isFinite(ratio)) normalized.ratio = Math.max(0, Math.min(1, ratio));
+    const viewState = normalizePdfViewState(position.viewState);
+    if (viewState) normalized.viewState = viewState;
   } else {
     if (position.anchorId) normalized.anchorId = String(position.anchorId);
     if (position.id) normalized.id = String(position.id);
@@ -1430,7 +1433,10 @@ function normalizeReaderPosition(position) {
   }
   if (!normalized.docId) return null;
   if (normalized.sourceType === 'pdf') {
-    return normalized.scrollY > 0 || Number.isFinite(normalized.pageNumber) || Number.isFinite(normalized.pageIndex)
+    return normalized.scrollY > 0
+      || Number.isFinite(normalized.pageNumber)
+      || Number.isFinite(normalized.pageIndex)
+      || normalized.viewState
       ? normalized
       : null;
   }
