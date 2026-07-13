@@ -4,13 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Library - Marginalia</title>
-  <link rel="manifest" href="manifest.webmanifest?v=20260713-160849">
+  <link rel="manifest" href="manifest.webmanifest?v=20260713-174422">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <main class="home">
     <section class="home-card">
-      <h1>Library</h1>
+      <div class="library-page-heading">
+        <h1>Library</h1>
+        <section class="library-activity-window" aria-label="Library activity">
+          <div class="library-activity-window-head">
+            <h2>Activity</h2>
+            <p class="small">Newest below</p>
+          </div>
+          <div id="libraryActivityLog" class="library-activity-log" role="log" aria-live="polite" aria-relevant="additions text">
+            <p class="small library-log-empty">No activity yet.</p>
+          </div>
+        </section>
+      </div>
       <p id="appVersion" class="app-version">Version</p>
       <p class="small">Open browser-local sources or import a local library package. The app entry page remains the reader.</p>
       <div class="row">
