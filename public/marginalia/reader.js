@@ -103,6 +103,8 @@ const state = {
   frameScrollRaf: 0,
   frameScrollIdleTimer: 0,
   frameScrollDoc: null,
+  highlightNavigatorScrollRaf: 0,
+  highlightNavigatorScrollDoc: null,
   readerPositionCaptureTimer: 0,
   readerPositionCaptureDoc: null,
   htmlAnchorMetrics: [],
@@ -390,6 +392,7 @@ function suspendReaderLifecycle(reason = 'hidden') {
   state.frameScrolling = false;
   const rafStateKeys = [
     'frameScrollRaf',
+    'highlightNavigatorScrollRaf',
     'pdfFrameRefreshRaf',
     'sideNoteLayoutRaf',
     'sideInkRenderRaf',
@@ -1158,6 +1161,7 @@ async function loadDocument(docId) {
   }
   state.frameScrolling = false;
   state.frameScrollDoc = null;
+  state.highlightNavigatorScrollDoc = null;
   state.sideNoteLayoutDoc = null;
   state.readerPositionCaptureDoc = null;
   state.htmlAnchorMetrics = [];
@@ -1170,6 +1174,10 @@ async function loadDocument(docId) {
   if (state.frameScrollRaf) {
     cancelAnimationFrame(state.frameScrollRaf);
     state.frameScrollRaf = 0;
+  }
+  if (state.highlightNavigatorScrollRaf) {
+    cancelAnimationFrame(state.highlightNavigatorScrollRaf);
+    state.highlightNavigatorScrollRaf = 0;
   }
   if (state.frameScrollIdleTimer) {
     window.clearTimeout(state.frameScrollIdleTimer);
@@ -1493,6 +1501,7 @@ function scheduleFrameScrollWork(doc = getFrameDoc()) {
   if (state.lifecycleSuspended) return;
   state.frameScrollDoc = doc;
   state.frameScrolling = true;
+  schedulePinnedHighlightNavigatorScrollSync(doc);
   window.clearTimeout(state.frameScrollIdleTimer);
   state.frameScrollIdleTimer = window.setTimeout(() => {
     state.frameScrollIdleTimer = 0;
@@ -1508,7 +1517,6 @@ function scheduleFrameScrollWork(doc = getFrameDoc()) {
     state.frameScrollDoc = null;
     if (!frameDoc || frameDoc !== getFrameDoc()) return;
     saveReaderScrollPosition(frameDoc, { precise: false });
-    if (state.pinnedAnnotationId) syncPinnedHighlightNavigator(frameDoc);
     if (state.activeAnnotationId) syncJumpToNoteButton(frameDoc);
     if (state.quickMarks.length) {
       const now = performance.now();
@@ -1521,6 +1529,27 @@ function scheduleFrameScrollWork(doc = getFrameDoc()) {
       updateSelectionHighlightButton();
     }
   });
+}
+
+function schedulePinnedHighlightNavigatorScrollSync(doc = getFrameDoc()) {
+  if (!doc || !state.pinnedAnnotationId || state.lifecycleSuspended) return;
+  state.highlightNavigatorScrollDoc = doc;
+  if (state.highlightNavigatorScrollRaf) return;
+  const tick = () => {
+    state.highlightNavigatorScrollRaf = 0;
+    const frameDoc = state.highlightNavigatorScrollDoc;
+    if (!frameDoc || frameDoc !== getFrameDoc() || state.lifecycleSuspended || !state.pinnedAnnotationId) {
+      state.highlightNavigatorScrollDoc = null;
+      return;
+    }
+    syncPinnedHighlightNavigator(frameDoc);
+    if (state.frameScrolling) {
+      state.highlightNavigatorScrollRaf = requestAnimationFrame(tick);
+    } else {
+      state.highlightNavigatorScrollDoc = null;
+    }
+  };
+  state.highlightNavigatorScrollRaf = requestAnimationFrame(tick);
 }
 
 function handlePdfPageReady(doc, event) {
@@ -5285,9 +5314,11 @@ function injectReaderStyles(doc) {
     .reader-layout-resizer { position: fixed; z-index: 79; top: 0; bottom: 0; width: 10px; margin-left: -5px; cursor: col-resize; user-select: none; touch-action: none; }
     .reader-layout-resizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 5px; border-left: 1px solid rgba(122, 61, 0, .42); }
     .reader-layout-resizer:hover::after, .reader-layout-resizer:focus-visible::after, .reader-layout-resizer.is-dragging::after { left: 4px; border-left-width: 3px; border-left-color: rgba(122, 61, 0, .76); }
-    .reader-highlight-navigator { position: fixed; z-index: 81; top: 0; bottom: 0; width: 18px; margin-left: -9px; pointer-events: none; }
-    .reader-highlight-navigator-marker { position: absolute; left: 50%; box-sizing: border-box; width: 13px; height: 5px; margin: 0; padding: 0; border: 1px solid rgba(122, 61, 0, .55); border-radius: 2px; background: rgba(242, 212, 141, .72); box-shadow: 0 1px 2px rgba(52, 38, 18, .14); opacity: .58; transform: translate(-50%, -50%); transform-origin: center; pointer-events: auto; cursor: pointer; transition: opacity 90ms ease, background-color 90ms ease, box-shadow 90ms ease, transform 90ms ease; }
-    .reader-highlight-navigator-marker:hover, .reader-highlight-navigator-marker:focus-visible { border-color: #7a3d00; background: #ffd75e; box-shadow: 0 0 0 2px rgba(255, 215, 94, .36), 0 2px 7px rgba(122, 61, 0, .32); opacity: 1; outline: none; transform: translate(-50%, -50%) scale(1.22); }
+    .reader-highlight-navigator { position: fixed; z-index: 81; top: 0; bottom: 0; width: 22px; margin-left: -11px; pointer-events: none; }
+    .reader-highlight-navigator-marker { --reader-highlight-marker-y: 0px; position: absolute; top: 0; left: 50%; box-sizing: border-box; width: 20px; height: 11px; margin: 0; padding: 0; border: 0; border-radius: 3px; background: transparent; opacity: .64; transform: translate3d(-50%, calc(var(--reader-highlight-marker-y) - 50%), 0); will-change: transform; pointer-events: auto; cursor: pointer; transition: transform 52ms linear, opacity 90ms ease; }
+    .reader-highlight-navigator-marker::before { content: ""; position: absolute; top: 50%; left: 50%; box-sizing: border-box; width: 16px; height: 7px; border: 1px solid rgba(122, 61, 0, .58); border-radius: 2px; background: rgba(242, 212, 141, .78); box-shadow: 0 1px 2px rgba(52, 38, 18, .14); transform: translate(-50%, -50%); transition: background-color 90ms ease, box-shadow 90ms ease, transform 90ms ease; }
+    .reader-highlight-navigator-marker:hover, .reader-highlight-navigator-marker:focus-visible { opacity: 1; outline: none; }
+    .reader-highlight-navigator-marker:hover::before, .reader-highlight-navigator-marker:focus-visible::before { border-color: #7a3d00; background: #ffd75e; box-shadow: 0 0 0 2px rgba(255, 215, 94, .36), 0 2px 7px rgba(122, 61, 0, .32); transform: translate(-50%, -50%) scale(1.18); }
   `;
   doc.head.append(style);
 }
@@ -6077,7 +6108,7 @@ function syncPinnedHighlightNavigator(doc = getFrameDoc()) {
       navigator.append(marker);
     }
     existing.delete(entry.targetIndex);
-    marker.style.top = `${entry.top.toFixed(2)}px`;
+    marker.style.setProperty('--reader-highlight-marker-y', `${entry.top.toFixed(2)}px`);
     marker.title = `Highlight ${ordinal + 1} of ${total}`;
     marker.setAttribute('aria-label', `Go to highlight ${ordinal + 1} of ${total}`);
   }
