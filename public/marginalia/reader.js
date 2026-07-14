@@ -3532,7 +3532,6 @@ function renderSourceNavigator() {
     els.sourceNavigatorToggleBtn.classList.toggle('is-active', expanded);
     els.sourceNavigatorToggleBtn.setAttribute('aria-expanded', String(expanded));
     const label = expanded ? 'Close source bookmarks' : 'Open source bookmarks';
-    els.sourceNavigatorToggleBtn.title = label;
     els.sourceNavigatorToggleBtn.setAttribute('aria-label', label);
   }
   if (els.sourceNavigatorPanel) els.sourceNavigatorPanel.hidden = !expanded;

@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'marginalia-static-';
-const APP_VERSION = '20260714-154108';
+const APP_VERSION = '20260714-180537';
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 const PDFJS_CMAP_ASSETS = [
   '78-EUC-H.bcmap',
@@ -265,6 +265,7 @@ const DEFERRED_ASSETS = [
   './assets/binder-clip-2.png',
   './assets/binder-clip-3.png',
   './assets/binder-clip-4.png',
+  './assets/source-bookmark.png',
   './assets/padlock-lock.png',
   './vendor/katex/katex.min.css',
   './vendor/katex/katex.min.js',
