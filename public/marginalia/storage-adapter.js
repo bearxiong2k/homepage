@@ -11,6 +11,7 @@ import {
 import { encodeInkForStorage } from './ink-codec.js';
 import { marginaliaPerformanceTrace } from './performance-trace.js';
 import { normalizePdfViewState } from './pdf-zoom-lock.js';
+import { normalizeSourceBookmarkRecord } from './source-bookmarks.js';
 
 const DB_NAME = 'annotator-reader';
 const DB_VERSION = 5;
@@ -24,6 +25,7 @@ const APP_META_CURRENT_LIBRARY = 'currentLibrary';
 const APP_META_LOCAL_PROFILE = 'localProfile';
 const APP_META_READER_POSITION_PREFIX = 'readerPosition:';
 const APP_META_QUICK_MARKS_PREFIX = 'quickMarks:';
+const APP_META_SOURCE_BOOKMARKS_PREFIX = 'sourceBookmarks:';
 const IMPORT_PREFIX_QUERY_LIMIT = 32;
 const ANCHORABLE_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'li', 'figure', 'figcaption', 'td', 'th', 'section', 'article']);
 const TEXT_ANCHOR_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'li', 'figcaption', 'td', 'th']);
@@ -81,6 +83,30 @@ export class IndexedDbStorageAdapter {
       stores.appMeta.put({
         key: quickMarksKey(docId),
         quickMarks: {
+          ...record,
+          docId,
+          updatedAt: new Date().toISOString()
+        }
+      });
+    });
+    return true;
+  }
+
+  async getSourceBookmarks(docId) {
+    if (!docId) return normalizeSourceBookmarkRecord(null, docId);
+    const db = await openDb();
+    const stored = await readOne(db, 'appMeta', sourceBookmarksKey(docId));
+    return normalizeSourceBookmarkRecord(stored?.sourceBookmarks, docId);
+  }
+
+  async setSourceBookmarks(docId, value) {
+    if (!docId) return false;
+    const db = await openDb();
+    const record = normalizeSourceBookmarkRecord(value, docId);
+    await writeTransaction(db, ['appMeta'], (stores) => {
+      stores.appMeta.put({
+        key: sourceBookmarksKey(docId),
+        sourceBookmarks: {
           ...record,
           docId,
           updatedAt: new Date().toISOString()
@@ -486,7 +512,7 @@ export class IndexedDbStorageAdapter {
     });
     for (const urls of this.blobUrls.values()) revokeBlobUrls(urls);
     this.blobUrls.clear();
-    clearBrowserStateKeys(localStorage, ['reader-quick-marks:', 'reader-layout:']);
+    clearBrowserStateKeys(localStorage, ['reader-quick-marks:', 'reader-source-bookmarks:', 'reader-layout:']);
     clearBrowserStateKeys(sessionStorage, ['reader-scroll:']);
     return true;
   }
@@ -745,13 +771,15 @@ export class IndexedDbStorageAdapter {
       asset?.kind !== NOTE_IMAGE_KIND || referencedNoteImages.has(asset.path)
     ));
     const quickMarks = await this.getQuickMarks(docId);
+    const sourceBookmarks = await this.getSourceBookmarks(docId);
     return createAnnotatorBundleArchive({
       document,
       sourceHtml: document.sourceHtml || '',
       sourceBytes: document.sourceBytes || null,
       annotations,
       assets,
-      quickMarks
+      quickMarks,
+      sourceBookmarks
     });
   }
 
@@ -981,10 +1009,15 @@ export class IndexedDbStorageAdapter {
       for (const body of bodies) stores.annotationBodies.delete(body.id);
       for (const asset of assets) stores.documentAssets.delete(asset.id);
       stores.appMeta.delete(quickMarksKey(docId));
+      stores.appMeta.delete(sourceBookmarksKey(docId));
       if (lastOpen?.docId === docId) stores.appMeta.delete(APP_META_LAST_OPEN_DOCUMENT);
       stores.appMeta.delete(readerPositionKey(docId));
     });
-    clearBrowserStateKeys(localStorage, [`reader-quick-marks:${docId}`, `reader-layout:${docId}`]);
+    clearBrowserStateKeys(localStorage, [
+      `reader-quick-marks:${docId}`,
+      `reader-source-bookmarks:${docId}`,
+      `reader-layout:${docId}`
+    ]);
     clearBrowserStateKeys(sessionStorage, [`reader-scroll:${docId}`]);
     revokeBlobUrls(this.blobUrls.get(docId));
     this.blobUrls.delete(docId);
@@ -1116,7 +1149,8 @@ export function planBundleImport(bundle, usedDocumentIds = new Set(), usedAnnota
     document,
     annotations,
     assets,
-    quickMarks: normalizeQuickMarkRecord(bundle?.quickMarks, document.id)
+    quickMarks: normalizeQuickMarkRecord(bundle?.quickMarks, document.id),
+    sourceBookmarks: normalizeSourceBookmarkRecord(bundle?.sourceBookmarks, document.id)
   };
 }
 
@@ -1186,6 +1220,14 @@ function writeBundleImportPlan(stores, plan) {
     key: quickMarksKey(plan.document.id),
     quickMarks: {
       ...plan.quickMarks,
+      docId: plan.document.id,
+      updatedAt: new Date().toISOString()
+    }
+  });
+  stores.appMeta.put({
+    key: sourceBookmarksKey(plan.document.id),
+    sourceBookmarks: {
+      ...plan.sourceBookmarks,
       docId: plan.document.id,
       updatedAt: new Date().toISOString()
     }
@@ -1402,6 +1444,10 @@ function readerPositionKey(docId) {
 
 function quickMarksKey(docId) {
   return `${APP_META_QUICK_MARKS_PREFIX}${docId}`;
+}
+
+function sourceBookmarksKey(docId) {
+  return `${APP_META_SOURCE_BOOKMARKS_PREFIX}${docId}`;
 }
 
 function normalizeReaderPosition(position) {

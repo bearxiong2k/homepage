@@ -352,6 +352,7 @@ async function readCurrentPackageFiles(directoryHandle, packageKind) {
   await appendFileAtPath(directoryHandle, 'annotations.json', files, state);
   await appendFileAtPath(directoryHandle, sourcePath, files, state);
   await appendFileAtPath(directoryHandle, 'quick-marks.json', files, state, true);
+  await appendFileAtPath(directoryHandle, 'source-bookmarks.json', files, state, true);
   await appendDirectoryAtPath(directoryHandle, 'notes', files, state, true);
   await appendDirectoryAtPath(directoryHandle, 'assets', files, state, true);
   return normalizePackageFiles(files);
@@ -487,6 +488,7 @@ function isPackageOwnedPath(path, packageKind, sourcePath = null) {
   return path === 'manifest.json'
     || path === 'annotations.json'
     || path === 'quick-marks.json'
+    || path === 'source-bookmarks.json'
     || path === sourcePath
     || /^notes\/[^/]+\.note\.json$/.test(path)
     || path.startsWith('assets/');

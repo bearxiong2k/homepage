@@ -214,6 +214,148 @@ body.is-file-dragging .file-drop-catcher {
   cursor: grabbing;
 }
 
+.source-navigator-toggle .source-bookmark-icon {
+  position: relative;
+  display: block;
+  width: 17px;
+  height: 22px;
+  border: 1.5px solid currentColor;
+  border-radius: 3px 3px 1px 1px;
+}
+
+.source-navigator-toggle .source-bookmark-icon::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  bottom: -1.5px;
+  height: 8px;
+  background: var(--panel);
+  clip-path: polygon(0 0, 50% 55%, 100% 0, 100% 100%, 0 100%);
+}
+
+.source-navigator-toggle.is-active .source-bookmark-icon::after {
+  background: #f2d48d;
+}
+
+.source-navigator-panel {
+  position: fixed;
+  z-index: 145;
+  top: 50px;
+  left: 56px;
+  width: min(330px, calc(100vw - 76px));
+  max-height: min(430px, calc(100vh - 68px));
+  padding: 7px;
+  border: 1px solid rgba(189, 166, 128, 0.92);
+  border-radius: 9px;
+  background: rgba(255, 253, 248, 0.97);
+  box-shadow: 0 14px 34px rgba(52, 38, 18, 0.2);
+  backdrop-filter: blur(8px);
+}
+
+.source-navigator-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.source-navigator-controls strong {
+  margin-right: auto;
+  color: #5f4a30;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+}
+
+.source-navigator-controls button {
+  min-height: 27px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: #fffdf8;
+  color: var(--text);
+  font: 600 0.74rem/1 ui-sans-serif, system-ui, sans-serif;
+}
+
+.source-navigator-controls button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.source-bookmark-list {
+  display: grid;
+  gap: 4px;
+  max-height: 340px;
+  margin-top: 7px;
+  overflow-y: auto;
+}
+
+.source-bookmark-item {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.source-bookmark-item:hover,
+.source-bookmark-item:focus-visible {
+  border-color: rgba(173, 106, 35, 0.58);
+  background: #fff8ea;
+  outline: none;
+}
+
+.source-bookmark-item.is-selected {
+  border-color: var(--accent);
+  background: #f7e5bf;
+  box-shadow: inset 3px 0 0 #ad6a23;
+}
+
+.source-bookmark-item.is-unbound .source-bookmark-location {
+  color: #9b6c3c;
+  font-style: italic;
+}
+
+.source-bookmark-label,
+.source-bookmark-location {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-bookmark-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.source-bookmark-location {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.source-bookmark-rename-input {
+  width: 100%;
+  min-height: 30px;
+  padding: 4px 7px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--text);
+  font: 700 0.82rem/1.25 ui-sans-serif, system-ui, sans-serif;
+  box-sizing: border-box;
+}
+
+.source-bookmark-empty {
+  margin: 9px 5px 3px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
 .clip-color-0 { --clip-color: #f2d48d; --clip-image: url("assets/binder-clip-0.png"); }
 .clip-color-1 { --clip-color: #b7d8ff; --clip-image: url("assets/binder-clip-1.png"); }
 .clip-color-2 { --clip-color: #b9e4c4; --clip-image: url("assets/binder-clip-2.png"); }
@@ -274,6 +416,7 @@ body.is-file-dragging .file-drop-catcher {
 }
 
 .quick-mark-rail {
+  position: relative;
   display: grid;
   place-items: center;
   width: 40px;
@@ -296,6 +439,30 @@ body.is-file-dragging .file-drop-catcher {
 .quick-mark-rail.is-dragging {
   opacity: 0;
   pointer-events: none;
+}
+
+.quick-mark-rail.is-detached::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  width: 0;
+  height: 0;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+}
+
+.quick-mark-rail.is-detached.is-above::after {
+  top: 1px;
+  border-bottom: 6px solid #7a3d00;
+}
+
+.quick-mark-rail.is-detached.is-below::after {
+  bottom: 1px;
+  border-top: 6px solid #7a3d00;
+}
+
+.quick-mark-rail.is-pending {
+  opacity: 0.58;
 }
 
 .quick-mark-ghost {

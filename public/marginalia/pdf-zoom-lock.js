@@ -22,6 +22,17 @@ export function horizontalOffsetForPanelResize(options = {}) {
   return Math.min(maxOffset, Math.max(0, value));
 }
 
+export function horizontalOffsetForCenteredZoom(options = {}) {
+  const previousContentWidth = positiveNumber(options.previousContentWidth, 1);
+  const nextContentWidth = positiveNumber(options.nextContentWidth, previousContentWidth);
+  const viewportWidth = Math.max(0, finiteNumber(options.viewportWidth, 0));
+  const left = Math.max(0, finiteNumber(options.left, 0));
+  const centerRatio = (left + viewportWidth / 2) / previousContentWidth;
+  const nextLeft = centerRatio * nextContentWidth - viewportWidth / 2;
+  const maxOffset = Math.max(0, nextContentWidth - viewportWidth);
+  return Math.min(maxOffset, Math.max(0, nextLeft));
+}
+
 export function previewScaleFactor(previewScale, committedScale) {
   return positiveNumber(previewScale, 1) / positiveNumber(committedScale, 1);
 }

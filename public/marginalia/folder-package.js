@@ -199,7 +199,13 @@ function parseBundleFolderFiles(files) {
   }
   validatePackageLock(cleanFiles, 'bundle', manifest);
   const sourcePath = normalizePackagePath(manifest.document?.sourcePath || 'source.html');
-  const allowedFixed = new Set(['manifest.json', 'annotations.json', 'quick-marks.json', sourcePath]);
+  const allowedFixed = new Set([
+    'manifest.json',
+    'annotations.json',
+    'quick-marks.json',
+    'source-bookmarks.json',
+    sourcePath
+  ]);
   for (const file of packageFiles) {
     if (allowedFixed.has(file.path)) continue;
     if (/^notes\/[^/]+\.note\.json$/.test(file.path)) continue;

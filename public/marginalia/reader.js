@@ -38,6 +38,7 @@ import { currentStorageMode, registerServiceWorker, urlWithStorage } from './run
 import { APP_VERSION_LABEL, APP_VERSION_SHORT } from './app-version.js';
 import { analyzeNoteMarkdown, ensureNoteMarkdownStyles, renderNoteMarkdown } from './note-markdown.js';
 import { marginaliaPerformanceTrace } from './performance-trace.js';
+import { MAX_SOURCE_BOOKMARKS, normalizeSourceBookmarkRecord } from './source-bookmarks.js';
 
 const storageMode = currentStorageMode();
 const storage = createStorageAdapter({ mode: storageMode });
@@ -125,6 +126,13 @@ const state = {
   quickMarkDragRenderRaf: 0,
   suppressQuickMarkClickId: null,
   quickMarkLimitReminderTimer: 0,
+  pendingQuickMarkJumpId: null,
+  sourceBookmarks: [],
+  selectedSourceBookmarkId: null,
+  sourceBookmarkRenameId: null,
+  sourceBookmarkSavePromise: Promise.resolve(),
+  pendingSourceBookmarkJumpId: null,
+  sourceNavigatorExpanded: false,
   tooltipTimer: null,
   tooltip: null,
   tooltipTarget: null,
@@ -169,6 +177,14 @@ const els = {
   clipToolBtn: document.querySelector('#clipToolBtn'),
   splitNotesBtn: document.querySelector('#splitNotesBtn'),
   quickMarkStack: document.querySelector('#quickMarkStack'),
+  sourceNavigatorToggleBtn: document.querySelector('#sourceNavigatorToggleBtn'),
+  sourceNavigatorPanel: document.querySelector('#sourceNavigatorPanel'),
+  sourceBookmarkList: document.querySelector('#sourceBookmarkList'),
+  sourceBookmarkEmpty: document.querySelector('#sourceBookmarkEmpty'),
+  addSourceBookmarkBtn: document.querySelector('#addSourceBookmarkBtn'),
+  removeSourceBookmarkBtn: document.querySelector('#removeSourceBookmarkBtn'),
+  renameSourceBookmarkBtn: document.querySelector('#renameSourceBookmarkBtn'),
+  insertSourceBookmarkBtn: document.querySelector('#insertSourceBookmarkBtn'),
   cancelModeBtn: document.querySelector('#cancelModeBtn'),
   readingModeBtn: document.querySelector('#readingModeBtn'),
   readingHighlightBtn: document.querySelector('#readingHighlightBtn'),
@@ -265,6 +281,7 @@ async function init() {
     els.appVersion.title = APP_VERSION_LABEL;
   }
   bindChromeEvents();
+  renderSourceNavigator();
   const requestedDoc = new URLSearchParams(location.search).get('doc');
   const documentsPromise = loadDocuments();
   if (requestedDoc) {
@@ -313,6 +330,12 @@ function bindChromeEvents() {
   els.redoBtn.addEventListener('click', () => redoHistoryCommand().catch((error) => setStatus(error.message, true)));
   els.clipToolBtn.addEventListener('pointerdown', startQuickMarkToolDrag);
   els.clipToolBtn.addEventListener('keydown', onQuickMarkToolKeyDown);
+  els.sourceNavigatorToggleBtn?.addEventListener('click', toggleSourceNavigator);
+  els.addSourceBookmarkBtn?.addEventListener('click', addSourceBookmark);
+  els.removeSourceBookmarkBtn?.addEventListener('click', removeSelectedSourceBookmark);
+  els.renameSourceBookmarkBtn?.addEventListener('click', beginSelectedSourceBookmarkRename);
+  els.insertSourceBookmarkBtn?.addEventListener('click', insertSelectedSourceBookmark);
+  els.sourceBookmarkList?.addEventListener('click', handleSourceBookmarkListClick);
   els.splitNotesBtn?.addEventListener('click', () => toggleSplitNotesWindow().catch((error) => setStatus(error.message, true)));
   els.toggleNotesBtn.addEventListener('pointerdown', onNotesTabPointerDown);
   els.toggleNotesBtn.addEventListener('click', onNotesTabClick);
@@ -815,10 +838,11 @@ async function confirmReplaceCurrentSource() {
   const annotations = state.annotations?.length ? state.annotations : await storage.getAnnotations(state.docId);
   const hasAnnotations = annotations.some(annotationHasUserContent);
   const hasQuickMarks = state.quickMarks.length > 0;
-  if (!hasAnnotations && !hasQuickMarks) return true;
+  const hasSourceBookmarks = state.sourceBookmarks.length > 0;
+  if (!hasAnnotations && !hasQuickMarks && !hasSourceBookmarks) return true;
   return showAppDialog({
     title: 'Replace current source?',
-    body: 'The current source has notes, highlights, ink, or quick marks. Save first, or discard the current working source and import another one.',
+    body: 'The current source has notes, highlights, ink, quick marks, or bookmarks. Save first, or discard the current working source and import another one.',
     actions: [
       { value: true, label: 'Discard and import', className: 'primary', destructive: true },
       { value: false, label: 'Cancel' }
@@ -863,6 +887,7 @@ async function exportCurrentBundle() {
     return;
   }
   await flushQuickMarkSave();
+  await flushSourceBookmarkSave();
   await flushAllPendingAnnotationBlockSaves();
   setSaveProgress('Preparing save...');
   const doc = state.documents.find((item) => item.id === state.docId) || await storage.getDocument(state.docId);
@@ -1127,6 +1152,7 @@ async function loadDocument(docId) {
   if (state.docId && state.docId !== docId) storage.revokeNoteImageUrl?.(state.docId);
   if (state.docId && state.docId !== docId) closeSplitNotesSession({ notify: true });
   if (state.docId && state.docId !== docId) await flushQuickMarkSave();
+  if (state.docId && state.docId !== docId) await flushSourceBookmarkSave();
   if (state.iframeLoaded && state.docId) {
     await flushReaderScrollPosition();
   }
@@ -1153,6 +1179,9 @@ async function loadDocument(docId) {
   state.pdfNeedsFullRefresh = false;
   state.pdfDeferredRefreshEffects = false;
   state.pendingPdfAnnotationJump = null;
+  state.pendingQuickMarkJumpId = null;
+  state.pendingSourceBookmarkJumpId = null;
+  state.sourceBookmarkRenameId = null;
   state.pdfPendingJumpNotice = null;
   state.pdfPendingJumpStatusUntil = 0;
   if (state.pdfPendingJumpNoticeTimer) {
@@ -1204,12 +1233,14 @@ async function loadDocument(docId) {
   syncHistoryControls();
   syncCompatibilityControls();
   const quickMarksPromise = loadQuickMarks(docId);
+  const sourceBookmarksPromise = loadSourceBookmarks(docId);
   const readerPositionPromise = loadSavedReaderPosition(docId);
   const annotationsPromise = fetchAnnotations(docId);
   const frameSrcPromise = documentRenderUrl(currentDocument);
   // These operations may finish before the UI setup awaits them. Attach handlers
   // immediately so a fast failure is still owned by this load attempt.
   void quickMarksPromise.catch(() => {});
+  void sourceBookmarksPromise.catch(() => {});
   void readerPositionPromise.catch(() => {});
   void annotationsPromise.catch(() => {});
   void frameSrcPromise.catch(() => {});
@@ -1230,10 +1261,13 @@ async function loadDocument(docId) {
     await quickMarksPromise;
     syncClipToolColor();
     renderQuickMarkStack();
+    await sourceBookmarksPromise;
+    renderSourceNavigator();
     state.annotations = await annotationsPromise;
     readerPerformance.mark('annotations-ready', { annotations: state.annotations.length });
     storage.sweepUnreferencedNoteImages?.(docId).catch(() => {});
     state.iframeLoaded = true;
+    renderSourceNavigator();
     await instrumentIframe();
     await waitForFramePdfReadyIfNeeded();
     readerPerformance.mark('source-ready', { sourceType: currentDocument.sourceType });
@@ -1258,11 +1292,13 @@ async function loadDocument(docId) {
   } catch (error) {
     await Promise.allSettled([
       quickMarksPromise,
+      sourceBookmarksPromise,
       readerPositionPromise,
       annotationsPromise,
       frameSrcPromise
     ]);
     state.iframeLoaded = false;
+    renderSourceNavigator();
     setReaderFrameRestoring(false);
     showReaderLoadFailure(error);
   }
@@ -1572,6 +1608,7 @@ function handlePdfPageReady(doc, event) {
     }
     requestSideNoteLayout(doc);
     syncPinnedHighlightNavigator(doc);
+    renderQuickMarks(doc);
     return;
   }
   state.pdfDirtyPageIndexes.add(pageIndex);
@@ -1617,6 +1654,8 @@ function flushPdfFrameRefresh(doc = getFrameDoc()) {
   }
   retryPendingPdfAnnotationJump(doc, dirtyPageIndexes);
   retryPendingHighlightNavigatorJump(doc);
+  retryPendingQuickMarkJump(doc);
+  retryPendingSourceBookmarkJump(doc);
   scheduleSplitNotesStateBroadcast(doc);
 }
 
@@ -3020,6 +3059,15 @@ function handleEscapeKey(event) {
     hideSelectionHighlightButton();
     handled = true;
   }
+  if (state.sourceBookmarkRenameId) {
+    state.sourceBookmarkRenameId = null;
+    renderSourceNavigator();
+    handled = true;
+  } else if (state.sourceNavigatorExpanded) {
+    state.sourceNavigatorExpanded = false;
+    renderSourceNavigator();
+    handled = true;
+  }
   closeTooltip();
   if (closeDeleteConfirmPopovers()) handled = true;
   if (state.readingMode) {
@@ -3417,6 +3465,244 @@ async function flushQuickMarkSave() {
     marks: state.quickMarks,
     colorIndex: state.quickMarkColorIndex
   });
+}
+
+function sourceBookmarkStorageKey(docId = state.docId) {
+  return `reader-source-bookmarks:${docId || 'default'}`;
+}
+
+async function loadSourceBookmarks(docId) {
+  try {
+    const stored = await storage.getSourceBookmarks?.(docId);
+    const legacy = JSON.parse(localStorage.getItem(sourceBookmarkStorageKey(docId)) || 'null');
+    const parsed = stored?.bookmarks?.length ? stored : legacy || stored;
+    const record = normalizeSourceBookmarkRecord(parsed, docId);
+    state.sourceBookmarks = record.bookmarks;
+    state.selectedSourceBookmarkId = state.sourceBookmarks.some((item) => item.id === state.selectedSourceBookmarkId)
+      ? state.selectedSourceBookmarkId
+      : null;
+    mirrorSourceBookmarksToLocalStorage(docId);
+    if ((!stored || !Array.isArray(stored.bookmarks)) && parsed) {
+      await storage.setSourceBookmarks?.(docId, record);
+    }
+  } catch {
+    state.sourceBookmarks = [];
+    state.selectedSourceBookmarkId = null;
+  }
+}
+
+function saveSourceBookmarks() {
+  if (!state.docId) return;
+  const docId = state.docId;
+  const record = { bookmarks: state.sourceBookmarks };
+  localStorage.setItem(sourceBookmarkStorageKey(docId), JSON.stringify(record));
+  state.sourceBookmarkSavePromise = state.sourceBookmarkSavePromise
+    .catch(() => {})
+    .then(() => storage.setSourceBookmarks?.(docId, record))
+    .catch((error) => {
+      setStatus(`Source bookmarks are visible, but could not be saved (${error.message}).`, true);
+    });
+}
+
+function mirrorSourceBookmarksToLocalStorage(docId = state.docId) {
+  if (!docId) return;
+  localStorage.setItem(sourceBookmarkStorageKey(docId), JSON.stringify({
+    bookmarks: state.sourceBookmarks
+  }));
+}
+
+async function flushSourceBookmarkSave() {
+  await state.sourceBookmarkSavePromise.catch(() => {});
+  if (!state.docId) return;
+  await storage.setSourceBookmarks?.(state.docId, {
+    bookmarks: state.sourceBookmarks
+  });
+}
+
+function toggleSourceNavigator() {
+  state.sourceNavigatorExpanded = !state.sourceNavigatorExpanded;
+  renderSourceNavigator();
+}
+
+function renderSourceNavigator() {
+  const expanded = state.sourceNavigatorExpanded;
+  const selected = selectedSourceBookmark();
+  if (els.sourceNavigatorToggleBtn) {
+    els.sourceNavigatorToggleBtn.disabled = !state.docId;
+    els.sourceNavigatorToggleBtn.classList.toggle('is-active', expanded);
+    els.sourceNavigatorToggleBtn.setAttribute('aria-expanded', String(expanded));
+    const label = expanded ? 'Close source bookmarks' : 'Open source bookmarks';
+    els.sourceNavigatorToggleBtn.title = label;
+    els.sourceNavigatorToggleBtn.setAttribute('aria-label', label);
+  }
+  if (els.sourceNavigatorPanel) els.sourceNavigatorPanel.hidden = !expanded;
+  if (els.removeSourceBookmarkBtn) els.removeSourceBookmarkBtn.disabled = !selected;
+  if (els.renameSourceBookmarkBtn) els.renameSourceBookmarkBtn.disabled = !selected;
+  if (els.insertSourceBookmarkBtn) els.insertSourceBookmarkBtn.disabled = !selected || !state.iframeLoaded;
+  if (els.addSourceBookmarkBtn) els.addSourceBookmarkBtn.disabled = !state.docId || state.sourceBookmarks.length >= MAX_SOURCE_BOOKMARKS;
+  if (!els.sourceBookmarkList) return;
+  els.sourceBookmarkList.replaceChildren();
+  for (const bookmark of state.sourceBookmarks) {
+    els.sourceBookmarkList.append(sourceBookmarkListItem(bookmark));
+  }
+  if (els.sourceBookmarkEmpty) els.sourceBookmarkEmpty.hidden = state.sourceBookmarks.length > 0;
+  if (expanded && state.sourceBookmarkRenameId) {
+    requestAnimationFrame(() => {
+      const input = els.sourceBookmarkList?.querySelector?.('.source-bookmark-rename-input');
+      input?.focus?.();
+      input?.select?.();
+    });
+  }
+}
+
+function sourceBookmarkListItem(bookmark) {
+  const selected = bookmark.id === state.selectedSourceBookmarkId;
+  const renaming = bookmark.id === state.sourceBookmarkRenameId;
+  if (renaming) {
+    const wrapper = document.createElement('div');
+    wrapper.className = `source-bookmark-item is-selected ${bookmark.target ? '' : 'is-unbound'}`.trim();
+    wrapper.dataset.sourceBookmarkId = bookmark.id;
+    wrapper.setAttribute('role', 'option');
+    wrapper.setAttribute('aria-selected', 'true');
+    const input = document.createElement('input');
+    input.className = 'source-bookmark-rename-input';
+    input.type = 'text';
+    input.maxLength = 120;
+    input.value = bookmark.label;
+    input.setAttribute('aria-label', 'Bookmark description');
+    input.addEventListener('keydown', (event) => handleSourceBookmarkRenameKeyDown(event, bookmark.id));
+    input.addEventListener('blur', () => commitSourceBookmarkRename(bookmark.id, input.value));
+    wrapper.append(input, sourceBookmarkLocationElement(bookmark));
+    return wrapper;
+  }
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = [
+    'source-bookmark-item',
+    selected ? 'is-selected' : '',
+    bookmark.target ? '' : 'is-unbound'
+  ].filter(Boolean).join(' ');
+  button.dataset.sourceBookmarkId = bookmark.id;
+  button.setAttribute('role', 'option');
+  button.setAttribute('aria-selected', String(selected));
+  button.title = bookmark.target
+    ? `${bookmark.label} — ${bookmark.locationLabel}`
+    : `${bookmark.label} — not placed`;
+  const label = document.createElement('span');
+  label.className = 'source-bookmark-label';
+  label.textContent = bookmark.label;
+  button.append(label, sourceBookmarkLocationElement(bookmark));
+  return button;
+}
+
+function sourceBookmarkLocationElement(bookmark) {
+  const location = document.createElement('span');
+  location.className = 'source-bookmark-location';
+  location.textContent = bookmark.target ? bookmark.locationLabel : 'Not placed';
+  return location;
+}
+
+function handleSourceBookmarkListClick(event) {
+  const item = event.target?.closest?.('.source-bookmark-item[data-source-bookmark-id]');
+  if (!item || item.querySelector?.('input')) return;
+  const bookmark = state.sourceBookmarks.find((entry) => entry.id === item.dataset.sourceBookmarkId);
+  if (!bookmark) return;
+  state.selectedSourceBookmarkId = bookmark.id;
+  state.sourceBookmarkRenameId = null;
+  renderSourceNavigator();
+  if (bookmark.target) jumpToSourceBookmark(bookmark.id);
+  else setStatus('Bookmark selected. Use Insert to bind it to the current reading position.');
+}
+
+function selectedSourceBookmark() {
+  return state.sourceBookmarks.find((item) => item.id === state.selectedSourceBookmarkId) || null;
+}
+
+function addSourceBookmark() {
+  if (!state.docId) return;
+  if (state.sourceBookmarks.length >= MAX_SOURCE_BOOKMARKS) {
+    setStatus(`Source bookmark limit reached (${MAX_SOURCE_BOOKMARKS}).`, true);
+    return;
+  }
+  const bookmark = {
+    id: `bookmark_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    label: `Bookmark ${state.sourceBookmarks.length + 1}`,
+    target: null,
+    locationLabel: 'Not placed'
+  };
+  state.sourceBookmarks.push(bookmark);
+  state.selectedSourceBookmarkId = bookmark.id;
+  state.sourceBookmarkRenameId = null;
+  saveSourceBookmarks();
+  renderSourceNavigator();
+  setStatus('Bookmark added. Rename it or use Insert to bind the current reading position.');
+}
+
+function removeSelectedSourceBookmark() {
+  const selected = selectedSourceBookmark();
+  if (!selected) return;
+  state.sourceBookmarks = state.sourceBookmarks.filter((item) => item.id !== selected.id);
+  state.selectedSourceBookmarkId = null;
+  state.sourceBookmarkRenameId = null;
+  if (state.pendingSourceBookmarkJumpId === selected.id) state.pendingSourceBookmarkJumpId = null;
+  saveSourceBookmarks();
+  renderSourceNavigator();
+  setStatus('Bookmark deleted.');
+}
+
+function beginSelectedSourceBookmarkRename() {
+  const selected = selectedSourceBookmark();
+  if (!selected) return;
+  state.sourceBookmarkRenameId = selected.id;
+  renderSourceNavigator();
+}
+
+function handleSourceBookmarkRenameKeyDown(event, bookmarkId) {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    state.sourceBookmarkRenameId = null;
+    renderSourceNavigator();
+    return;
+  }
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  commitSourceBookmarkRename(bookmarkId, event.currentTarget.value);
+}
+
+function commitSourceBookmarkRename(bookmarkId, value) {
+  if (state.sourceBookmarkRenameId !== bookmarkId) return;
+  const bookmark = state.sourceBookmarks.find((item) => item.id === bookmarkId);
+  if (!bookmark) return;
+  const label = readableSnippet(value, 120);
+  if (label) bookmark.label = label;
+  state.sourceBookmarkRenameId = null;
+  saveSourceBookmarks();
+  renderSourceNavigator();
+  setStatus(label ? 'Bookmark renamed.' : 'Bookmark name unchanged.');
+}
+
+function insertSelectedSourceBookmark() {
+  const bookmark = selectedSourceBookmark();
+  if (!bookmark || !state.iframeLoaded) return;
+  const target = quickMarkTargetAtReadingPosition();
+  if (!target) {
+    setStatus('No anchorable content is visible at the current reading position.', true);
+    return;
+  }
+  bookmark.target = target.target;
+  bookmark.locationLabel = sourceBookmarkLocationLabel(target);
+  saveSourceBookmarks();
+  renderSourceNavigator();
+  setStatus(`Bookmark inserted at ${bookmark.locationLabel}.`);
+}
+
+function sourceBookmarkLocationLabel(target) {
+  const pageIndex = pdfPageIndexFromTarget(target?.target);
+  const snippet = readableSnippet(target?.label, 90);
+  if (Number.isInteger(pageIndex) && pageIndex >= 0) {
+    return snippet ? `Page ${pageIndex + 1} · ${snippet}` : `Page ${pageIndex + 1}`;
+  }
+  return snippet || target?.target?.anchorId || 'Saved location';
 }
 
 function normalizeQuickMark(mark) {
@@ -3916,6 +4202,7 @@ function removeQuickMark(markId, options = {}) {
   const before = state.quickMarks.length;
   state.quickMarks = state.quickMarks.filter((mark) => mark.id !== markId);
   if (state.quickMarks.length === before) return;
+  if (state.pendingQuickMarkJumpId === markId) state.pendingQuickMarkJumpId = null;
   if (Number.isInteger(Number(options.recycleColorIndex))) {
     state.quickMarkColorIndex = normalizeQuickMarkColorIndex(options.recycleColorIndex);
     syncClipToolColor();
@@ -4001,10 +4288,18 @@ function renderQuickMarkStack(doc = state.iframeLoaded ? getFrameDoc() : null) {
     const button = document.createElement('button');
     const label = quickMarkLabel(doc, item.mark);
     button.type = 'button';
-    button.className = `quick-mark-rail ${quickMarkColorClass(item.mark.colorIndex)}`;
+    button.className = [
+      'quick-mark-rail',
+      quickMarkColorClass(item.mark.colorIndex),
+      item.detached ? 'is-detached' : '',
+      item.direction ? `is-${item.direction}` : '',
+      state.pendingQuickMarkJumpId === item.mark.id ? 'is-pending' : ''
+    ].filter(Boolean).join(' ');
     button.dataset.quickMarkId = item.mark.id;
-    button.title = label;
-    button.setAttribute('aria-label', label);
+    const location = item.pageNumber ? `Page ${item.pageNumber}` : '';
+    const direction = item.direction ? `, ${item.direction}` : '';
+    button.title = [label, location].filter(Boolean).join(' — ');
+    button.setAttribute('aria-label', `${label}${location ? `, ${location}` : ''}${direction}`);
     button.addEventListener('click', (event) => {
       if (state.suppressQuickMarkClickId === item.mark.id) {
         state.suppressQuickMarkClickId = null;
@@ -4033,11 +4328,26 @@ function quickMarkLabel(doc, mark) {
 function quickMarksForRail(doc) {
   if (!doc || !state.quickMarks.length) return [];
   const view = doc.defaultView;
+  const currentPdfPage = Number(doc.documentElement.dataset.pdfCurrentPage);
   return state.quickMarks
-    .map((mark) => ({ mark, position: quickMarkPosition(doc, mark) }))
-    .filter((item) => item.position)
-    .filter((item) => item.position.viewportTop < -4 || item.position.viewportTop > view.innerHeight + 4)
-    .sort((a, b) => a.position.top - b.position.top);
+    .map((mark) => {
+      const position = quickMarkPosition(doc, mark);
+      const pageIndex = pdfPageIndexFromTarget(mark.target);
+      const pageNumber = Number.isInteger(pageIndex) && pageIndex >= 0 ? pageIndex + 1 : null;
+      const detached = !position && state.currentDocument?.sourceType === 'pdf' && pageNumber != null;
+      const direction = detached && Number.isFinite(currentPdfPage)
+        ? pageNumber < currentPdfPage ? 'above' : 'below'
+        : null;
+      return { mark, position, pageNumber, detached, direction };
+    })
+    .filter((item) => item.detached
+      || item.position?.viewportTop < -4
+      || item.position?.viewportTop > view.innerHeight + 4)
+    .sort((a, b) => {
+      const aTop = a.position?.top ?? ((a.pageNumber || 0) * 100000);
+      const bTop = b.position?.top ?? ((b.pageNumber || 0) * 100000);
+      return aTop - bTop;
+    });
 }
 
 function quickMarkPosition(doc, mark) {
@@ -4096,10 +4406,77 @@ function jumpToQuickMark(markId) {
   const mark = state.quickMarks.find((item) => item.id === markId);
   if (!mark || !state.iframeLoaded) return;
   const doc = getFrameDoc();
+  if (requestPdfPageForNavigationTarget(doc, mark.target, { quickMarkId: mark.id })) {
+    state.pendingQuickMarkJumpId = mark.id;
+    const pageIndex = pdfPageIndexFromTarget(mark.target);
+    setStatus(`Loading page ${pageIndex + 1} for quick mark...`);
+    syncQuickMarkStack(doc);
+    return;
+  }
   const position = quickMarkPosition(doc, mark);
-  if (!position) return;
+  if (!position) {
+    setStatus('This quick mark is not currently resolvable.', true);
+    return;
+  }
+  state.pendingQuickMarkJumpId = null;
   doc.defaultView.scrollTo(0, Math.max(0, position.top - doc.defaultView.innerHeight * 0.34));
   syncQuickMarkStack(doc);
+}
+
+function retryPendingQuickMarkJump(doc = getFrameDoc()) {
+  const markId = state.pendingQuickMarkJumpId;
+  if (!markId || !doc) return false;
+  const mark = state.quickMarks.find((item) => item.id === markId);
+  if (!mark || !resolveTargetElement(doc, mark.target)) return false;
+  state.pendingQuickMarkJumpId = null;
+  renderQuickMarks(doc);
+  jumpToQuickMark(markId);
+  return true;
+}
+
+function jumpToSourceBookmark(bookmarkId) {
+  const bookmark = state.sourceBookmarks.find((item) => item.id === bookmarkId);
+  if (!bookmark?.target || !state.iframeLoaded) return;
+  const doc = getFrameDoc();
+  if (requestPdfPageForNavigationTarget(doc, bookmark.target, { sourceBookmarkId: bookmark.id })) {
+    state.pendingSourceBookmarkJumpId = bookmark.id;
+    const pageIndex = pdfPageIndexFromTarget(bookmark.target);
+    setStatus(`Loading page ${pageIndex + 1} for bookmark “${bookmark.label}”...`);
+    return;
+  }
+  const position = quickMarkPosition(doc, bookmark);
+  if (!position) {
+    setStatus('This bookmark is not currently resolvable.', true);
+    return;
+  }
+  state.pendingSourceBookmarkJumpId = null;
+  doc.defaultView.scrollTo(0, Math.max(0, position.top - doc.defaultView.innerHeight * 0.34));
+  setStatus(`Moved to bookmark “${bookmark.label}”.`);
+}
+
+function retryPendingSourceBookmarkJump(doc = getFrameDoc()) {
+  const bookmarkId = state.pendingSourceBookmarkJumpId;
+  if (!bookmarkId || !doc) return false;
+  const bookmark = state.sourceBookmarks.find((item) => item.id === bookmarkId);
+  if (!bookmark?.target || !resolveTargetElement(doc, bookmark.target)) return false;
+  state.pendingSourceBookmarkJumpId = null;
+  jumpToSourceBookmark(bookmarkId);
+  return true;
+}
+
+function requestPdfPageForNavigationTarget(doc, target, detail = {}) {
+  if (state.currentDocument?.sourceType !== 'pdf' || !doc || !target) return false;
+  const pageIndex = pdfPageIndexFromTarget(target);
+  if (!Number.isInteger(pageIndex) || pageIndex < 0) return false;
+  if (readerPositionPdfPageElementNow(doc, { pageIndex, pageNumber: pageIndex + 1 })) return false;
+  doc.dispatchEvent(new doc.defaultView.CustomEvent('reader-pdf-ensure-page', {
+    detail: {
+      ...detail,
+      pageIndex,
+      pageNumber: pageIndex + 1
+    }
+  }));
+  return true;
 }
 
 async function createHighlightFromCurrentTarget() {

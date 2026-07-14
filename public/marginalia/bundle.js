@@ -1,3 +1,5 @@
+import { MAX_SOURCE_BOOKMARKS, normalizeSourceBookmarkRecord } from './source-bookmarks.js';
+
 const BUNDLE_FORMAT = 'annotator-bundle';
 const BUNDLE_VERSION = 2;
 const READABLE_BUNDLE_VERSIONS = new Set([1, 2]);
@@ -16,6 +18,8 @@ const QUICK_MARK_FORMAT = 'annotator-quick-marks';
 const QUICK_MARK_VERSION = 1;
 const MAX_QUICK_MARKS = 8;
 const QUICK_MARK_COLOR_COUNT = 5;
+const SOURCE_BOOKMARK_FORMAT = 'annotator-source-bookmarks';
+const SOURCE_BOOKMARK_VERSION = 1;
 
 export async function createAnnotatorBundleArchive(bundleData) {
   const files = bundleFiles(bundleData);
@@ -89,6 +93,9 @@ export function readAnnotatorBundleFiles(files) {
   const quickMarks = files.some((entry) => entry.path === 'quick-marks.json')
     ? readQuickMarksSidecar(readJsonFile(files, 'quick-marks.json'))
     : emptyQuickMarks();
+  const sourceBookmarks = files.some((entry) => entry.path === 'source-bookmarks.json')
+    ? readSourceBookmarksSidecar(readJsonFile(files, 'source-bookmarks.json'))
+    : emptySourceBookmarks();
   const assets = files
     .filter((entry) => entry.path.startsWith('assets/') && !entry.path.endsWith('/'))
     .map((entry) => ({
@@ -98,7 +105,13 @@ export function readAnnotatorBundleFiles(files) {
     }));
   if (bundleVersion === 2) validateBundleV2NotesAndImages(notes, assets);
   else validateBundleV1HasNoImageBlocks(notes);
-  const allowedFixedPaths = new Set(['manifest.json', 'annotations.json', 'quick-marks.json', sourcePath]);
+  const allowedFixedPaths = new Set([
+    'manifest.json',
+    'annotations.json',
+    'quick-marks.json',
+    'source-bookmarks.json',
+    sourcePath
+  ]);
   for (const entry of files) {
     if (allowedFixedPaths.has(entry.path)) continue;
     if (/^notes\/[^/]+\.note\.json$/.test(entry.path)) continue;
@@ -113,7 +126,8 @@ export function readAnnotatorBundleFiles(files) {
     annotations,
     notes,
     assets,
-    quickMarks
+    quickMarks,
+    sourceBookmarks
   };
 }
 
@@ -231,6 +245,14 @@ export function bundleFiles(bundleData) {
       formatVersion: QUICK_MARK_VERSION,
       marks: quickMarks.marks,
       colorIndex: quickMarks.colorIndex
+    }, null, 2) + '\n'));
+  }
+  if (bundleData.sourceBookmarks !== undefined) {
+    const sourceBookmarks = normalizeSourceBookmarks(bundleData.sourceBookmarks);
+    files.push(textFile('source-bookmarks.json', JSON.stringify({
+      format: SOURCE_BOOKMARK_FORMAT,
+      formatVersion: SOURCE_BOOKMARK_VERSION,
+      bookmarks: sourceBookmarks.bookmarks
     }, null, 2) + '\n'));
   }
   const writtenNoteImages = new Set();
@@ -564,6 +586,41 @@ function normalizeQuickMarks(value) {
 
 function emptyQuickMarks() {
   return { marks: [], colorIndex: 0 };
+}
+
+function readSourceBookmarksSidecar(sidecar) {
+  if (!isPlainObject(sidecar)
+    || sidecar.format !== SOURCE_BOOKMARK_FORMAT
+    || Number(sidecar.formatVersion) !== SOURCE_BOOKMARK_VERSION) {
+    throw new Error('Unsupported bundle source-bookmark format.');
+  }
+  return normalizeSourceBookmarks(sidecar);
+}
+
+function normalizeSourceBookmarks(value) {
+  const record = Array.isArray(value) ? { bookmarks: value } : value;
+  if (!isPlainObject(record) || !Array.isArray(record.bookmarks)) {
+    throw new Error('Bundle source bookmarks must contain a bookmarks array.');
+  }
+  if (record.bookmarks.length > MAX_SOURCE_BOOKMARKS) {
+    throw new Error(`Bundle contains too many source bookmarks (maximum ${MAX_SOURCE_BOOKMARKS}).`);
+  }
+  const ids = new Set();
+  for (const [index, bookmark] of record.bookmarks.entries()) {
+    if (!isPlainObject(bookmark) || !nonEmptyString(bookmark.id)
+      || (bookmark.target != null && !isPlainObject(bookmark.target))) {
+      throw new Error(`Bundle source bookmark ${index + 1} is invalid.`);
+    }
+    const id = String(bookmark.id);
+    if (ids.has(id)) throw new Error(`Bundle contains duplicate source-bookmark id: ${id}.`);
+    ids.add(id);
+  }
+  const normalized = normalizeSourceBookmarkRecord(record);
+  return { bookmarks: normalized.bookmarks };
+}
+
+function emptySourceBookmarks() {
+  return { bookmarks: [] };
 }
 
 function notePathForAnnotation(annotation) {

@@ -15,6 +15,7 @@ import {
 } from './pdf-page-window.js';
 import { marginaliaPerformanceTrace } from './performance-trace.js';
 import {
+  horizontalOffsetForCenteredZoom,
   horizontalOffsetForPanelResize,
   normalizePdfViewState,
   previewScaleFactor,
@@ -824,7 +825,7 @@ function setZoomMode(mode) {
   clearPanelResizeState();
   zoomRatio = 1;
   zoomScale = representativeFitScale() * zoomRatio;
-  refreshZoomedPages({ relativeHorizontal: false });
+  refreshZoomedPages({ centeredHorizontal: true });
   notifyPdfViewStateChange();
 }
 
@@ -833,7 +834,7 @@ function setExplicitZoomRatio(ratio) {
   clearPanelResizeState();
   zoomRatio = ratio;
   zoomScale = clamp(representativeFitScale() * zoomRatio, MIN_PAGE_SCALE, MAX_PAGE_SCALE);
-  refreshZoomedPages({ relativeHorizontal: false });
+  refreshZoomedPages({ centeredHorizontal: true });
   notifyPdfViewStateChange();
 }
 
@@ -1066,6 +1067,7 @@ function refreshZoomedPages(options = {}) {
   if (!pdfDocument) return;
   const anchor = options.anchor || captureScrollAnchor();
   const horizontalPan = options.horizontalPan || captureHorizontalPan();
+  const previousHorizontalContentWidth = options.centeredHorizontal ? horizontalContentWidth() : 0;
   clearZoomResizePreview({ restoreCommittedGeometry: false });
   zoomGeneration += 1;
   renderQueue.length = 0;
@@ -1089,7 +1091,20 @@ function refreshZoomedPages(options = {}) {
   commitPageGeometryMetrics();
   syncZoomControls();
   restoreScrollAnchor(anchor);
-  restoreHorizontalPan(horizontalPan, { relative: options.relativeHorizontal !== false });
+  const restoredHorizontalPan = options.centeredHorizontal && horizontalPan
+    ? {
+        ...horizontalPan,
+        left: horizontalOffsetForCenteredZoom({
+          left: horizontalPan.left,
+          previousContentWidth: previousHorizontalContentWidth,
+          nextContentWidth: horizontalContentWidth(),
+          viewportWidth: pdfViewport?.clientWidth
+        })
+      }
+    : horizontalPan;
+  restoreHorizontalPan(restoredHorizontalPan, {
+    relative: options.centeredHorizontal ? false : options.relativeHorizontal !== false
+  });
   requestReadAheadPages(anchor?.pageNumber || currentPageNumber, { forceDrain: true });
   queueInitialVisiblePages({ priority: true });
 }
@@ -1663,8 +1678,12 @@ function clamp(value, min, max) {
 
 function maxHorizontalPanOffset() {
   if (!pdfViewport) return 0;
-  const contentWidth = root?.scrollWidth || pdfViewport.scrollWidth;
-  return Math.max(0, contentWidth - pdfViewport.clientWidth);
+  return Math.max(0, horizontalContentWidth() - pdfViewport.clientWidth);
+}
+
+function horizontalContentWidth() {
+  if (!pdfViewport) return 0;
+  return Math.max(pdfViewport.clientWidth, root?.scrollWidth || pdfViewport.scrollWidth);
 }
 
 function setHorizontalScrollLeft(offset) {
