@@ -2293,8 +2293,8 @@ async function documentNoteStats(doc) {
   let lastEditAt = doc?.updatedAt || doc?.createdAt || '';
   for (const annotation of annotations) {
     if (annotation.highlight?.enabled) highlights += 1;
-    if (noteHasContent(annotation.note)) notes += 1;
-    if (noteHasInk(annotation.note)) ink += 1;
+    if (annotation.display?.mode !== 'highlight' && noteHasContent(annotation.note)) notes += 1;
+    if (annotation.display?.mode !== 'highlight' && noteHasInk(annotation.note)) ink += 1;
     lastEditAt = maxIsoDate(lastEditAt, annotation.updatedAt || annotation.createdAt || '');
   }
   return documentNoteStatsFromRecord(doc, { notes, highlights, ink, lastEditAt });

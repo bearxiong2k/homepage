@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Reader - Marginalia</title>
-  <link rel="manifest" href="manifest.webmanifest?v=20260714-201521">
+  <link rel="manifest" href="manifest.webmanifest?v=20260715-040936">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -103,7 +103,10 @@
     <p id="sourceBookmarkEmpty" class="source-bookmark-empty">Add a bookmark, rename it, then insert the current reading position.</p>
   </section>
 
-  <button id="highlightSelectionBtn" class="selection-highlight-btn" type="button" hidden title="Highlight selection" aria-label="Highlight selection">H</button>
+  <div id="selectionHighlightToolbar" class="selection-highlight-toolbar" role="toolbar" aria-label="Create annotation from selection" hidden>
+    <button id="highlightOnlySelectionBtn" class="selection-highlight-btn" type="button" title="Highlight only" aria-label="Highlight only">H</button>
+    <button id="highlightWithNoteSelectionBtn" class="selection-highlight-btn selection-highlight-btn-with-note" type="button" title="Highlight with side note" aria-label="Highlight with side note">H&amp;N</button>
+  </div>
   <section id="saveToast" class="save-toast-shell" aria-live="polite" aria-atomic="true" hidden>
     <div class="app-dialog save-toast-card" role="status">
       <button id="saveToastClose" class="save-toast-close" type="button" title="Close save status" aria-label="Close save status">x</button>

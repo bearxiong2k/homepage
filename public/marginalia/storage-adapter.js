@@ -2416,7 +2416,7 @@ function normalizeHydratedAnnotation(input) {
     note: normalizeNoteForStorage(input.note),
     noteRef: input.noteRef || null,
     display: {
-      mode: input.display?.mode || 'side',
+      mode: input.display?.mode === 'highlight' ? 'highlight' : 'side',
       collapsed: input.display?.collapsed !== false
     },
     createdAt: input.createdAt || new Date().toISOString(),
@@ -3117,8 +3117,8 @@ function isCurrentDocumentNoteStats(record, docId) {
 function addAnnotationStatsContribution(stats, annotation, note, direction) {
   if (!annotation) return stats;
   if (annotation.highlight?.enabled) stats.highlights += direction;
-  if (noteHasContent(note)) stats.notes += direction;
-  if (noteHasInk(note)) stats.ink += direction;
+  if (annotation.display?.mode !== 'highlight' && noteHasContent(note)) stats.notes += direction;
+  if (annotation.display?.mode !== 'highlight' && noteHasInk(note)) stats.ink += direction;
   if (direction > 0) {
     stats.lastEditAt = maxIsoDate(stats.lastEditAt, annotationEditAt(annotation));
   }

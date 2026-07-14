@@ -188,7 +188,9 @@ const els = {
   cancelModeBtn: document.querySelector('#cancelModeBtn'),
   readingModeBtn: document.querySelector('#readingModeBtn'),
   readingHighlightBtn: document.querySelector('#readingHighlightBtn'),
-  highlightSelectionBtn: document.querySelector('#highlightSelectionBtn'),
+  selectionHighlightToolbar: document.querySelector('#selectionHighlightToolbar'),
+  highlightWithNoteSelectionBtn: document.querySelector('#highlightWithNoteSelectionBtn'),
+  highlightOnlySelectionBtn: document.querySelector('#highlightOnlySelectionBtn'),
   noteList: document.querySelector('#noteList'),
   noteCount: document.querySelector('#noteCount'),
   expandAllNotesBtn: document.querySelector('#expandAllNotesBtn'),
@@ -325,7 +327,8 @@ function bindChromeEvents() {
   els.cancelModeBtn.addEventListener('click', () => setMode('select'));
   els.readingModeBtn.addEventListener('click', toggleReadingMode);
   els.readingHighlightBtn.addEventListener('click', toggleReadingHighlights);
-  els.highlightSelectionBtn.addEventListener('click', () => createHighlightFromCurrentTarget().catch((error) => setStatus(error.message, true)));
+  els.highlightWithNoteSelectionBtn.addEventListener('click', () => createHighlightFromCurrentTarget(true).catch((error) => setStatus(error.message, true)));
+  els.highlightOnlySelectionBtn.addEventListener('click', () => createHighlightFromCurrentTarget(false).catch((error) => setStatus(error.message, true)));
   els.undoBtn.addEventListener('click', () => undoHistoryCommand().catch((error) => setStatus(error.message, true)));
   els.redoBtn.addEventListener('click', () => redoHistoryCommand().catch((error) => setStatus(error.message, true)));
   els.clipToolBtn.addEventListener('pointerdown', startQuickMarkToolDrag);
@@ -1244,7 +1247,7 @@ async function loadDocument(docId) {
   void readerPositionPromise.catch(() => {});
   void annotationsPromise.catch(() => {});
   void frameSrcPromise.catch(() => {});
-  hideSelectionHighlightButton();
+  hideSelectionHighlightToolbar();
   state.lastReaderPosition = null;
   setMode('select');
   renderDocumentList();
@@ -1477,7 +1480,7 @@ async function instrumentIframe() {
     renderQuickMarks(doc);
     renderLayoutResizers(doc);
     syncJumpToNoteButton(doc);
-    updateSelectionHighlightButton();
+    updateSelectionHighlightToolbar();
     scheduleHtmlAnchorMetricsRefresh(doc);
     scheduleSplitNotesStateBroadcast(doc);
   });
@@ -1561,8 +1564,8 @@ function scheduleFrameScrollWork(doc = getFrameDoc()) {
         syncQuickMarkStack(frameDoc);
       }
     }
-    if (state.currentTarget?.type === 'text' && els.highlightSelectionBtn && !els.highlightSelectionBtn.hidden) {
-      updateSelectionHighlightButton();
+    if (state.currentTarget?.type === 'text' && els.selectionHighlightToolbar && !els.selectionHighlightToolbar.hidden) {
+      updateSelectionHighlightToolbar();
     }
   });
 }
@@ -1749,7 +1752,7 @@ function captureFrameSelectionTarget(eventTarget = null) {
     return true;
   }
   state.currentTarget = target;
-  showSelectionHighlightButton(target.clientRect);
+  showSelectionHighlightToolbar(target.clientRect);
   return true;
 }
 
@@ -1932,7 +1935,7 @@ function onFrameKeyUp(event) {
     return;
   }
   state.currentTarget = target;
-  showSelectionHighlightButton(target.clientRect);
+  showSelectionHighlightToolbar(target.clientRect);
 }
 
 function isSideNoteEditableTarget(target) {
@@ -1999,12 +2002,12 @@ function onFrameClick(event) {
     const action = event.target?.closest?.('[data-side-note-action]')?.dataset.sideNoteAction;
     const editableTarget = event.target?.closest?.('.reader-side-note-title, .reader-side-note-body');
     if (annotationId === state.activeAnnotationId && editableTarget && !editableTarget.classList.contains('is-rendered') && !action) {
-      hideSelectionHighlightButton();
+      hideSelectionHighlightToolbar();
       event.stopPropagation();
       beginInlineTextEdit(annotationId, sideNote, editableTarget.classList.contains('reader-side-note-title') ? 'title' : 'body', event, editableTarget.dataset.blockId || '');
       return;
     }
-    hideSelectionHighlightButton();
+    hideSelectionHighlightToolbar();
     frameDoc.getSelection()?.removeAllRanges();
     if (action === 'image-alt') {
       activateAnnotation(annotationId, false);
@@ -2071,7 +2074,7 @@ function onFrameClick(event) {
   if (state.mode === 'attach-highlight') return;
   const highlight = event.target?.closest?.('.reader-highlight');
   if (state.readingMode) {
-    hideSelectionHighlightButton();
+    hideSelectionHighlightToolbar();
     clearFrameSelection(frameDoc);
     return;
   }
@@ -2090,7 +2093,7 @@ function onFrameClick(event) {
   }
   if (state.mode !== 'blank-note') {
     if (state.focusModeAnnotationId) return;
-    hideSelectionHighlightButton();
+    hideSelectionHighlightToolbar();
     clearFrameSelection(frameDoc);
     clearActiveAnnotation();
     return;
@@ -2206,29 +2209,37 @@ function captureSelectionTarget() {
   return primary;
 }
 
-function showSelectionHighlightButton(rect) {
+function showSelectionHighlightToolbar(rect) {
   if (!rect || !rect.width) return;
-  positionSelectionHighlightButton(rect);
-  els.highlightSelectionBtn.hidden = false;
+  els.selectionHighlightToolbar.hidden = false;
+  positionSelectionHighlightToolbar(rect);
 }
 
-function positionSelectionHighlightButton(rect) {
+function positionSelectionHighlightToolbar(rect) {
   const padding = 12;
-  const left = Math.max(padding, Math.min(rect.left - 42, window.innerWidth - 46));
-  const top = Math.max(padding, Math.min(rect.top, window.innerHeight - 46));
-  els.highlightSelectionBtn.style.left = `${left}px`;
-  els.highlightSelectionBtn.style.top = `${top}px`;
+  const gap = 4;
+  const toolbarRect = els.selectionHighlightToolbar.getBoundingClientRect();
+  const width = toolbarRect.width || 90;
+  const height = toolbarRect.height || 34;
+  const left = Math.max(padding, Math.min(rect.left, window.innerWidth - width - padding));
+  const below = rect.bottom + gap;
+  const above = rect.top - height - gap;
+  const top = below + height <= window.innerHeight - padding
+    ? below
+    : Math.max(padding, above);
+  els.selectionHighlightToolbar.style.left = `${left}px`;
+  els.selectionHighlightToolbar.style.top = `${top}px`;
 }
 
-function updateSelectionHighlightButton() {
-  if (!state.currentTarget || !els.highlightSelectionBtn || state.currentTarget.type !== 'text') return;
+function updateSelectionHighlightToolbar() {
+  if (!state.currentTarget || !els.selectionHighlightToolbar || state.currentTarget.type !== 'text') return;
   const rect = rectForTextTarget(state.currentTarget);
   if (!rect || rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
-    els.highlightSelectionBtn.hidden = true;
+    els.selectionHighlightToolbar.hidden = true;
     return;
   }
-  positionSelectionHighlightButton(rect);
-  els.highlightSelectionBtn.hidden = false;
+  els.selectionHighlightToolbar.hidden = false;
+  positionSelectionHighlightToolbar(rect);
 }
 
 function rectForTextTarget(target) {
@@ -2245,8 +2256,8 @@ function rectForTextTarget(target) {
   }
 }
 
-function hideSelectionHighlightButton() {
-  if (els.highlightSelectionBtn) els.highlightSelectionBtn.hidden = true;
+function hideSelectionHighlightToolbar() {
+  if (els.selectionHighlightToolbar) els.selectionHighlightToolbar.hidden = true;
   state.currentTarget = null;
 }
 
@@ -2264,7 +2275,7 @@ function toggleReadingMode() {
 function setReadingMode(enabled) {
   state.readingMode = Boolean(enabled);
   if (state.readingMode) {
-    hideSelectionHighlightButton();
+    hideSelectionHighlightToolbar();
     getFrameDoc()?.getSelection()?.removeAllRanges();
     state.activeAnnotationId = null;
     state.pinnedAnnotationId = null;
@@ -2327,7 +2338,7 @@ function syncCompatibilityControls() {
     els.clipToolBtn.title = label;
     els.clipToolBtn.setAttribute('aria-label', label);
   }
-  if (els.highlightSelectionBtn && !textHighlights) hideSelectionHighlightButton();
+  if (els.selectionHighlightToolbar && !textHighlights) hideSelectionHighlightToolbar();
 }
 
 function syncPinnedNoteChrome() {
@@ -2693,13 +2704,13 @@ function buildSplitNotesSourceState(doc = state.iframeLoaded ? getFrameDoc() : n
     inkColor: state.inkColor,
     inkWidth: state.inkWidth,
     inkPressureEnabled: state.inkPressureEnabled,
-    annotations: state.annotations.map(cloneAnnotation),
+    annotations: state.annotations.filter(annotationHasSideNote).map(cloneAnnotation),
     noteMetrics: doc ? splitNoteMetrics(doc) : []
   };
 }
 
 function splitNoteMetrics(doc) {
-  return state.annotations.map((annotation) => {
+  return state.annotations.filter(annotationHasSideNote).map((annotation) => {
     const resolution = state.annotationResolution.get(annotation.id) || buildAnnotationResolution(doc, annotation);
     const position = sideNotePosition(doc, annotation);
     const hintedY = Number(annotation?.target?.clientHint?.documentY);
@@ -3054,8 +3065,8 @@ function handleEscapeKey(event) {
     finishLibrarySourceChoice(null).catch((error) => setStatus(error.message, true));
     handled = true;
   }
-  if (els.highlightSelectionBtn && !els.highlightSelectionBtn.hidden) {
-    hideSelectionHighlightButton();
+  if (els.selectionHighlightToolbar && !els.selectionHighlightToolbar.hidden) {
+    hideSelectionHighlightToolbar();
     handled = true;
   }
   if (state.sourceBookmarkRenameId) {
@@ -4477,15 +4488,15 @@ function requestPdfPageForNavigationTarget(doc, target, detail = {}) {
   return true;
 }
 
-async function createHighlightFromCurrentTarget() {
+async function createHighlightFromCurrentTarget(withNote = true) {
   if (isFocusModeActive()) {
     setStatus('Disable focus mode before creating a new note.', true);
-    hideSelectionHighlightButton();
+    hideSelectionHighlightToolbar();
     return;
   }
   if (!compatibilityFeatureEnabled('singleBlockTextHighlights')) {
     setStatus('Text highlights are unavailable for this document.', true);
-    hideSelectionHighlightButton();
+    hideSelectionHighlightToolbar();
     return;
   }
   if (!state.currentTarget || state.currentTarget.type !== 'text') {
@@ -4494,13 +4505,14 @@ async function createHighlightFromCurrentTarget() {
   }
   const annotation = await createAnnotationFromTarget(state.currentTarget, {
     highlight: { enabled: true, color: 'yellow' },
-    note: defaultBlankNote()
+    note: defaultBlankNote(),
+    displayMode: withNote ? 'side' : 'highlight'
   });
-  recordAnnotationHistory('highlight creation', null, annotation, annotation.id);
-  hideSelectionHighlightButton();
+  recordAnnotationHistory(withNote ? 'highlight and note creation' : 'highlight creation', null, annotation, annotation.id);
+  hideSelectionHighlightToolbar();
   getFrameDoc().getSelection()?.removeAllRanges();
   await reloadAnnotationsAndRender(annotation.id);
-  setStatus('Highlight created. Edit the side note directly.');
+  setStatus(withNote ? 'Highlight created. Edit the side note directly.' : 'Highlight created without a side note.');
 }
 
 async function createBlockSideNote(target) {
@@ -4529,6 +4541,10 @@ function defaultBlankNote() {
     ink: { strokes: [], height: INK_CANVAS_HEIGHT.default },
     blocks: [newSideNoteBlock('blank')]
   };
+}
+
+function annotationHasSideNote(annotation) {
+  return annotation?.display?.mode !== 'highlight';
 }
 
 async function createAnnotationFromTarget(sourceTarget, options = {}) {
@@ -4585,7 +4601,7 @@ function renderAnnotations() {
 
   if (sideNotesVisible) {
     for (const annotation of annotationsInResolvedDocumentOrder(doc)) {
-      attachMarker(doc, annotation);
+      if (annotationHasSideNote(annotation)) attachMarker(doc, annotation);
     }
   }
   if (sideNotesVisible) applyFocusModeDisplay(doc);
@@ -4680,7 +4696,7 @@ function renderAnnotationsForPdfPageIndexes(doc, pageIndexes, options = {}) {
         }
       }
     }
-    if (sideNotesVisible) upsertSideNoteForAnnotation(doc, annotation);
+    if (sideNotesVisible && annotationHasSideNote(annotation)) upsertSideNoteForAnnotation(doc, annotation);
   }
   if (sideNotesVisible && !options.deferNonessential) {
     requestSideNoteLayout(doc);
@@ -7991,7 +8007,7 @@ function toggleFocusMode(annotationId) {
     state.focusModeAnchorTop = anchor ? doc.defaultView.scrollY + anchor.getBoundingClientRect().top : null;
     state.focusModeNoteViewportTop = noteViewportTop;
     state.focusModeAnchorViewportTop = anchor ? anchor.getBoundingClientRect().top : null;
-    hideSelectionHighlightButton();
+    hideSelectionHighlightToolbar();
     if (state.mode === 'blank-note') setMode('select');
     if (state.mode === 'remove-highlight') setMode('select');
   }
@@ -8055,7 +8071,7 @@ function startAttachHighlightMode(annotationId) {
   state.activeAnnotationId = annotationId;
   state.attachTargetAnnotationId = annotationId;
   state.removeTargetAnnotationId = null;
-  hideSelectionHighlightButton();
+  hideSelectionHighlightToolbar();
   setMode('attach-highlight');
   renderAnnotations();
   renderNoteList();
@@ -8079,7 +8095,7 @@ function startRemoveHighlightMode(annotationId) {
   state.activeAnnotationId = annotationId;
   state.removeTargetAnnotationId = annotationId;
   state.attachTargetAnnotationId = null;
-  hideSelectionHighlightButton();
+  hideSelectionHighlightToolbar();
   setMode('remove-highlight');
   renderAnnotations();
   renderNoteList();
@@ -8395,10 +8411,11 @@ async function saveInlineNoteField(annotationId, update = {}) {
 function renderNoteList(options = {}) {
   const scrollAnchor = captureNavigatorScrollAnchor(options.anchorAnnotationId);
   const focusSnapshot = captureNavigatorFocus();
+  const sideNoteCount = state.annotations.filter(annotationHasSideNote).length;
   els.noteCount.textContent = `${state.annotations.length} annotation${state.annotations.length === 1 ? '' : 's'} in this document.`;
   if (els.expandAllNotesBtn) {
     els.expandAllNotesBtn.textContent = state.noteNavigatorExpandAll ? 'Collapse all' : 'Expand all';
-    els.expandAllNotesBtn.disabled = !state.annotations.length;
+    els.expandAllNotesBtn.disabled = !sideNoteCount;
     els.expandAllNotesBtn.setAttribute('aria-expanded', String(state.noteNavigatorExpandAll));
   }
   if (!state.annotations.length) {
@@ -8437,6 +8454,7 @@ function renderNavigatorNoteCards(annotationIds) {
 
 function createNavigatorNoteCard(annotation) {
   const card = document.createElement('article');
+  const hasSideNote = annotationHasSideNote(annotation);
   const resolution = annotationResolution(annotation);
   const pendingNotice = state.pdfPendingJumpNotice?.annotationId === annotation.id
     && performance.now() < state.pdfPendingJumpNotice.until
@@ -8453,7 +8471,7 @@ function createNavigatorNoteCard(annotation) {
   ].filter(Boolean).join(' ');
   card.dataset.annotationId = annotation.id;
   if (pendingJump) card.dataset.targetPendingPage = String(pendingJump.pageNumber);
-  if (isNavigatorNoteExpanded(annotation.id)) card.classList.add('is-expanded');
+  if (hasSideNote && isNavigatorNoteExpanded(annotation.id)) card.classList.add('is-expanded');
 
   const header = document.createElement('div');
   header.className = 'note-card-header';
@@ -8462,14 +8480,16 @@ function createNavigatorNoteCard(annotation) {
   const title = document.createElement('p');
   title.className = 'note-card-title';
   title.textContent = annotationTitle(annotation);
-  title.tabIndex = 0;
-  title.title = 'Edit title';
-  title.addEventListener('keydown', (event) => {
-    if (!['Enter', 'F2'].includes(event.key)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    beginNavigatorTitleEdit(annotation.id, title);
-  });
+  if (hasSideNote) {
+    title.tabIndex = 0;
+    title.title = 'Edit title';
+    title.addEventListener('keydown', (event) => {
+      if (!['Enter', 'F2'].includes(event.key)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      beginNavigatorTitleEdit(annotation.id, title);
+    });
+  }
   const meta = document.createElement('div');
   meta.className = 'note-card-meta';
   meta.textContent = pendingJump
@@ -8490,15 +8510,15 @@ function createNavigatorNoteCard(annotation) {
 
   const actions = document.createElement('div');
   actions.className = 'note-card-actions';
+  if (hasSideNote) actions.append(expandButton);
   actions.append(
-    expandButton,
-    createNoteCardButton('goto', 'Go to', 'Jump to note'),
-    createNoteCardButton('delete', 'Delete', 'Delete note', 'danger')
+    createNoteCardButton('goto', 'Go to', hasSideNote ? 'Jump to note' : 'Jump to highlight'),
+    createNoteCardButton('delete', 'Delete', hasSideNote ? 'Delete note' : 'Delete highlight', 'danger')
   );
   header.append(titleWrap, actions);
   card.append(header);
 
-  if (isNavigatorNoteExpanded(annotation.id)) {
+  if (hasSideNote && isNavigatorNoteExpanded(annotation.id)) {
     const content = createNavigatorNoteContent(annotation);
     if (content) card.append(content);
   }
@@ -8506,7 +8526,7 @@ function createNavigatorNoteCard(annotation) {
   card.addEventListener('click', (event) => {
     const action = event.target?.closest?.('[data-action]')?.dataset.action;
     const titleTarget = event.target?.closest?.('.note-card-title');
-    if (titleTarget) {
+    if (hasSideNote && titleTarget) {
       event.stopPropagation();
       beginNavigatorTitleEdit(annotation.id, titleTarget, event);
       return;
@@ -8737,6 +8757,9 @@ function restoreNavigatorScrollAnchor(anchor) {
 }
 
 function annotationTitle(annotation) {
+  if (!annotationHasSideNote(annotation)) {
+    return readableSnippet(annotation.target?.exact, 240) || 'Highlight only';
+  }
   if (annotation.note?.title) return annotation.note.title;
   const markdown = sideNoteText(annotation).trim();
   if (markdown) return readableSnippet(markdown, 240);
@@ -9420,7 +9443,7 @@ function togglePinnedNote(annotationId) {
   if (!state.pinnedAnnotationId) state.pendingHighlightNavigatorJump = null;
   state.activeAnnotationId = annotationId;
   syncPinnedNoteChrome();
-  hideSelectionHighlightButton();
+  hideSelectionHighlightToolbar();
   if (state.mode === 'blank-note') setMode('select');
   renderAnnotations();
   renderNoteList();
