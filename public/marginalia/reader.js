@@ -3035,7 +3035,6 @@ function sideNotesVisibleForMetrics(metrics) {
 function syncFrameNotesPanelOverlayState(doc) {
   if (!doc?.body) return;
   doc.body.classList.toggle('reader-split-notes-source', state.splitNotesActive);
-  doc.body.classList.toggle('reader-notes-overlay-open', isNotesPanelExpanded());
   renderLayoutResizers(doc);
 }
 
@@ -5587,9 +5586,6 @@ function injectReaderStyles(doc) {
     body:not(.reader-reading-mode):not(.reader-notes-hidden) { padding-right: calc(var(--reader-side-note-layer-width) + var(--reader-side-note-gap)) !important; }
     html.pdf-viewer-document body:not(.reader-reading-mode):not(.reader-notes-hidden) { padding-right: 0 !important; }
     body.reader-notes-hidden .reader-side-note-layer { display: none !important; }
-    body.reader-notes-overlay-open .reader-side-note-layer,
-    body.reader-notes-overlay-open .reader-side-note-layer * { pointer-events: none !important; }
-    body.reader-notes-overlay-open .reader-layout-resizer,
     body.reader-split-notes-source .reader-layout-resizer { display: none !important; }
     .reader-focus-before-marker { margin-bottom: 0 !important; }
     .reader-focus-after-marker { margin-top: 0 !important; }
@@ -5622,7 +5618,7 @@ function injectReaderStyles(doc) {
     .reader-side-note-layer { position: absolute; top: 0; bottom: 0; z-index: 18; width: var(--reader-side-note-layer-width); min-height: 100%; border-left: 1px solid rgba(216, 199, 168, .66); background: rgba(248, 246, 240, .96); pointer-events: auto; }
     .reader-side-note-layer:empty { pointer-events: none; }
     .reader-side-note { position: absolute; width: 100%; pointer-events: auto; }
-    .reader-side-note.is-pinned { position: fixed !important; top: 14px !important; right: 14px !important; bottom: 14px !important; left: var(--reader-text-note-edge) !important; z-index: 92 !important; width: auto; min-width: 220px; overflow: auto; overscroll-behavior: none; }
+    .reader-side-note.is-pinned { position: fixed !important; top: 0 !important; right: 0 !important; bottom: 0 !important; left: var(--reader-text-note-edge) !important; z-index: 92 !important; width: auto; min-width: 220px; overflow: auto; overscroll-behavior: none; }
     .reader-side-note-card { position: relative; border-left: 2px solid #d8c7a8; padding: 0 0 0 .58rem; color: #151515; background: transparent; font-family: Georgia, 'Times New Roman', serif; font-size: 1.03rem; line-height: 1.45; cursor: text; overflow: visible; }
     .reader-side-note.is-overlapping .reader-side-note-card, .reader-side-note.is-active .reader-side-note-card, .reader-side-note.is-editing .reader-side-note-card { padding: .36rem .44rem .42rem .58rem; background: rgba(255, 253, 248, .84); box-shadow: 0 8px 22px rgba(52, 38, 18, .12); backdrop-filter: blur(1.5px); }
     .reader-side-note.is-pinned .reader-side-note-card { min-height: 100%; padding: .78rem .8rem 1rem; background: rgba(255, 253, 248, .96); box-shadow: 0 14px 34px rgba(52, 38, 18, .18); cursor: default; }
@@ -6417,7 +6413,6 @@ function renderLayoutResizers(doc) {
   const metrics = layoutMetrics(doc);
   if (state.splitNotesActive) return;
   if (state.readingMode && metrics.layout.noteFraction > 0) return;
-  if (isNotesPanelExpanded()) return;
   if (!metrics.noteVisible) return;
   const handle = doc.createElement('div');
   handle.className = 'reader-layout-resizer';
