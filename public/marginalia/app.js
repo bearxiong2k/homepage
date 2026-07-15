@@ -48,6 +48,7 @@ const LIBRARY_VIEW_MODE_KEY = 'marginalia-library-view-mode';
 const LIBRARY_COLLAPSED_FOLDERS_KEY = 'marginalia-library-collapsed-folders';
 const LIBRARY_DRAG_MIME = 'application/x-marginalia-library-item';
 const LIBRARY_SORT_ANIMATION_MS = 220;
+const LIBRARY_POPOVER_VIEWPORT_MARGIN = 16;
 const APP_UPDATE_RECHECK_REASONS = new Set([
   'activated-version-not-newer',
   'candidate-version-mismatch',
@@ -576,12 +577,14 @@ async function refreshLibraryViewFromStorage(options = {}) {
   if (!documentsEl.querySelector('[data-library-view-region]') || model.empty) {
     documentsEl.innerHTML = libraryDashboardMarkup(model);
     restoreLibraryFocus(focusSnapshot);
+    scheduleSelectedLibraryItemPopoverReveal();
     scheduleLibraryRenderModelEnrichment(model, generation);
     return model;
   }
   syncLibraryShellFromModel(model);
   renderLibraryViewRegion(model, options);
   restoreLibraryFocus(focusSnapshot);
+  scheduleSelectedLibraryItemPopoverReveal();
   scheduleLibraryRenderModelEnrichment(model, generation);
   return model;
 }
@@ -1072,6 +1075,36 @@ function selectLibraryTreeItem(kind, id) {
     ? libraryItemPopoverMarkup(libraryBundleDataFromShell(shell))
     : libraryFolderPopoverMarkup(libraryFolderDataFromShell(shell));
   row.insertAdjacentHTML('afterend', markup);
+  scheduleLibraryItemPopoverReveal(kind, id);
+}
+
+function scheduleSelectedLibraryItemPopoverReveal() {
+  if (!selectedTreeItemKind || !selectedTreeItemId) return;
+  scheduleLibraryItemPopoverReveal(selectedTreeItemKind, selectedTreeItemId);
+}
+
+function scheduleLibraryItemPopoverReveal(kind, id) {
+  window.requestAnimationFrame(() => {
+    if (selectedTreeItemKind !== kind || selectedTreeItemId !== id) return;
+    const popup = document.getElementById(libraryItemPopoverId(kind, id));
+    if (!popup) return;
+    const scrollDelta = libraryPopoverScrollDelta(
+      popup.getBoundingClientRect(),
+      window.innerHeight,
+      LIBRARY_POPOVER_VIEWPORT_MARGIN
+    );
+    if (Math.abs(scrollDelta) < 1) return;
+    window.scrollBy({ top: scrollDelta, left: 0, behavior: 'auto' });
+  });
+}
+
+function libraryPopoverScrollDelta(rect, viewportHeight, margin = LIBRARY_POPOVER_VIEWPORT_MARGIN) {
+  const availableHeight = Math.max(0, viewportHeight - (margin * 2));
+  if (rect.height > availableHeight) return rect.top - margin;
+  const bottomLimit = viewportHeight - margin;
+  if (rect.bottom > bottomLimit) return rect.bottom - bottomLimit;
+  if (rect.top < margin) return rect.top - margin;
+  return 0;
 }
 
 function clearLibraryTreeSelection() {

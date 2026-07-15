@@ -2269,6 +2269,16 @@ button.library-finder-row {
   box-shadow: var(--shadow);
 }
 
+.library-item-popover::after {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 1px;
+  height: 16px;
+  content: '';
+  pointer-events: none;
+}
+
 .library-popover-field {
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr);
