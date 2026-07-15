@@ -51,6 +51,7 @@ const state = {
   storageMode: storage.mode,
   annotations: [],
   currentTarget: null,
+  highlightOnlyRemovalAnnotationId: null,
   activeAnnotationId: null,
   focusModeAnnotationId: null,
   focusModeNoteTop: null,
@@ -183,6 +184,8 @@ const els = {
   sourceBookmarkEmpty: document.querySelector('#sourceBookmarkEmpty'),
   addSourceBookmarkBtn: document.querySelector('#addSourceBookmarkBtn'),
   removeSourceBookmarkBtn: document.querySelector('#removeSourceBookmarkBtn'),
+  moveSourceBookmarkUpBtn: document.querySelector('#moveSourceBookmarkUpBtn'),
+  moveSourceBookmarkDownBtn: document.querySelector('#moveSourceBookmarkDownBtn'),
   renameSourceBookmarkBtn: document.querySelector('#renameSourceBookmarkBtn'),
   insertSourceBookmarkBtn: document.querySelector('#insertSourceBookmarkBtn'),
   cancelModeBtn: document.querySelector('#cancelModeBtn'),
@@ -191,6 +194,7 @@ const els = {
   selectionHighlightToolbar: document.querySelector('#selectionHighlightToolbar'),
   highlightWithNoteSelectionBtn: document.querySelector('#highlightWithNoteSelectionBtn'),
   highlightOnlySelectionBtn: document.querySelector('#highlightOnlySelectionBtn'),
+  removeHighlightOnlyBtn: document.querySelector('#removeHighlightOnlyBtn'),
   noteList: document.querySelector('#noteList'),
   noteCount: document.querySelector('#noteCount'),
   expandAllNotesBtn: document.querySelector('#expandAllNotesBtn'),
@@ -329,6 +333,7 @@ function bindChromeEvents() {
   els.readingHighlightBtn.addEventListener('click', toggleReadingHighlights);
   els.highlightWithNoteSelectionBtn.addEventListener('click', () => createHighlightFromCurrentTarget(true).catch((error) => setStatus(error.message, true)));
   els.highlightOnlySelectionBtn.addEventListener('click', () => createHighlightFromCurrentTarget(false).catch((error) => setStatus(error.message, true)));
+  els.removeHighlightOnlyBtn.addEventListener('click', () => removeCurrentHighlightOnlyAnnotation().catch((error) => setStatus(error.message, true)));
   els.undoBtn.addEventListener('click', () => undoHistoryCommand().catch((error) => setStatus(error.message, true)));
   els.redoBtn.addEventListener('click', () => redoHistoryCommand().catch((error) => setStatus(error.message, true)));
   els.clipToolBtn.addEventListener('pointerdown', startQuickMarkToolDrag);
@@ -336,6 +341,8 @@ function bindChromeEvents() {
   els.sourceNavigatorToggleBtn?.addEventListener('click', toggleSourceNavigator);
   els.addSourceBookmarkBtn?.addEventListener('click', addSourceBookmark);
   els.removeSourceBookmarkBtn?.addEventListener('click', removeSelectedSourceBookmark);
+  els.moveSourceBookmarkUpBtn?.addEventListener('click', () => moveSelectedSourceBookmark(-1));
+  els.moveSourceBookmarkDownBtn?.addEventListener('click', () => moveSelectedSourceBookmark(1));
   els.renameSourceBookmarkBtn?.addEventListener('click', beginSelectedSourceBookmarkRename);
   els.insertSourceBookmarkBtn?.addEventListener('click', insertSelectedSourceBookmark);
   els.sourceBookmarkList?.addEventListener('click', handleSourceBookmarkListClick);
@@ -371,6 +378,7 @@ function bindChromeEvents() {
   window.addEventListener('resize', () => {
     applyNotesTabTop(currentNotesTabTop());
     maybeReleaseSplitSourceWidthFallback();
+    positionSourceNavigatorPanel();
   });
   window.addEventListener('message', (event) => {
     if (event.source !== els.frame?.contentWindow) return;
@@ -1480,7 +1488,8 @@ async function instrumentIframe() {
     renderQuickMarks(doc);
     renderLayoutResizers(doc);
     syncJumpToNoteButton(doc);
-    updateSelectionHighlightToolbar();
+    if (state.currentTarget?.type === 'text') updateSelectionHighlightToolbar();
+    else if (state.highlightOnlyRemovalAnnotationId) hideSelectionHighlightToolbar();
     scheduleHtmlAnchorMetricsRefresh(doc);
     scheduleSplitNotesStateBroadcast(doc);
   });
@@ -1566,6 +1575,8 @@ function scheduleFrameScrollWork(doc = getFrameDoc()) {
     }
     if (state.currentTarget?.type === 'text' && els.selectionHighlightToolbar && !els.selectionHighlightToolbar.hidden) {
       updateSelectionHighlightToolbar();
+    } else if (state.highlightOnlyRemovalAnnotationId && els.selectionHighlightToolbar && !els.selectionHighlightToolbar.hidden) {
+      hideSelectionHighlightToolbar();
     }
   });
 }
@@ -2088,7 +2099,18 @@ function onFrameClick(event) {
   }
   if (highlight) {
     clearFrameSelection(frameDoc);
-    activateAnnotation(highlight.dataset.annotationId, false);
+    const annotationId = highlight.dataset.annotationId;
+    const annotation = state.annotations.find((item) => item.id === annotationId);
+    activateAnnotation(annotationId, false);
+    if (annotation && !annotationHasSideNote(annotation)) {
+      event.preventDefault();
+      event.stopPropagation();
+      showSelectionHighlightToolbar(rectInParent(highlight.getBoundingClientRect()), {
+        removeAnnotationId: annotationId
+      });
+    } else {
+      hideSelectionHighlightToolbar();
+    }
     return;
   }
   if (state.mode !== 'blank-note') {
@@ -2209,8 +2231,16 @@ function captureSelectionTarget() {
   return primary;
 }
 
-function showSelectionHighlightToolbar(rect) {
+function showSelectionHighlightToolbar(rect, options) {
   if (!rect || !rect.width) return;
+  const removeAnnotationId = String(options?.removeAnnotationId || '');
+  const removing = Boolean(removeAnnotationId);
+  state.highlightOnlyRemovalAnnotationId = removeAnnotationId || null;
+  if (removing) state.currentTarget = null;
+  els.highlightOnlySelectionBtn.hidden = removing;
+  els.highlightWithNoteSelectionBtn.hidden = removing;
+  els.removeHighlightOnlyBtn.hidden = !removing;
+  els.selectionHighlightToolbar.setAttribute('aria-label', removing ? 'Remove highlight' : 'Create annotation from selection');
   els.selectionHighlightToolbar.hidden = false;
   positionSelectionHighlightToolbar(rect);
 }
@@ -2259,6 +2289,7 @@ function rectForTextTarget(target) {
 function hideSelectionHighlightToolbar() {
   if (els.selectionHighlightToolbar) els.selectionHighlightToolbar.hidden = true;
   state.currentTarget = null;
+  state.highlightOnlyRemovalAnnotationId = null;
 }
 
 function clearFrameSelection(doc = getFrameDoc()) {
@@ -3534,9 +3565,23 @@ function toggleSourceNavigator() {
   renderSourceNavigator();
 }
 
+function positionSourceNavigatorPanel() {
+  if (!state.sourceNavigatorExpanded || !els.sourceNavigatorPanel || !els.sourceNavigatorToggleBtn) return;
+  const buttonRect = els.sourceNavigatorToggleBtn.getBoundingClientRect();
+  const top = Math.round(buttonRect.top);
+  const left = Math.round(buttonRect.right + 8);
+  const availableHeight = Math.max(120, Math.min(430, window.innerHeight - top - 12));
+  els.sourceNavigatorPanel.style.top = `${top}px`;
+  els.sourceNavigatorPanel.style.left = `${left}px`;
+  els.sourceNavigatorPanel.style.maxHeight = `${availableHeight}px`;
+}
+
 function renderSourceNavigator() {
   const expanded = state.sourceNavigatorExpanded;
   const selected = selectedSourceBookmark();
+  const selectedIndex = selected
+    ? state.sourceBookmarks.findIndex((bookmark) => bookmark.id === selected.id)
+    : -1;
   if (els.sourceNavigatorToggleBtn) {
     els.sourceNavigatorToggleBtn.disabled = !state.docId;
     els.sourceNavigatorToggleBtn.classList.toggle('is-active', expanded);
@@ -3544,8 +3589,19 @@ function renderSourceNavigator() {
     const label = expanded ? 'Close source bookmarks' : 'Open source bookmarks';
     els.sourceNavigatorToggleBtn.setAttribute('aria-label', label);
   }
-  if (els.sourceNavigatorPanel) els.sourceNavigatorPanel.hidden = !expanded;
+  if (els.sourceNavigatorPanel) {
+    els.sourceNavigatorPanel.hidden = !expanded;
+    if (expanded) positionSourceNavigatorPanel();
+  }
   if (els.removeSourceBookmarkBtn) els.removeSourceBookmarkBtn.disabled = !selected;
+  if (els.moveSourceBookmarkUpBtn) {
+    els.moveSourceBookmarkUpBtn.disabled = selectedIndex <= 0 || Boolean(state.sourceBookmarkRenameId);
+  }
+  if (els.moveSourceBookmarkDownBtn) {
+    els.moveSourceBookmarkDownBtn.disabled = selectedIndex < 0
+      || selectedIndex >= state.sourceBookmarks.length - 1
+      || Boolean(state.sourceBookmarkRenameId);
+  }
   if (els.renameSourceBookmarkBtn) els.renameSourceBookmarkBtn.disabled = !selected;
   if (els.insertSourceBookmarkBtn) els.insertSourceBookmarkBtn.disabled = !selected || !state.iframeLoaded;
   if (els.addSourceBookmarkBtn) els.addSourceBookmarkBtn.disabled = !state.docId || state.sourceBookmarks.length >= MAX_SOURCE_BOOKMARKS;
@@ -3657,6 +3713,29 @@ function removeSelectedSourceBookmark() {
   saveSourceBookmarks();
   renderSourceNavigator();
   setStatus('Bookmark deleted.');
+}
+
+function moveSourceBookmark(bookmarks, bookmarkId, offset) {
+  if (!Array.isArray(bookmarks) || !bookmarkId || !Number.isInteger(offset) || Math.abs(offset) !== 1) return bookmarks;
+  const currentIndex = bookmarks.findIndex((bookmark) => bookmark?.id === bookmarkId);
+  const nextIndex = currentIndex + offset;
+  if (currentIndex < 0 || nextIndex < 0 || nextIndex >= bookmarks.length) return bookmarks;
+  const reordered = bookmarks.slice();
+  const [bookmark] = reordered.splice(currentIndex, 1);
+  reordered.splice(nextIndex, 0, bookmark);
+  return reordered;
+}
+
+function moveSelectedSourceBookmark(offset) {
+  const selected = selectedSourceBookmark();
+  if (!selected) return;
+  const reordered = moveSourceBookmark(state.sourceBookmarks, selected.id, offset);
+  if (reordered === state.sourceBookmarks) return;
+  state.sourceBookmarks = reordered;
+  state.sourceBookmarkRenameId = null;
+  saveSourceBookmarks();
+  renderSourceNavigator();
+  setStatus(offset < 0 ? 'Bookmark moved up.' : 'Bookmark moved down.');
 }
 
 function beginSelectedSourceBookmarkRename() {
@@ -4513,6 +4592,18 @@ async function createHighlightFromCurrentTarget(withNote = true) {
   getFrameDoc().getSelection()?.removeAllRanges();
   await reloadAnnotationsAndRender(annotation.id);
   setStatus(withNote ? 'Highlight created. Edit the side note directly.' : 'Highlight created without a side note.');
+}
+
+async function removeCurrentHighlightOnlyAnnotation() {
+  const annotationId = state.highlightOnlyRemovalAnnotationId;
+  const annotation = state.annotations.find((item) => item.id === annotationId);
+  if (!annotation || annotationHasSideNote(annotation)) {
+    hideSelectionHighlightToolbar();
+    setStatus('Highlight is no longer available.', true);
+    return;
+  }
+  hideSelectionHighlightToolbar();
+  await deleteAnnotation(annotationId);
 }
 
 async function createBlockSideNote(target) {
@@ -9276,12 +9367,13 @@ function editAnnotationInline(annotationId, scrollIntoView = false) {
 function requestDeleteAnnotation(annotationId, anchorElement) {
   const annotation = state.annotations.find((item) => item.id === annotationId);
   if (!annotation || !anchorElement) return;
+  const hasSideNote = annotationHasSideNote(annotation);
   closeDeleteConfirmPopovers();
   const doc = anchorElement.ownerDocument;
   const popover = doc.createElement('div');
   popover.className = 'reader-delete-confirm-popover';
   popover.setAttribute('role', 'dialog');
-  popover.setAttribute('aria-label', 'Delete note');
+  popover.setAttribute('aria-label', hasSideNote ? 'Delete note' : 'Delete highlight');
 
   const message = doc.createElement('p');
   message.textContent = `Delete "${readableSnippet(annotationTitle(annotation), 72)}"?`;
@@ -9295,7 +9387,7 @@ function requestDeleteAnnotation(annotationId, anchorElement) {
   confirmButton.type = 'button';
   confirmButton.className = 'danger';
   confirmButton.textContent = 'Delete';
-  confirmButton.title = 'Delete note';
+  confirmButton.title = hasSideNote ? 'Delete note' : 'Delete highlight';
   actions.append(cancel, confirmButton);
   popover.append(message, actions);
   doc.body.append(popover);
@@ -9414,6 +9506,7 @@ function closeDeleteConfirmPopovers() {
 async function deleteAnnotation(annotationId) {
   let annotation = state.annotations.find((item) => item.id === annotationId);
   if (!annotation) return;
+  const hasSideNote = annotationHasSideNote(annotation);
   await flushPendingAnnotationBlockSave(annotationId);
   annotation = state.annotations.find((item) => item.id === annotationId) || annotation;
   const before = cloneAnnotation(annotation);
@@ -9434,8 +9527,8 @@ async function deleteAnnotation(annotationId) {
     state.focusModeAnchorViewportTop = null;
   }
   await reloadAnnotationsAndRender();
-  recordAnnotationHistory('note deletion', before, null, null);
-  setStatus('Annotation deleted.');
+  recordAnnotationHistory(hasSideNote ? 'note deletion' : 'highlight removal', before, null, null);
+  setStatus(hasSideNote ? 'Annotation deleted.' : 'Highlight removed.');
 }
 
 function togglePinnedNote(annotationId) {

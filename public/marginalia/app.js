@@ -766,7 +766,7 @@ function libraryTreeFolderMarkup(folder, depth, childrenByParent, entriesByFolde
   `;
 }
 
-function libraryTreeBundleMarkup({ doc, entry, stats, folderPath }, depth) {
+function libraryTreeBundleMarkup({ doc, entry, stats, folderPath }, depth, folders = []) {
   if (!entry) return '';
   const entryTitle = entry.title || doc.title || doc.id;
   const sourceTitle = doc.sourcePath || (doc.sourceType === 'pdf' ? 'source.pdf' : 'source.html');
@@ -825,18 +825,16 @@ function libraryFolderPopoverMarkup({ folder, title, folders = libraryRenderMode
 function libraryItemPopoverMarkup({ kind, id, title, moveOptions, doc = null, sourceTitle = '' }) {
   const isBundle = kind === 'bundle';
   const itemLabel = isBundle ? 'Bundle' : 'Folder';
-  const renameData = isBundle
-    ? `data-library-bundle-title="${escapeAttr(id)}"`
-    : `data-library-folder-title="${escapeAttr(id)}"`;
+  const orderState = libraryItemOrderState(kind, id);
   const deleteAction = isBundle
     ? `<button class="library-entry-delete" type="button" data-delete-library-bundle="${escapeAttr(id)}" data-entry-label="${escapeAttr(title)}">Delete</button>`
     : `<button class="library-entry-delete" type="button" data-delete-library-folder="${escapeAttr(id)}" data-folder-label="${escapeAttr(title)}">Delete</button>`;
   return `
     <div id="${libraryItemPopoverId(kind, id)}" class="library-item-popover" role="dialog" aria-label="${itemLabel} actions">
-      <label class="library-popover-field">
+      ${isBundle ? `<label class="library-popover-field">
         <span class="library-field-label">${itemLabel}</span>
-        <input type="text" value="${escapeAttr(title)}" data-original-title="${escapeAttr(title)}" ${renameData} aria-label="${itemLabel} name">
-      </label>
+        <input type="text" value="${escapeAttr(title)}" data-original-title="${escapeAttr(title)}" data-library-bundle-title="${escapeAttr(id)}" aria-label="${itemLabel} name">
+      </label>` : ''}
       ${isBundle ? `<p class="library-popover-source" title="${escapeAttr(sourceTitle)}">${escapeHtml(sourceTitle)}</p>` : ''}
       <div class="library-popover-organize">
         <form class="library-popover-move" data-move-library-item="${kind}" data-library-item-id="${escapeAttr(id)}">
@@ -846,8 +844,8 @@ function libraryItemPopoverMarkup({ kind, id, title, moveOptions, doc = null, so
         <div class="library-popover-order-row">
           <span class="library-field-label">Order</span>
           <div class="library-order-actions" aria-label="${itemLabel} order">
-            <button type="button" data-library-move-direction="up" data-library-item-kind="${kind}" data-library-item-id="${escapeAttr(id)}">Move up</button>
-            <button type="button" data-library-move-direction="down" data-library-item-kind="${kind}" data-library-item-id="${escapeAttr(id)}">Move down</button>
+            <button type="button" data-library-move-direction="up" data-library-item-kind="${kind}" data-library-item-id="${escapeAttr(id)}" ${orderState.canMoveUp ? '' : 'disabled title="Already first in this location"'}>Move up</button>
+            <button type="button" data-library-move-direction="down" data-library-item-kind="${kind}" data-library-item-id="${escapeAttr(id)}" ${orderState.canMoveDown ? '' : 'disabled title="Already last in this location"'}>Move down</button>
           </div>
         </div>
       </div>
@@ -860,6 +858,24 @@ function libraryItemPopoverMarkup({ kind, id, title, moveOptions, doc = null, so
       </div>
     </div>
   `;
+}
+
+function libraryItemOrderState(kind, id) {
+  const parentKey = kind === 'folder' ? 'parentId' : 'folderId';
+  const items = kind === 'folder'
+    ? libraryRenderModel?.folders || []
+    : (libraryRenderModel?.displayRows || []).map((row) => row.entry).filter(Boolean);
+  const current = items.find((item) => item.id === id);
+  if (!current) return { canMoveUp: false, canMoveDown: false };
+  const parentId = current[parentKey] || null;
+  const siblings = items
+    .filter((item) => (item[parentKey] || null) === parentId)
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0) || String(a.id).localeCompare(String(b.id)));
+  const index = siblings.findIndex((item) => item.id === id);
+  return {
+    canMoveUp: index > 0,
+    canMoveDown: index >= 0 && index < siblings.length - 1
+  };
 }
 
 function libraryItemPopoverId(kind, id) {

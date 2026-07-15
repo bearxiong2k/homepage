@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Reader - Marginalia</title>
-  <link rel="manifest" href="manifest.webmanifest?v=20260715-040936">
+  <link rel="manifest" href="manifest.webmanifest?v=20260715-173102">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -96,6 +96,8 @@
       <strong>Bookmarks</strong>
       <button id="addSourceBookmarkBtn" type="button" title="Add bookmark" aria-label="Add bookmark">+</button>
       <button id="removeSourceBookmarkBtn" type="button" title="Delete selected bookmark" aria-label="Delete selected bookmark" disabled>−</button>
+      <button id="moveSourceBookmarkUpBtn" class="source-bookmark-order-button" type="button" title="Move selected bookmark up" aria-label="Move selected bookmark up" disabled>↑</button>
+      <button id="moveSourceBookmarkDownBtn" class="source-bookmark-order-button" type="button" title="Move selected bookmark down" aria-label="Move selected bookmark down" disabled>↓</button>
       <button id="renameSourceBookmarkBtn" type="button" disabled>Rename</button>
       <button id="insertSourceBookmarkBtn" type="button" title="Bind selected bookmark to the current reading position" disabled>Insert</button>
     </div>
@@ -106,6 +108,7 @@
   <div id="selectionHighlightToolbar" class="selection-highlight-toolbar" role="toolbar" aria-label="Create annotation from selection" hidden>
     <button id="highlightOnlySelectionBtn" class="selection-highlight-btn" type="button" title="Highlight only" aria-label="Highlight only">H</button>
     <button id="highlightWithNoteSelectionBtn" class="selection-highlight-btn selection-highlight-btn-with-note" type="button" title="Highlight with side note" aria-label="Highlight with side note">H&amp;N</button>
+    <button id="removeHighlightOnlyBtn" class="selection-highlight-btn selection-highlight-btn-remove" type="button" title="Remove highlight" aria-label="Remove highlight" hidden>R</button>
   </div>
   <section id="saveToast" class="save-toast-shell" aria-live="polite" aria-atomic="true" hidden>
     <div class="app-dialog save-toast-card" role="status">
