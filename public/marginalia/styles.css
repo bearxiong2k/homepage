@@ -2210,10 +2210,11 @@ button.library-finder-row {
 
 .library-finder-name-button {
   min-width: 0;
-  width: 100%;
+  width: fit-content;
+  max-width: 100%;
   border: 0;
-  border-radius: 4px;
-  padding: 0.12rem 0.18rem;
+  border-radius: 0;
+  padding: 0;
   background: transparent;
   color: inherit;
   font-weight: 750;
@@ -2224,7 +2225,13 @@ button.library-finder-row {
 
 .library-finder-name-button:hover,
 .library-finder-name-button:focus-visible {
-  background: rgba(122, 61, 0, 0.08);
+  background: transparent;
+  color: var(--accent);
+}
+
+.library-finder-name-button:focus-visible {
+  text-decoration: underline 2px var(--accent);
+  text-underline-offset: 3px;
   outline: none;
 }
 

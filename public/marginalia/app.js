@@ -94,11 +94,13 @@ async function init() {
     if (event.target?.matches?.('[data-library-bundle-title]')) {
       renameLibraryBundleFromInput(event.target).catch(showError);
     }
-    if (event.target?.matches?.('[data-library-folder-title]')) {
-      renameLibraryFolderFromInput(event.target).catch(showError);
-    }
     if (event.target?.matches?.('[data-source-title]')) {
       renameSourceFromInput(event.target).catch(showError);
+    }
+  });
+  documentsEl?.addEventListener('focusout', (event) => {
+    if (event.target?.matches?.('[data-library-folder-title]')) {
+      renameLibraryFolderFromInput(event.target).catch(showError);
     }
   });
   documentsEl?.addEventListener('submit', (event) => {
@@ -828,16 +830,19 @@ function libraryFolderPopoverMarkup({ folder, title, folders = libraryRenderMode
 function libraryItemPopoverMarkup({ kind, id, title, moveOptions, doc = null, sourceTitle = '' }) {
   const isBundle = kind === 'bundle';
   const itemLabel = isBundle ? 'Bundle' : 'Folder';
+  const renameData = isBundle
+    ? `data-library-bundle-title="${escapeAttr(id)}"`
+    : `data-library-folder-title="${escapeAttr(id)}"`;
   const orderState = libraryItemOrderState(kind, id);
   const deleteAction = isBundle
     ? `<button class="library-entry-delete" type="button" data-delete-library-bundle="${escapeAttr(id)}" data-entry-label="${escapeAttr(title)}">Delete</button>`
     : `<button class="library-entry-delete" type="button" data-delete-library-folder="${escapeAttr(id)}" data-folder-label="${escapeAttr(title)}">Delete</button>`;
   return `
     <div id="${libraryItemPopoverId(kind, id)}" class="library-item-popover" role="dialog" aria-label="${itemLabel} actions">
-      ${isBundle ? `<label class="library-popover-field">
+      <label class="library-popover-field">
         <span class="library-field-label">${itemLabel}</span>
-        <input type="text" value="${escapeAttr(title)}" data-original-title="${escapeAttr(title)}" data-library-bundle-title="${escapeAttr(id)}" aria-label="${itemLabel} name">
-      </label>` : ''}
+        <input type="text" value="${escapeAttr(title)}" data-original-title="${escapeAttr(title)}" ${renameData} aria-label="${itemLabel} name">
+      </label>
       ${isBundle ? `<p class="library-popover-source" title="${escapeAttr(sourceTitle)}">${escapeHtml(sourceTitle)}</p>` : ''}
       <div class="library-popover-organize">
         <form class="library-popover-move" data-move-library-item="${kind}" data-library-item-id="${escapeAttr(id)}">
