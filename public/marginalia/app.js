@@ -566,7 +566,9 @@ function libraryViewMarkup(model) {
     ${!model.rows.length ? '<p class="small">This local library has no bundles yet. Import a source or bundle, then save again to update the same library folder.</p>' : ''}
     ${viewMode === 'tree'
       ? libraryTreeMarkup(model.displayRows, model.folders)
-      : libraryListMarkup(model.listRows)}
+      : model.library
+        ? libraryListMarkup(model.listRows, model.folders)
+        : standaloneDocumentListMarkup(model.listRows)}
   `;
 }
 
@@ -638,7 +640,16 @@ function libraryViewToolbarMarkup(activeViewMode, folders, sourceCount) {
   `;
 }
 
-function libraryListMarkup(rows) {
+function libraryListMarkup(rows, folders) {
+  if (!rows.length) return '';
+  return `
+    <div class="library-tree library-finder library-flat-list" role="list" aria-label="Library bundles">
+      ${rows.map((row) => libraryTreeBundleMarkup(row, -1, folders)).join('')}
+    </div>
+  `;
+}
+
+function standaloneDocumentListMarkup(rows) {
   if (!rows.length) return '';
   return rows.map((row) => libraryListRowMarkup(row)).join('');
 }
@@ -713,7 +724,7 @@ function libraryTreeChildrenMarkup(parentId, depth, childrenByParent, entriesByF
   const entryMarkup = (entriesByFolder.get(parentId) || [])
     .map((row) => libraryTreeBundleMarkup(row, depth, folders))
     .join('');
-  return `${folderMarkup}${entryMarkup}`;
+  return `${entryMarkup}${folderMarkup}`;
 }
 
 function libraryTreeFolderMarkup(folder, depth, childrenByParent, entriesByFolder, folders) {
