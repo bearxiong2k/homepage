@@ -2147,7 +2147,7 @@ button.library-finder-row {
   transition: transform 120ms ease;
 }
 
-.library-finder-folder.is-collapsed > .library-finder-row .library-folder-disclosure span {
+.library-folder-disclosure[aria-expanded="false"] span {
   transform: rotate(0deg);
 }
 
