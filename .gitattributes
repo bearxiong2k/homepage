@@ -1,0 +1,3 @@
+# Preserve the synced upstream bundle byte-for-byte; its template literals contain
+# spaces that Git would otherwise report as trailing-whitespace errors.
+public/marginalia/vendor/mermaid/mermaid.min.js -whitespace

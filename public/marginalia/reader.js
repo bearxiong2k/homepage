@@ -5788,6 +5788,11 @@ function injectReaderStyles(doc) {
     .reader-side-note-image-tools input { min-width: 0; border: 1px solid #d8c7a8; border-radius: 4px; padding: .18rem .3rem; background: #fffdf8; color: #151515; }
     .note-markdown-math-display { display: block; max-width: 100%; overflow-x: auto; overflow-y: hidden; }
     .note-markdown-math-error { display: inline-block; max-width: 100%; color: #9b2f23; overflow-wrap: anywhere; }
+    .note-markdown-mermaid { box-sizing: border-box; display: block; max-width: 100%; margin: .55rem 0; padding: .45rem; overflow: auto; border: 1px solid rgba(216,199,168,.72); border-radius: 5px; background: rgba(255,253,248,.78); }
+    .note-markdown-mermaid svg { display: block; max-width: none !important; height: auto; margin-inline: auto; }
+    .note-markdown-mermaid-status { color: #7b6a55; font: 12px/1.35 ui-sans-serif, system-ui, sans-serif; }
+    .note-markdown-mermaid-error { border-color: rgba(155,47,35,.35); }
+    .note-markdown-mermaid-error pre { margin-bottom: 0; }
     .note-markdown pre { max-width: 100%; overflow: auto; padding: .45rem; border-radius: 4px; background: rgba(52,38,18,.06); }
     .note-markdown code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88em; overflow-wrap: anywhere; }
     .note-markdown a { color: #7a3d00; text-decoration-thickness: .08em; text-underline-offset: .14em; }

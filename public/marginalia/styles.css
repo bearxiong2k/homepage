@@ -1181,6 +1181,38 @@ body.has-pinned-note .notes-tab-arrow {
   overflow-wrap: anywhere;
 }
 
+.note-markdown-mermaid {
+  box-sizing: border-box;
+  display: block;
+  max-width: 100%;
+  margin: 0.55rem 0;
+  padding: 0.45rem;
+  overflow: auto;
+  border: 1px solid rgba(216, 199, 168, 0.72);
+  border-radius: 5px;
+  background: rgba(255, 253, 248, 0.78);
+}
+
+.note-markdown-mermaid svg {
+  display: block;
+  max-width: none !important;
+  height: auto;
+  margin-inline: auto;
+}
+
+.note-markdown-mermaid-status {
+  color: #7b6a55;
+  font: 12px/1.35 ui-sans-serif, system-ui, sans-serif;
+}
+
+.note-markdown-mermaid-error {
+  border-color: rgba(155, 47, 35, 0.35);
+}
+
+.note-markdown-mermaid-error pre {
+  margin-bottom: 0;
+}
+
 .note-markdown pre {
   max-width: 100%;
   overflow: auto;

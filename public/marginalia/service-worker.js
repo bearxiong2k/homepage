@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'marginalia-static-';
-const APP_VERSION = '20260719-154113';
+const APP_VERSION = '20260719-155547';
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 const PDFJS_CMAP_ASSETS = [
   '78-EUC-H.bcmap',
@@ -253,6 +253,7 @@ const DEFERRED_ASSETS = [
   './reader-session-channel.js',
   './note-markdown.js',
   './note-math.js',
+  './note-mermaid.js',
   './pdf-viewer.js',
   './pdf-targets.js',
   './scroll-position.js',
@@ -271,6 +272,7 @@ const DEFERRED_ASSETS = [
   './vendor/katex/katex.min.js',
   ...KATEX_FONT_ASSETS.map((name) => `./vendor/katex/fonts/${name}`),
   './vendor/markdown-it/markdown-it.min.js',
+  './vendor/mermaid/mermaid.min.js',
   './vendor/pdfjs/pdf.mjs',
   './vendor/pdfjs/pdf.worker.mjs',
   './vendor/pdfjs/wasm/jbig2.wasm',

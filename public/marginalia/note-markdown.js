@@ -1,6 +1,7 @@
 import { installNoteMath } from './note-math.js';
+import { noteMermaidPlaceholder, renderNoteMermaidDiagrams } from './note-mermaid.js';
 
-export const NOTE_MARKDOWN_RENDERER_VERSION = '1:markdown-it-14.3.0:katex-0.17.0';
+export const NOTE_MARKDOWN_RENDERER_VERSION = '2:markdown-it-14.3.0:katex-0.17.0:mermaid-11.16.0';
 
 const DEFAULT_CACHE_SIZE = 128;
 const MARKDOWN_IT_SCRIPT_URL = new URL('./vendor/markdown-it/markdown-it.min.js', import.meta.url).href;
@@ -45,6 +46,7 @@ export function createNoteMarkdownRenderer({ markdownIt, katex, cacheSize = DEFA
   md.disable('table');
   md.validateLink = isSafeNoteLink;
   installRestrictedRenderRules(md);
+  installNoteMermaidFence(md);
   installNoteMath(md, { katex });
 
   const cache = new Map();
@@ -64,7 +66,8 @@ export function createNoteMarkdownRenderer({ markdownIt, katex, cacheSize = DEFA
     const entry = {
       tokens,
       hasRenderableSyntax: tokensHaveRenderableSyntax(tokens),
-      html: null
+      html: null,
+      mermaidDiagrams: null
     };
     if (capacity > 0) {
       cache.set(key, entry);
@@ -81,10 +84,15 @@ export function createNoteMarkdownRenderer({ markdownIt, katex, cacheSize = DEFA
     },
     render(source) {
       const entry = parse(source);
-      if (entry.html === null) entry.html = md.renderer.render(entry.tokens, md.options, {});
+      if (entry.html === null) {
+        const env = { mermaidDiagrams: [] };
+        entry.html = md.renderer.render(entry.tokens, md.options, env);
+        entry.mermaidDiagrams = env.mermaidDiagrams;
+      }
       return {
         html: entry.html,
-        hasRenderableSyntax: entry.hasRenderableSyntax
+        hasRenderableSyntax: entry.hasRenderableSyntax,
+        mermaidDiagrams: [...entry.mermaidDiagrams]
       };
     },
     clearCache() {
@@ -126,7 +134,7 @@ export async function analyzeNoteMarkdown(source, options) {
 
 export async function renderNoteMarkdown(source, options) {
   const renderer = await loadNoteMarkdownRenderer(options);
-  return renderer.render(source);
+  return renderNoteMermaidDiagrams(renderer.render(source), options);
 }
 
 export function ensureNoteMarkdownStyles(targetDocument = globalThis.document) {
@@ -168,6 +176,19 @@ function installRestrictedRenderRules(md) {
     const alt = String(token.content || token.attrGet('alt') || '');
     const source = String(token.attrGet('src') || '');
     return md.utils.escapeHtml(`![${alt}](${source})`);
+  };
+}
+
+function installNoteMermaidFence(md) {
+  const defaultFence = md.renderer.rules.fence;
+  md.renderer.rules.fence = (tokens, index, options, env, renderer) => {
+    const token = tokens[index];
+    const language = String(token.info || '').trim().split(/\s+/, 1)[0].toLowerCase();
+    if (language !== 'mermaid') return defaultFence(tokens, index, options, env, renderer);
+    const diagrams = Array.isArray(env.mermaidDiagrams) ? env.mermaidDiagrams : (env.mermaidDiagrams = []);
+    const diagramIndex = diagrams.length;
+    diagrams.push(String(token.content || ''));
+    return noteMermaidPlaceholder(diagramIndex);
   };
 }
 
