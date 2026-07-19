@@ -807,7 +807,7 @@ export class IndexedDbStorageAdapter {
 
   async exportDocumentBundleFolderFiles(docId) {
     const startedAt = storagePerformance.now();
-    const files = createBundleFolderFiles(await this.exportDocumentBundleData(docId));
+    const files = await createBundleFolderFiles(await this.exportDocumentBundleData(docId));
     storagePerformance.measure('save-bundle-folder', startedAt, { files: files.length });
     return files;
   }
@@ -974,7 +974,7 @@ export class IndexedDbStorageAdapter {
   async exportCurrentLibraryFolderFiles() {
     const startedAt = storagePerformance.now();
     const library = await this.exportCurrentLibraryData();
-    const files = createLibraryFolderFiles(library);
+    const files = await createLibraryFolderFiles(library);
     storagePerformance.measure('save-library-folder', startedAt, {
       entries: library.entries.length,
       files: files.length

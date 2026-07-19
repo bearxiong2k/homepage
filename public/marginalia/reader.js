@@ -991,7 +991,7 @@ async function saveBundleWithLocalAccess(filename, documentRecord = null) {
     try {
       if (existingHandle.kind === 'directory') {
         const files = await storage.exportDocumentBundleFolderFiles(state.docId);
-        await writeFilesToDirectoryHandle(existingHandle, files);
+        await writeFilesToDirectoryHandle(existingHandle, files, { trustedExistingPackage: true });
         return { name: existingHandle.name || folderName, handle: existingHandle, folder: true };
       }
       const bytes = await storage.exportDocumentBundle(state.docId);
@@ -1108,7 +1108,7 @@ async function saveLibraryWithLocalAccess(filename, library = null, retryPrefix 
     try {
       if (existingHandle.kind === 'directory') {
         const files = await storage.exportCurrentLibraryFolderFiles();
-        await writeFilesToDirectoryHandle(existingHandle, files);
+        await writeFilesToDirectoryHandle(existingHandle, files, { trustedExistingPackage: true });
         return { name: existingHandle.name || folderName, handle: existingHandle, folder: true };
       }
       const bytes = await storage.exportCurrentLibraryPackage();

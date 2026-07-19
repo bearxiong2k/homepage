@@ -29,11 +29,11 @@ export function libraryFolderNameForTitle(value) {
   return `${safeName(value || 'annotator-library')}${LIBRARY_FOLDER_SUFFIX}`;
 }
 
-export function createBundleFolderFiles(bundleData) {
+export async function createBundleFolderFiles(bundleData) {
   return withPackageLock(bundleFiles(bundleData), 'bundle');
 }
 
-export function createLibraryFolderFiles(libraryData = {}) {
+export async function createLibraryFolderFiles(libraryData = {}) {
   const now = new Date().toISOString();
   const folders = normalizeLibraryFolders(libraryData.folders || []);
   const folderIds = new Set(folders.map((folder) => folder.id));
@@ -70,7 +70,7 @@ export function createLibraryFolderFiles(libraryData = {}) {
     if (folderId) manifestEntry.folderId = folderId;
     if (entry.lastOpenedAt) manifestEntry.lastOpenedAt = String(entry.lastOpenedAt);
     entries.push(manifestEntry);
-    for (const file of createBundleFolderFiles(entry.bundle)) {
+    for (const file of await createBundleFolderFiles(entry.bundle)) {
       files.push({
         ...file,
         path: `${filename}/${file.path}`
@@ -386,6 +386,13 @@ function validatePackageLock(files, packageKind, manifest) {
   if (!managedPaths.includes(markerPath)) {
     throw new Error('Package folder lock does not manage its package marker.');
   }
+  if (lock.fileSignatures !== undefined) {
+    const signatures = normalizeFileSignatures(lock.fileSignatures);
+    if (signatures.length !== managedPaths.length
+      || signatures.some((signature, index) => signature.path !== managedPaths[index])) {
+      throw new Error('Package folder lock signature inventory does not match its managed paths.');
+    }
+  }
 }
 
 function normalizeManagedPaths(paths) {
@@ -410,10 +417,18 @@ function packageIdFromManifest(manifest, packageKind) {
   return String(value);
 }
 
-function withPackageLock(files, packageKind) {
+async function withPackageLock(files, packageKind) {
   const cleanFiles = normalizeFolderFiles(files.filter((file) => file.path !== PACKAGE_LOCK_PATH));
   const markerPath = packageKind === 'library' ? 'library.json' : 'manifest.json';
   const manifest = readJsonFile(cleanFiles, markerPath);
+  const fileSignatures = [];
+  for (const file of cleanFiles) {
+    fileSignatures.push({
+      path: file.path,
+      size: file.data.length,
+      sha256: await sha256Hex(file.data)
+    });
+  }
   return [
     textFile(PACKAGE_LOCK_PATH, JSON.stringify({
       format: PACKAGE_LOCK_FORMAT,
@@ -422,11 +437,42 @@ function withPackageLock(files, packageKind) {
       packageFormat: packageKind === 'library' ? 'annotator-library' : 'annotator-bundle',
       packageId: packageIdFromManifest(manifest, packageKind),
       managedPaths: cleanFiles.map((file) => file.path),
+      fileSignatures,
       createdBy: 'Marginalia',
       updatedAt: new Date().toISOString()
     }, null, 2) + '\n'),
     ...cleanFiles
   ];
+}
+
+function normalizeFileSignatures(signatures) {
+  if (!Array.isArray(signatures)) throw new Error('Package folder lock file signatures must be an array.');
+  const seen = new Set();
+  return signatures.map((signature) => {
+    const path = normalizePackagePath(signature?.path);
+    const size = Number(signature?.size);
+    const sha256 = String(signature?.sha256 || '').toLowerCase();
+    if (!path || path !== signature?.path || !Number.isSafeInteger(size) || size < 0 || !/^[a-f0-9]{64}$/.test(sha256)) {
+      throw new Error('Package folder lock contains an invalid file signature.');
+    }
+    const key = path.normalize('NFC');
+    if (seen.has(key)) throw new Error(`Package folder lock contains duplicate file signature: ${path}.`);
+    seen.add(key);
+    return { path, size, sha256 };
+  }).sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+}
+
+const DATA_SIGNATURES = new WeakMap();
+
+async function sha256Hex(bytes) {
+  let pending = DATA_SIGNATURES.get(bytes);
+  if (!pending) {
+    pending = crypto.subtle.digest('SHA-256', bytes).then((digest) => (
+      [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('')
+    ));
+    DATA_SIGNATURES.set(bytes, pending);
+  }
+  return pending;
 }
 
 function textFile(path, text) {

@@ -23,7 +23,8 @@ const PACKAGE_LOCK_VERSION = 2;
 const LEGACY_PACKAGE_LOCK_VERSION = 1;
 const PACKAGE_TRANSACTION_PATH = '.marginalia-package-transaction.json';
 const PACKAGE_TRANSACTION_FORMAT = 'marginalia-package-transaction';
-const PACKAGE_TRANSACTION_VERSION = 1;
+const PACKAGE_TRANSACTION_VERSION = 2;
+const LEGACY_PACKAGE_TRANSACTION_VERSION = 1;
 const PACKAGE_STAGE_PREFIX = '.marginalia-package-stage-';
 const PACKAGE_STAGE_MARKER_PATH = '.marginalia-package-stage.json';
 const MAX_DIRECTORY_FILES = 4096;
@@ -121,7 +122,7 @@ async function readValidatedPackageDirectory(directoryHandle, expectedKind = nul
   };
 }
 
-export async function writeFilesToDirectoryHandle(directoryHandle, files) {
+export async function writeFilesToDirectoryHandle(directoryHandle, files, options = {}) {
   const startedAt = fileAccessPerformance.now();
   if (!directoryHandle) throw new Error('No package folder is available.');
   if (!(await ensureFileHandlePermission(directoryHandle, 'readwrite'))) {
@@ -136,8 +137,21 @@ export async function writeFilesToDirectoryHandle(directoryHandle, files) {
   const packageKind = incomingLock.packageKind;
   await validatePackageFiles(incomingFiles, packageKind);
   assertIncomingManagedPaths(incomingFiles, incomingLock);
-  const existing = await inspectWritablePackageDirectory(directoryHandle, packageKind);
+  const existing = await inspectWritablePackageDirectory(
+    directoryHandle,
+    packageKind,
+    false,
+    { trustedExistingPackage: Boolean(options.trustedExistingPackage) }
+  );
   const oldManagedPaths = existing?.managedPaths || [];
+  const incomingSignatures = fileSignaturesFromLock(incomingLock);
+  const existingSignatures = existing?.fileSignatures || new Map();
+  const markerPath = packageKind === 'library' ? 'library.json' : 'manifest.json';
+  const changedFiles = incomingFiles.filter((file) => (
+    file.path === markerPath
+    || file.path === PACKAGE_LOCK_PATH
+    || !sameFileSignature(incomingSignatures.get(file.path), existingSignatures.get(file.path))
+  ));
   const transactionId = createTransactionId();
   const stageName = `${PACKAGE_STAGE_PREFIX}${transactionId}`;
   let stageHandle = null;
@@ -148,7 +162,7 @@ export async function writeFilesToDirectoryHandle(directoryHandle, files) {
       formatVersion: 1,
       transactionId
     });
-    for (const file of incomingFiles) {
+    for (const file of changedFiles) {
       await writeFileToDirectoryHandle(stageHandle, file.path, file.data);
     }
   } catch (error) {
@@ -164,6 +178,7 @@ export async function writeFilesToDirectoryHandle(directoryHandle, files) {
     oldManagedPaths,
     oldSourcePath: existing?.sourcePath || null,
     newManagedPaths: incomingFiles.map((file) => file.path),
+    stagedPaths: changedFiles.map((file) => file.path),
     createdAt: new Date().toISOString()
   };
   try {
@@ -173,13 +188,15 @@ export async function writeFilesToDirectoryHandle(directoryHandle, files) {
     throw error;
   }
   try {
-    await commitStagedPackage(directoryHandle, transaction, incomingFiles);
+    await commitStagedPackage(directoryHandle, transaction, changedFiles);
   } catch (error) {
     throw new Error('Package folder save was interrupted; the complete staged package will be recovered on the next open or save.', { cause: error });
   }
   fileAccessPerformance.measure('save-folder', startedAt, {
     files: incomingFiles.length,
-    bytes: incomingFiles.reduce((total, file) => total + file.data.length, 0)
+    bytes: incomingFiles.reduce((total, file) => total + file.data.length, 0),
+    changedFiles: changedFiles.length,
+    changedBytes: changedFiles.reduce((total, file) => total + file.data.length, 0)
   });
 }
 
@@ -257,7 +274,7 @@ export async function queryFileHandlePermissionState(handle, mode = 'readwrite')
   }
 }
 
-async function inspectWritablePackageDirectory(directoryHandle, expectedKind, requireExisting = false) {
+async function inspectWritablePackageDirectory(directoryHandle, expectedKind, requireExisting = false, options = {}) {
   const names = await rootEntryNames(directoryHandle);
   if (names.every((name) => ignoredRootEntry(name))) return null;
   const detectedKind = await detectPackageKind(directoryHandle);
@@ -271,6 +288,13 @@ async function inspectWritablePackageDirectory(directoryHandle, expectedKind, re
   const lock = await readPackageLock(directoryHandle, true);
   if (lock?.packageKind && lock.packageKind !== expectedKind) {
     throw new Error(`Selected folder is locked as a ${lock.packageKind} package, not ${expectedKind}.`);
+  }
+  if (lock
+    && Number(lock.formatVersion) === PACKAGE_LOCK_VERSION
+    && Array.isArray(lock.fileSignatures)
+    && options.trustedExistingPackage) {
+    const trusted = await inspectTrustedPackageDirectory(directoryHandle, expectedKind, lock);
+    if (trusted) return trusted;
   }
   const files = lock && Number(lock.formatVersion) === PACKAGE_LOCK_VERSION
     ? await readCurrentPackageFiles(directoryHandle, expectedKind)
@@ -288,7 +312,38 @@ async function inspectWritablePackageDirectory(directoryHandle, expectedKind, re
     packageKind: expectedKind,
     files,
     sourcePath,
-    managedPaths: [...new Set([...provenPaths, ...inventoriedPaths, PACKAGE_LOCK_PATH])].sort()
+    managedPaths: [...new Set([...provenPaths, ...inventoriedPaths, PACKAGE_LOCK_PATH])].sort(),
+    fileSignatures: await createFileSignatures(files.filter((file) => file.path !== PACKAGE_LOCK_PATH))
+  };
+}
+
+async function inspectTrustedPackageDirectory(directoryHandle, packageKind, lock) {
+  const markerPath = packageKind === 'library' ? 'library.json' : 'manifest.json';
+  const lockFile = await (await getFileHandleAtPath(directoryHandle, PACKAGE_LOCK_PATH)).getFile();
+  const markerFile = await (await getFileHandleAtPath(directoryHandle, markerPath)).getFile();
+  const marker = parseJsonBytes(new Uint8Array(await markerFile.arrayBuffer()), markerPath);
+  const packageFormat = packageKind === 'library' ? 'annotator-library' : 'annotator-bundle';
+  const packageId = packageKind === 'library' ? marker?.id : marker?.document?.id;
+  if (marker?.format !== packageFormat || String(packageId || '') !== String(lock.packageId || '')) return null;
+  const signatures = fileSignaturesFromLock(lock);
+  for (const path of normalizeManagedPaths(lock.managedPaths)) {
+    let file = null;
+    try {
+      file = await (await getFileHandleAtPath(directoryHandle, path)).getFile();
+    } catch (error) {
+      if (isMissingHandleError(error)) return null;
+      throw error;
+    }
+    const signature = signatures.get(path);
+    if (!signature || Number(file.size) !== signature.size) return null;
+    if (Number(file.lastModified) > Number(lockFile.lastModified)) return null;
+  }
+  return {
+    packageKind,
+    files: null,
+    sourcePath: packageKind === 'bundle' ? normalizePackagePath(marker.document?.sourcePath) : null,
+    managedPaths: [...normalizeManagedPaths(lock.managedPaths), PACKAGE_LOCK_PATH].sort(),
+    fileSignatures: signatures
   };
 }
 
@@ -338,6 +393,14 @@ async function readPackageLock(directoryHandle, optional = false) {
       throw new Error('Selected folder package lock is incomplete.');
     }
     normalizeManagedPaths(lock.managedPaths);
+  }
+  if (lock.fileSignatures !== undefined) {
+    const managedPaths = normalizeManagedPaths(lock.managedPaths);
+    const signatures = normalizeFileSignatures(lock.fileSignatures);
+    if (signatures.length !== managedPaths.length
+      || signatures.some((signature, index) => signature.path !== managedPaths[index])) {
+      throw new Error('Selected folder package lock signature inventory does not match its managed paths.');
+    }
   }
   return lock;
 }
@@ -469,6 +532,48 @@ function normalizeManagedPaths(paths) {
   return normalized.sort();
 }
 
+function normalizeFileSignatures(signatures) {
+  if (!Array.isArray(signatures)) throw new Error('Package lock file signatures must be an array.');
+  const seen = new Set();
+  return signatures.map((signature) => {
+    const path = normalizePackagePath(signature?.path);
+    const size = Number(signature?.size);
+    const sha256 = String(signature?.sha256 || '').toLowerCase();
+    if (!path || path !== signature?.path || !Number.isSafeInteger(size) || size < 0 || !/^[a-f0-9]{64}$/.test(sha256)) {
+      throw new Error('Package lock contains an invalid file signature.');
+    }
+    const key = path.normalize('NFC');
+    if (seen.has(key)) throw new Error(`Package lock contains duplicate file signature: ${path}.`);
+    seen.add(key);
+    return { path, size, sha256 };
+  }).sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+}
+
+function fileSignaturesFromLock(lock) {
+  return new Map(normalizeFileSignatures(lock?.fileSignatures).map((signature) => [signature.path, signature]));
+}
+
+async function createFileSignatures(files) {
+  const signatures = [];
+  for (const file of files) {
+    signatures.push({
+      path: file.path,
+      size: file.data.length,
+      sha256: await sha256Hex(file.data)
+    });
+  }
+  return new Map(signatures.map((signature) => [signature.path, signature]));
+}
+
+function sameFileSignature(first, second) {
+  return Boolean(first && second && first.size === second.size && first.sha256 === second.sha256);
+}
+
+async function sha256Hex(bytes) {
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('');
+}
+
 function lockFromFiles(files) {
   const file = files.find((entry) => entry.path === PACKAGE_LOCK_PATH);
   if (!file) throw new Error(`Package files are missing ${PACKAGE_LOCK_PATH}.`);
@@ -486,6 +591,10 @@ function assertIncomingManagedPaths(files, lock) {
   if (actual.length !== expected.length || actual.some((path, index) => path !== expected[index])) {
     throw new Error('Package lock managed-path inventory does not match the files being written.');
   }
+  const signatures = normalizeFileSignatures(lock.fileSignatures);
+  if (signatures.length !== expected.length || signatures.some((signature, index) => signature.path !== expected[index])) {
+    throw new Error('Package lock signature inventory does not match the files being written.');
+  }
 }
 
 function isPackageOwnedPath(path, packageKind, sourcePath = null) {
@@ -502,7 +611,7 @@ function isPackageOwnedPath(path, packageKind, sourcePath = null) {
 
 async function readableFilesForPendingTransaction(directoryHandle, transaction) {
   if (await directoryExists(directoryHandle, transaction.stageName)) {
-    return readStageFiles(directoryHandle, transaction);
+    return readTransactionPackageFiles(directoryHandle, transaction);
   }
   return readCurrentPackageFiles(directoryHandle, transaction.packageKind);
 }
@@ -512,7 +621,8 @@ async function recoverPendingPackageTransaction(directoryHandle) {
   if (!transaction) return false;
   if (await directoryExists(directoryHandle, transaction.stageName)) {
     const stagedFiles = await readStageFiles(directoryHandle, transaction);
-    await validatePackageFiles(stagedFiles, transaction.packageKind);
+    const packageFiles = await readTransactionPackageFiles(directoryHandle, transaction, stagedFiles);
+    await validatePackageFiles(packageFiles, transaction.packageKind);
     await commitStagedPackage(directoryHandle, transaction, stagedFiles);
     return true;
   }
@@ -531,13 +641,15 @@ async function readPackageTransaction(directoryHandle, optional = false) {
     throw error;
   }
   const transaction = parseJsonBytes(bytes, 'Package transaction');
+  const version = Number(transaction?.formatVersion);
   if (transaction?.format !== PACKAGE_TRANSACTION_FORMAT
-    || Number(transaction.formatVersion) !== PACKAGE_TRANSACTION_VERSION
+    || ![LEGACY_PACKAGE_TRANSACTION_VERSION, PACKAGE_TRANSACTION_VERSION].includes(version)
     || !/^[a-zA-Z0-9_-]+$/.test(String(transaction.transactionId || ''))
     || transaction.stageName !== `${PACKAGE_STAGE_PREFIX}${transaction.transactionId}`
     || (transaction.packageKind !== 'bundle' && transaction.packageKind !== 'library')
     || !Array.isArray(transaction.oldManagedPaths)
-    || !Array.isArray(transaction.newManagedPaths)) {
+    || !Array.isArray(transaction.newManagedPaths)
+    || (version === PACKAGE_TRANSACTION_VERSION && !Array.isArray(transaction.stagedPaths))) {
     throw new Error('Package folder transaction marker is invalid.');
   }
   transaction.oldManagedPaths = transaction.oldManagedPaths
@@ -548,7 +660,45 @@ async function readPackageTransaction(directoryHandle, optional = false) {
     if (!normalized || normalized !== path) throw new Error('Package transaction contains an invalid new path.');
     return normalized;
   });
+  transaction.stagedPaths = (version === LEGACY_PACKAGE_TRANSACTION_VERSION
+    ? transaction.newManagedPaths
+    : transaction.stagedPaths).map((path) => {
+    const normalized = normalizePackagePath(path);
+    if (!normalized || normalized !== path || !transaction.newManagedPaths.includes(normalized)) {
+      throw new Error('Package transaction contains an invalid staged path.');
+    }
+    return normalized;
+  });
   return transaction;
+}
+
+async function readTransactionPackageFiles(directoryHandle, transaction, stagedFiles = null) {
+  const staged = stagedFiles || await readStageFiles(directoryHandle, transaction);
+  if (Number(transaction.formatVersion) === LEGACY_PACKAGE_TRANSACTION_VERSION) return staged;
+  const actualStagedPaths = staged.map((file) => file.path).sort();
+  const declaredStagedPaths = [...new Set(transaction.stagedPaths)].sort();
+  if (declaredStagedPaths.length !== transaction.stagedPaths.length
+    || actualStagedPaths.length !== declaredStagedPaths.length
+    || actualStagedPaths.some((path, index) => path !== declaredStagedPaths[index])) {
+    throw new Error('Package stage files do not match their transaction inventory.');
+  }
+  const stagedByPath = new Map(staged.map((file) => [file.path, file]));
+  const files = [];
+  const state = { count: 0, totalBytes: 0 };
+  for (const path of transaction.newManagedPaths) {
+    if (stagedByPath.has(path)) {
+      const file = stagedByPath.get(path);
+      state.count += 1;
+      state.totalBytes += file.data.length;
+      if (state.count > MAX_DIRECTORY_FILES || state.totalBytes > MAX_DIRECTORY_TOTAL_BYTES) {
+        throw new Error('Package transaction data exceeds the supported size limit.');
+      }
+      files.push(file);
+      continue;
+    }
+    await appendFileAtPath(directoryHandle, path, files, state);
+  }
+  return normalizePackageFiles(files);
 }
 
 async function readStageFiles(directoryHandle, transaction) {
@@ -570,12 +720,13 @@ async function readStageFiles(directoryHandle, transaction) {
 async function commitStagedPackage(directoryHandle, transaction, incomingFiles) {
   const markerPath = transaction.packageKind === 'library' ? 'library.json' : 'manifest.json';
   const incomingByPath = new Map(incomingFiles.map((file) => [file.path, file]));
+  const newManagedPaths = new Set(transaction.newManagedPaths);
   for (const file of incomingFiles) {
     if (file.path === markerPath || file.path === PACKAGE_LOCK_PATH) continue;
     await writeFileToDirectoryHandle(directoryHandle, file.path, file.data);
   }
   for (const stalePath of transaction.oldManagedPaths) {
-    if (incomingByPath.has(stalePath) || stalePath === markerPath || stalePath === PACKAGE_LOCK_PATH) continue;
+    if (newManagedPaths.has(stalePath) || stalePath === markerPath || stalePath === PACKAGE_LOCK_PATH) continue;
     await removeFileAtPath(directoryHandle, stalePath);
   }
   const marker = incomingByPath.get(markerPath);
