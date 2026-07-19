@@ -1,4 +1,5 @@
 import {
+  bundleFiles,
   createStoredZip,
   readAnnotatorBundleFiles,
   readStoredZip
@@ -26,6 +27,70 @@ export function bundleFolderNameForDocument(documentMeta) {
 
 export function libraryFolderNameForTitle(value) {
   return `${safeName(value || 'annotator-library')}${LIBRARY_FOLDER_SUFFIX}`;
+}
+
+export function createBundleFolderFiles(bundleData) {
+  return withPackageLock(bundleFiles(bundleData), 'bundle');
+}
+
+export function createLibraryFolderFiles(libraryData = {}) {
+  const now = new Date().toISOString();
+  const folders = normalizeLibraryFolders(libraryData.folders || []);
+  const folderIds = new Set(folders.map((folder) => folder.id));
+  const folderPathById = libraryFolderPathMap(folders);
+  const preparedEntries = [];
+  const usedEntryIds = new Set();
+  for (const [index, entry] of (libraryData.entries || []).entries()) {
+    if (!entry?.bundle) continue;
+    const id = safeName(entry.id || entry.bundle.document?.id || `source-${index + 1}`);
+    if (usedEntryIds.has(id)) throw new Error(`Library contains duplicate entry id: ${id}.`);
+    usedEntryIds.add(id);
+    const title = entry.title || entry.bundle.document?.title || id;
+    const folderId = folderIds.has(entry.folderId) ? entry.folderId : null;
+    const folderPath = folderId ? folderPathById.get(folderId) : '';
+    const candidatePath = [
+      'bundles',
+      folderPath,
+      safeBundleFolderName(entry.filename || title || id)
+    ].filter(Boolean).join('/');
+    preparedEntries.push({ entry, index, id, title, folderId, candidatePath });
+  }
+  const allocatedPaths = allocateLibraryFolderBundlePaths(preparedEntries);
+  const entries = [];
+  const files = [];
+  for (const prepared of preparedEntries) {
+    const { entry, index, id, title, folderId } = prepared;
+    const filename = allocatedPaths.get(prepared);
+    const manifestEntry = {
+      id,
+      title,
+      filename,
+      order: Number.isFinite(Number(entry.order)) ? Number(entry.order) : index
+    };
+    if (folderId) manifestEntry.folderId = folderId;
+    if (entry.lastOpenedAt) manifestEntry.lastOpenedAt = String(entry.lastOpenedAt);
+    entries.push(manifestEntry);
+    for (const file of createBundleFolderFiles(entry.bundle)) {
+      files.push({
+        ...file,
+        path: `${filename}/${file.path}`
+      });
+    }
+  }
+  const requestedActiveId = libraryData.activeEntryId ? safeName(libraryData.activeEntryId) : null;
+  const manifest = {
+    format: 'annotator-library',
+    formatVersion: 1,
+    id: safeName(libraryData.id || libraryData.title || 'library'),
+    title: libraryData.title || 'Annotator library',
+    activeEntryId: entries.some((entry) => entry.id === requestedActiveId) ? requestedActiveId : entries[0]?.id || null,
+    createdAt: libraryData.createdAt || now,
+    updatedAt: now,
+    folders,
+    entries
+  };
+  files.unshift(textFile('library.json', JSON.stringify(manifest, null, 2) + '\n'));
+  return withPackageLock(files, 'library');
 }
 
 export async function bundleFolderFilesFromArchiveBytes(bytes) {
@@ -376,6 +441,35 @@ function safeBundleFolderName(value) {
     .replace(/\.annotator\.zip$/i, '')
     .replace(/\.annotator-bundle$/i, '');
   return `${safeName(basename)}${BUNDLE_FOLDER_SUFFIX}`;
+}
+
+function allocateLibraryFolderBundlePaths(preparedEntries) {
+  const candidateCounts = new Map();
+  for (const item of preparedEntries) {
+    const key = item.candidatePath.normalize('NFC');
+    candidateCounts.set(key, (candidateCounts.get(key) || 0) + 1);
+  }
+  const allocated = new Map();
+  const used = new Set();
+  const ordered = [...preparedEntries].sort((a, b) => a.candidatePath.localeCompare(b.candidatePath)
+    || a.id.localeCompare(b.id)
+    || a.index - b.index);
+  for (const item of ordered) {
+    const collides = candidateCounts.get(item.candidatePath.normalize('NFC')) > 1;
+    let path = collides ? bundleFolderPathWithSuffix(item.candidatePath, item.id) : item.candidatePath;
+    let suffix = 2;
+    while (used.has(path.normalize('NFC'))) {
+      path = bundleFolderPathWithSuffix(item.candidatePath, `${item.id}-${suffix}`);
+      suffix += 1;
+    }
+    used.add(path.normalize('NFC'));
+    allocated.set(item, path);
+  }
+  return allocated;
+}
+
+function bundleFolderPathWithSuffix(path, suffix) {
+  return path.replace(new RegExp(`${escapeRegExp(BUNDLE_FOLDER_SUFFIX)}$`), `--${safeName(suffix)}${BUNDLE_FOLDER_SUFFIX}`);
 }
 
 function libraryFolderEntryPath(entry, fallbackId) {

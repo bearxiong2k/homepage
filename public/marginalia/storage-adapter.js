@@ -8,6 +8,10 @@ import {
   isAnnotatorLibraryFilename,
   readAnnotatorLibraryArchive
 } from './library-package.js';
+import {
+  createBundleFolderFiles,
+  createLibraryFolderFiles
+} from './folder-package.js';
 import { encodeInkForStorage } from './ink-codec.js';
 import { marginaliaPerformanceTrace } from './performance-trace.js';
 import { normalizePdfViewState } from './pdf-zoom-lock.js';
@@ -761,18 +765,23 @@ export class IndexedDbStorageAdapter {
     return updated;
   }
 
-  async exportDocumentBundle(docId) {
+  async exportDocumentBundleData(docId, existingDocument = null) {
+    const startedAt = storagePerformance.now();
     const db = await openDb();
-    const document = normalizeStoredDocument(await readOne(db, 'documents', docId));
+    const [storedDocument, annotations, storedAssets, quickMarks, sourceBookmarks] = await Promise.all([
+      existingDocument || readOne(db, 'documents', docId),
+      this.getAnnotations(docId),
+      readIndexAll(db, 'documentAssets', 'docId', docId),
+      this.getQuickMarks(docId),
+      this.getSourceBookmarks(docId)
+    ]);
+    const document = normalizeStoredDocument(storedDocument);
     if (!document) throw new Error(`Document not found: ${docId}`);
-    const annotations = await this.getAnnotations(docId);
     const referencedNoteImages = referencedNoteImagePaths(annotations);
-    const assets = (await readIndexAll(db, 'documentAssets', 'docId', docId)).filter((asset) => (
+    const assets = storedAssets.filter((asset) => (
       asset?.kind !== NOTE_IMAGE_KIND || referencedNoteImages.has(asset.path)
     ));
-    const quickMarks = await this.getQuickMarks(docId);
-    const sourceBookmarks = await this.getSourceBookmarks(docId);
-    return createAnnotatorBundleArchive({
+    const bundle = {
       document,
       sourceHtml: document.sourceHtml || '',
       sourceBytes: document.sourceBytes || null,
@@ -780,7 +789,27 @@ export class IndexedDbStorageAdapter {
       assets,
       quickMarks,
       sourceBookmarks
+    };
+    storagePerformance.measure('save-bundle-data', startedAt, {
+      sourceType: document.sourceType,
+      annotations: annotations.length,
+      assets: assets.length
     });
+    return bundle;
+  }
+
+  async exportDocumentBundle(docId) {
+    const startedAt = storagePerformance.now();
+    const bytes = await createAnnotatorBundleArchive(await this.exportDocumentBundleData(docId));
+    storagePerformance.measure('save-bundle-archive', startedAt, { bytes: bytes.length });
+    return bytes;
+  }
+
+  async exportDocumentBundleFolderFiles(docId) {
+    const startedAt = storagePerformance.now();
+    const files = createBundleFolderFiles(await this.exportDocumentBundleData(docId));
+    storagePerformance.measure('save-bundle-folder', startedAt, { files: files.length });
+    return files;
   }
 
   async importDocument(file) {
@@ -895,29 +924,62 @@ export class IndexedDbStorageAdapter {
     }, bundleImportIdentityHints(parsedBundles.map(({ bundle }) => bundle)));
   }
 
-  async exportCurrentLibraryPackage() {
+  async exportCurrentLibraryData() {
+    const startedAt = storagePerformance.now();
     const context = await this.getCurrentLibraryContext();
     if (!context) throw new Error('No current library package is open.');
-    const entries = [];
-    for (const entry of context.entries || []) {
+    const entries = (await Promise.all((context.entries || []).map(async (entry, index) => {
       const document = await this.getDocument(entry.docId);
-      if (!document) continue;
-      entries.push({
+      if (!document) return null;
+      return {
         id: entry.id || document.id,
         title: entry.title || document.title,
         folderId: entry.folderId || null,
-        order: Number.isFinite(Number(entry.order)) ? Number(entry.order) : entries.length,
+        order: Number.isFinite(Number(entry.order)) ? Number(entry.order) : index,
         lastOpenedAt: entry.lastOpenedAt || '',
-        data: await this.exportDocumentBundle(document.id)
-      });
-    }
-    return createAnnotatorLibraryArchive({
+        bundle: await this.exportDocumentBundleData(document.id, document)
+      };
+    }))).filter(Boolean);
+    const library = {
       id: context.id,
       title: context.title,
       activeEntryId: context.activeEntryId,
+      createdAt: context.createdAt,
       folders: context.folders || [],
       entries
+    };
+    storagePerformance.measure('save-library-data', startedAt, { entries: entries.length });
+    return library;
+  }
+
+  async exportCurrentLibraryPackage() {
+    const startedAt = storagePerformance.now();
+    const library = await this.exportCurrentLibraryData();
+    const entries = [];
+    for (const entry of library.entries) {
+      const { bundle, ...metadata } = entry;
+      entries.push({
+        ...metadata,
+        data: await createAnnotatorBundleArchive(bundle)
+      });
+    }
+    const bytes = await createAnnotatorLibraryArchive({ ...library, entries }, { validateBundleArchives: false });
+    storagePerformance.measure('save-library-archive', startedAt, {
+      entries: entries.length,
+      bytes: bytes.length
     });
+    return bytes;
+  }
+
+  async exportCurrentLibraryFolderFiles() {
+    const startedAt = storagePerformance.now();
+    const library = await this.exportCurrentLibraryData();
+    const files = createLibraryFolderFiles(library);
+    storagePerformance.measure('save-library-folder', startedAt, {
+      entries: library.entries.length,
+      files: files.length
+    });
+    return files;
   }
 
   async createCurrentLibraryFromDocument(docId, title = null) {

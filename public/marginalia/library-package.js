@@ -6,7 +6,7 @@ const LIBRARY_BUNDLE_ROOT = 'bundles';
 const TEXT_ENCODER = new TextEncoder();
 const STRICT_TEXT_DECODER = new TextDecoder('utf-8', { fatal: true });
 
-export async function createAnnotatorLibraryArchive(libraryData = {}) {
+export async function createAnnotatorLibraryArchive(libraryData = {}, options = {}) {
   const now = new Date().toISOString();
   const folders = normalizeLibraryFolders(libraryData.folders || []);
   const folderIds = new Set(folders.map((folder) => folder.id));
@@ -16,7 +16,7 @@ export async function createAnnotatorLibraryArchive(libraryData = {}) {
   for (const [index, entry] of (libraryData.entries || []).entries()) {
     const bytes = bytesFromBundleEntry(entry);
     if (!bytes.length) continue;
-    await readAnnotatorBundleArchive(bytes);
+    if (options.validateBundleArchives !== false) await readAnnotatorBundleArchive(bytes);
     const id = safeName(entry.id || entry.document?.id || `source-${index + 1}`);
     if (usedEntryIds.has(id)) throw new Error(`Library contains duplicate entry id: ${id}.`);
     usedEntryIds.add(id);

@@ -9,8 +9,8 @@ import {
   pickAnnotatorBundleSaveHandle,
   pickAnnotatorPackageDirectory,
   readParsedPackageFromDirectoryHandle,
-  writeArchiveBytesToPackageDirectory,
-  writeBytesToFileHandle
+  writeBytesToFileHandle,
+  writeFilesToDirectoryHandle
 } from './file-access.js';
 import {
   bundleFolderNameForDocument,
@@ -138,6 +138,7 @@ const state = {
   tooltip: null,
   tooltipTarget: null,
   saveToastTimer: 0,
+  saveInProgress: false,
   restoringScroll: false,
   pendingReaderPosition: null,
   lastReaderPosition: null,
@@ -893,6 +894,18 @@ function annotationHasUserContent(annotation) {
 }
 
 async function exportCurrentBundle() {
+  if (state.saveInProgress) return;
+  state.saveInProgress = true;
+  syncBundleControls();
+  try {
+    await performCurrentBundleSave();
+  } finally {
+    state.saveInProgress = false;
+    syncBundleControls();
+  }
+}
+
+async function performCurrentBundleSave() {
   if (!state.docId) {
     setSaveNotice('No source is open.', { title: 'Save unavailable', state: 'error', autoHide: false });
     return;
@@ -905,14 +918,11 @@ async function exportCurrentBundle() {
   const library = await storage.getCurrentLibraryContext?.();
   if (library) {
     setSaveProgress(`Saving library "${library.title || 'Annotator library'}"...`);
-    const bytes = await storage.exportCurrentLibraryPackage();
     const filename = libraryFilenameForTitle(library.title || 'annotator-library');
-    const saved = await saveCurrentLibraryPackage(bytes, filename, library.title || filename);
+    const saved = await saveCurrentLibraryPackage(filename, library.title || filename, library);
     if (saved?.cancelled) setSaveCancelled('Save cancelled.');
     return;
   }
-  setSaveProgress(`Packaging "${doc?.title || state.docId}"...`);
-  const bytes = await storage.exportDocumentBundle(state.docId);
   const filename = bundleFilenameForDocument(doc);
   const currentHandle = await storage.getDocumentFileHandle?.(state.docId);
   if (!currentHandle) {
@@ -932,12 +942,10 @@ async function exportCurrentBundle() {
       return;
     }
     if (saveMode === 'library') {
-      setSaveProgress('Creating library package...');
       const context = await storage.createCurrentLibraryFromDocuments?.(state.docId);
-      const libraryBytes = await storage.exportCurrentLibraryPackage();
       const libraryName = libraryFilenameForTitle(context?.title || 'annotator-library');
       setSaveProgress(`Saving library "${context?.title || 'Annotator library'}"...`);
-      const saved = await saveNewLibraryPackage(libraryBytes, libraryName);
+      const saved = await saveNewLibraryPackage(libraryName);
       if (saved?.cancelled) {
         await storage.clearCurrentLibraryContext?.();
         setSaveCancelled('Save cancelled.');
@@ -952,11 +960,11 @@ async function exportCurrentBundle() {
       return;
     }
   }
-  if (state.storageMode === 'indexeddb' && canUseFileSystemAccess()) {
+  if (state.storageMode === 'indexeddb' && (canUseDirectoryAccess() || canUseFileSystemAccess())) {
     let saved = null;
     try {
       setSaveProgress(`Saving "${doc?.title || state.docId}"...`);
-      saved = await saveBundleWithFileSystemAccess(bytes, filename);
+      saved = await saveBundleWithLocalAccess(filename, doc);
     } catch (error) {
       setSaveProgress(`File save picker failed (${error.message}). Downloading a copy...`);
     }
@@ -970,20 +978,23 @@ async function exportCurrentBundle() {
     }
   }
   setSaveProgress(`Downloading "${filename}"...`);
+  const bytes = await storage.exportDocumentBundle(state.docId);
   downloadBytes(bytes, filename);
   setSaveSuccess(`Downloaded "${doc?.title || state.docId}".`);
 }
 
-async function saveBundleWithFileSystemAccess(bytes, filename) {
+async function saveBundleWithLocalAccess(filename, documentRecord = null) {
   const existingHandle = await storage.getDocumentFileHandle?.(state.docId);
-  const doc = state.currentDocument || await storage.getDocument(state.docId);
+  const doc = documentRecord || state.currentDocument || await storage.getDocument(state.docId);
   const folderName = bundleFolderNameForDocument(doc || { id: state.docId });
   if (existingHandle) {
     try {
       if (existingHandle.kind === 'directory') {
-        await writeArchiveBytesToPackageDirectory(existingHandle, bytes, 'bundle');
+        const files = await storage.exportDocumentBundleFolderFiles(state.docId);
+        await writeFilesToDirectoryHandle(existingHandle, files);
         return { name: existingHandle.name || folderName, handle: existingHandle, folder: true };
       }
+      const bytes = await storage.exportDocumentBundle(state.docId);
       await writeBytesToFileHandle(existingHandle, bytes);
       return { name: existingHandle.name || filename };
     } catch (error) {
@@ -993,7 +1004,11 @@ async function saveBundleWithFileSystemAccess(bytes, filename) {
   }
   if (canUseDirectoryAccess()) {
     try {
-      const saved = await saveArchiveBytesAsPackageFolder(bytes, folderName, 'bundle', 'annotator-bundle-save');
+      const saved = await savePackageFolder(
+        folderName,
+        'annotator-bundle-save',
+        () => storage.exportDocumentBundleFolderFiles(state.docId)
+      );
       if (saved?.handle) await rememberDocumentHandle(state.docId, saved.handle);
       return saved;
     } catch (error) {
@@ -1007,6 +1022,7 @@ async function saveBundleWithFileSystemAccess(bytes, filename) {
   try {
     const handle = await pickAnnotatorBundleSaveHandle(filename);
     if (!handle) return null;
+    const bytes = await storage.exportDocumentBundle(state.docId);
     await writeBytesToFileHandle(handle, bytes);
     await rememberDocumentHandle(state.docId, handle);
     return { name: handle.name || filename };
@@ -1019,45 +1035,48 @@ async function saveBundleWithFileSystemAccess(bytes, filename) {
   }
 }
 
-async function saveCurrentLibraryPackage(bytes, filename, title) {
-  const library = await storage.getCurrentLibraryContext?.();
+async function saveCurrentLibraryPackage(filename, title, library = null) {
+  const currentLibrary = library || await storage.getCurrentLibraryContext?.();
   if (state.storageMode === 'indexeddb' && (canUseDirectoryAccess() || canUseFileSystemAccess())) {
     let saved = null;
     try {
       setSaveProgress(`Saving library "${title}"...`);
-      saved = await saveLibraryBytesWithLocalAccess(bytes, filename, library, 'Current library file could not be written');
+      saved = await saveLibraryWithLocalAccess(filename, currentLibrary, 'Current library file could not be written');
     } catch (error) {
       setSaveProgress(`Library save picker failed (${error.message}). Downloading a copy...`);
     }
     if (saved?.cancelled) return saved;
     if (saved?.handle) await rememberCurrentLibraryHandle(saved.handle);
     if (saved?.name) {
-      const reminder = libraryFolderNameReminder(saved, library);
+      const reminder = libraryFolderNameReminder(saved, currentLibrary);
       setSaveSuccess(`Saved library "${title}" to ${saved.name}.${reminder ? ` ${reminder}` : ''}`);
       return saved;
     }
   }
   setSaveProgress(`Downloading "${filename}"...`);
+  const bytes = await storage.exportCurrentLibraryPackage();
   downloadBytes(bytes, filename);
   setSaveSuccess(`Downloaded library "${title}".`);
   return { downloaded: true, name: filename };
 }
 
-async function saveNewLibraryPackage(bytes, filename) {
+async function saveNewLibraryPackage(filename) {
   if (state.storageMode !== 'indexeddb' || (!canUseDirectoryAccess() && !canUseFileSystemAccess())) {
     setSaveProgress(`Downloading "${filename}"...`);
+    const bytes = await storage.exportCurrentLibraryPackage();
     downloadBytes(bytes, filename);
     return { downloaded: true, name: filename };
   }
   try {
     setSaveProgress('Choose a library save location...');
-    const saved = await saveLibraryBytesWithLocalAccess(bytes, filename, null);
+    const saved = await saveLibraryWithLocalAccess(filename, null);
     if (saved?.cancelled) return saved;
     if (saved?.name) return saved;
   } catch (error) {
     setSaveProgress(`Library save picker failed (${error.message}). Downloading a copy...`);
   }
   setSaveProgress(`Downloading "${filename}"...`);
+  const bytes = await storage.exportCurrentLibraryPackage();
   downloadBytes(bytes, filename);
   return { downloaded: true, name: filename };
 }
@@ -1082,15 +1101,17 @@ async function rememberCurrentLibraryHandle(handle) {
   }
 }
 
-async function saveLibraryBytesWithLocalAccess(bytes, filename, library = null, retryPrefix = 'Current file could not be written') {
+async function saveLibraryWithLocalAccess(filename, library = null, retryPrefix = 'Current file could not be written') {
   const existingHandle = library?.fileHandle || null;
   const folderName = libraryFolderNameForTitle(library?.title || filename.replace(/\.annotator-library\.zip$/i, ''));
   if (existingHandle) {
     try {
       if (existingHandle.kind === 'directory') {
-        await writeArchiveBytesToPackageDirectory(existingHandle, bytes, 'library');
+        const files = await storage.exportCurrentLibraryFolderFiles();
+        await writeFilesToDirectoryHandle(existingHandle, files);
         return { name: existingHandle.name || folderName, handle: existingHandle, folder: true };
       }
+      const bytes = await storage.exportCurrentLibraryPackage();
       await writeBytesToFileHandle(existingHandle, bytes);
       return { name: existingHandle.name || filename, handle: existingHandle };
     } catch (error) {
@@ -1099,7 +1120,11 @@ async function saveLibraryBytesWithLocalAccess(bytes, filename, library = null, 
   }
   if (canUseDirectoryAccess()) {
     try {
-      return await saveArchiveBytesAsPackageFolder(bytes, folderName, 'library', 'annotator-library-save');
+      return await savePackageFolder(
+        folderName,
+        'annotator-library-save',
+        () => storage.exportCurrentLibraryFolderFiles()
+      );
     } catch (error) {
       if (error.name === 'AbortError') {
         setSaveCancelled('Save cancelled.');
@@ -1108,14 +1133,16 @@ async function saveLibraryBytesWithLocalAccess(bytes, filename, library = null, 
       setSaveProgress(`Folder save failed (${error.message}). Choose a zip save location...`);
     }
   }
+  const bytes = await storage.exportCurrentLibraryPackage();
   return saveBytesWithFileSystemAccess(bytes, filename, null, retryPrefix);
 }
 
-async function saveArchiveBytesAsPackageFolder(bytes, folderName, packageKind, pickerId) {
+async function savePackageFolder(folderName, pickerId, createFiles) {
   setSaveProgress(`Choose or create the package folder "${folderName}". Do not choose its parent folder.`);
   const handle = await pickAnnotatorPackageDirectory(pickerId);
   if (!handle) return null;
-  await writeArchiveBytesToPackageDirectory(handle, bytes, packageKind);
+  const files = await createFiles();
+  await writeFilesToDirectoryHandle(handle, files);
   return { name: handle.name || folderName, handle, folder: true };
 }
 
@@ -1143,7 +1170,7 @@ async function saveBytesWithFileSystemAccess(bytes, filename, existingHandle = n
 }
 
 function syncBundleControls() {
-  if (els.exportBundleBtn) els.exportBundleBtn.disabled = !state.docId;
+  if (els.exportBundleBtn) els.exportBundleBtn.disabled = !state.docId || state.saveInProgress;
   if (els.importBundleBtn) {
     els.importBundleBtn.title = state.storageMode === 'indexeddb'
       ? 'Import source HTML/PDF, .annotator.zip, or .annotator-library.zip'

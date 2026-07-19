@@ -11,8 +11,8 @@ import {
   pickAnnotatorPackageDirectory,
   queryFileHandlePermissionState,
   readParsedPackageFromDirectoryHandle,
-  writeArchiveBytesToPackageDirectory,
-  writeBytesToFileHandle
+  writeBytesToFileHandle,
+  writeFilesToDirectoryHandle
 } from './file-access.js';
 import {
   libraryFolderNameForTitle
@@ -67,6 +67,7 @@ let libraryRenderModel = null;
 let selectedTreeItemKind = '';
 let selectedTreeItemId = '';
 let libraryRenderGeneration = 0;
+let librarySavePromise = null;
 
 init().catch((error) => {
   documentsEl.innerHTML = `<p class="small">${escapeHtml(error.message)}</p>`;
@@ -82,7 +83,7 @@ async function init() {
   bundleFileInput?.addEventListener('change', () => importSelectedBundle().catch(showError));
   importLibraryBtn?.addEventListener('click', () => startLibraryImport().catch(showError));
   libraryFileInput?.addEventListener('change', () => importSelectedLibrary().catch(showError));
-  saveLibraryBtn?.addEventListener('click', () => saveCurrentLibrary().catch(showError));
+  saveLibraryBtn?.addEventListener('click', () => requestLibrarySave().catch(showError));
   checkForUpdatesBtn?.addEventListener('click', () => checkForAvailableAppUpdate({ log: true }).catch(showError));
   updateAppBtn?.addEventListener('click', () => updateInstalledApp().catch(showError));
   clearLibraryBtn?.addEventListener('click', () => clearBrowserLibrary().catch(showError));
@@ -2031,14 +2032,25 @@ async function fileStartsWithPdfMagic(file) {
     && bytes[4] === 0x2d;
 }
 
+function requestLibrarySave() {
+  if (librarySavePromise) return librarySavePromise;
+  if (saveLibraryBtn) saveLibraryBtn.disabled = true;
+  const pending = saveCurrentLibrary().finally(() => {
+    if (librarySavePromise !== pending) return;
+    librarySavePromise = null;
+    if (saveLibraryBtn) saveLibraryBtn.disabled = false;
+  });
+  librarySavePromise = pending;
+  return pending;
+}
+
 async function saveCurrentLibrary() {
   let library = await storage.getCurrentLibraryContext?.();
   const createdLibraryForSave = !library;
   if (!library) library = await storage.createCurrentLibraryFromDocuments?.();
   documentsEl.innerHTML = '<p class="small">Saving library...</p>';
-  const bytes = await storage.exportCurrentLibraryPackage();
   const filename = libraryFilenameForTitle(library.title || 'annotator-library');
-  const saved = await saveLibraryBytes(bytes, filename, library);
+  const saved = await saveLibraryPackage(filename, library);
   await loadDocuments();
   if (saved?.cancelled) {
     if (createdLibraryForSave) await storage.clearCurrentLibraryContext?.();
@@ -2048,11 +2060,11 @@ async function saveCurrentLibrary() {
   appendLibraryLog(librarySaveMessage(saved, filename, library));
 }
 
-async function saveLibraryBytes(bytes, filename, library) {
+async function saveLibraryPackage(filename, library) {
   if (storageMode === 'indexeddb' && (canUseDirectoryAccess() || canUseFileSystemAccess())) {
     let saved = null;
     try {
-      saved = await saveLibraryBytesWithLocalAccess(bytes, filename, library);
+      saved = await saveLibraryWithLocalAccess(filename, library);
     } catch (error) {
       appendLibraryLog(`Library save picker failed (${error.message}). Downloading a copy...`, true);
     }
@@ -2060,6 +2072,7 @@ async function saveLibraryBytes(bytes, filename, library) {
     if (saved?.handle) await rememberCurrentLibraryHandle(saved.handle);
     if (saved?.name) return saved;
   }
+  const bytes = await storage.exportCurrentLibraryPackage();
   downloadBytes(bytes, filename);
   return { downloaded: true, name: filename };
 }
@@ -2084,15 +2097,17 @@ async function rememberCurrentLibraryHandle(handle) {
   }
 }
 
-async function saveLibraryBytesWithLocalAccess(bytes, filename, library = null) {
+async function saveLibraryWithLocalAccess(filename, library = null) {
   const existingHandle = library?.fileHandle || null;
   const folderName = libraryFolderNameForTitle(library?.title || filename.replace(/\.annotator-library\.zip$/i, ''));
   if (existingHandle) {
     try {
       if (existingHandle.kind === 'directory') {
-        await writeArchiveBytesToPackageDirectory(existingHandle, bytes, 'library');
+        const files = await storage.exportCurrentLibraryFolderFiles();
+        await writeFilesToDirectoryHandle(existingHandle, files);
         return { name: existingHandle.name || folderName, handle: existingHandle, folder: true };
       }
+      const bytes = await storage.exportCurrentLibraryPackage();
       await writeBytesToFileHandle(existingHandle, bytes);
       return { name: existingHandle.name || filename, handle: existingHandle };
     } catch {
@@ -2104,13 +2119,15 @@ async function saveLibraryBytesWithLocalAccess(bytes, filename, library = null) 
       appendLibraryLog(`Choose or create the package folder "${folderName}". Do not choose its parent folder.`);
       const handle = await pickAnnotatorPackageDirectory('annotator-library-save');
       if (!handle) return null;
-      await writeArchiveBytesToPackageDirectory(handle, bytes, 'library');
+      const files = await storage.exportCurrentLibraryFolderFiles();
+      await writeFilesToDirectoryHandle(handle, files);
       return { name: handle.name || folderName, handle, folder: true };
     } catch (error) {
       if (error.name === 'AbortError') return { cancelled: true };
       appendLibraryLog(`Folder save failed (${error.message}). Choose a zip save location...`, true);
     }
   }
+  const bytes = await storage.exportCurrentLibraryPackage();
   return saveBytesWithFileSystemAccess(bytes, filename, null);
 }
 

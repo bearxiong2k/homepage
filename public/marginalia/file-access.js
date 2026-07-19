@@ -7,6 +7,7 @@ import {
   readBundleFolderFiles,
   readLibraryFolderFiles
 } from './folder-package.js';
+import { marginaliaPerformanceTrace } from './performance-trace.js';
 
 export const ANNOTATOR_BUNDLE_TYPES = [{
   description: 'Annotator source or library',
@@ -31,6 +32,7 @@ const MAX_DIRECTORY_DEPTH = 32;
 const MAX_PACKAGE_PATH_LENGTH = 1024;
 const TEXT_ENCODER = new TextEncoder();
 const TEXT_DECODER = new TextDecoder('utf-8', { fatal: true });
+const fileAccessPerformance = marginaliaPerformanceTrace('file-access');
 
 export function canUseFileSystemAccess() {
   return typeof window !== 'undefined'
@@ -120,6 +122,7 @@ async function readValidatedPackageDirectory(directoryHandle, expectedKind = nul
 }
 
 export async function writeFilesToDirectoryHandle(directoryHandle, files) {
+  const startedAt = fileAccessPerformance.now();
   if (!directoryHandle) throw new Error('No package folder is available.');
   if (!(await ensureFileHandlePermission(directoryHandle, 'readwrite'))) {
     throw new Error('Permission to write the package folder was not granted.');
@@ -148,9 +151,6 @@ export async function writeFilesToDirectoryHandle(directoryHandle, files) {
     for (const file of incomingFiles) {
       await writeFileToDirectoryHandle(stageHandle, file.path, file.data);
     }
-    const stagedFiles = await readStageFiles(directoryHandle, { transactionId, stageName, packageKind });
-    assertSamePackageFiles(incomingFiles, stagedFiles);
-    await validatePackageFiles(stagedFiles, packageKind);
   } catch (error) {
     if (stageHandle) await removeVerifiedStageDirectory(directoryHandle, stageName, transactionId).catch(() => {});
     throw error;
@@ -177,6 +177,10 @@ export async function writeFilesToDirectoryHandle(directoryHandle, files) {
   } catch (error) {
     throw new Error('Package folder save was interrupted; the complete staged package will be recovered on the next open or save.', { cause: error });
   }
+  fileAccessPerformance.measure('save-folder', startedAt, {
+    files: incomingFiles.length,
+    bytes: incomingFiles.reduce((total, file) => total + file.data.length, 0)
+  });
 }
 
 export async function assertWritablePackageDirectory(directoryHandle, packageKind) {
@@ -222,6 +226,7 @@ export async function writeArchiveBytesToPackageDirectory(directoryHandle, bytes
 }
 
 export async function writeBytesToFileHandle(handle, bytes, mimeType = 'application/zip') {
+  const startedAt = fileAccessPerformance.now();
   if (!handle) throw new Error('No current file is available.');
   if (!(await ensureFileHandlePermission(handle, 'readwrite'))) {
     throw new Error('Permission to write the current file was not granted.');
@@ -232,6 +237,7 @@ export async function writeBytesToFileHandle(handle, bytes, mimeType = 'applicat
   } finally {
     await writable.close();
   }
+  fileAccessPerformance.measure('save-file', startedAt, { bytes: bytes.length });
 }
 
 export async function ensureFileHandlePermission(handle, mode = 'readwrite') {
@@ -577,11 +583,6 @@ async function commitStagedPackage(directoryHandle, transaction, incomingFiles) 
   if (!marker || !lock) throw new Error('Staged package is missing its commit markers.');
   await writeFileToDirectoryHandle(directoryHandle, marker.path, marker.data);
   await writeFileToDirectoryHandle(directoryHandle, lock.path, lock.data);
-  const writtenFiles = [];
-  for (const file of incomingFiles) {
-    writtenFiles.push({ path: file.path, data: await readFileBytesAtPath(directoryHandle, file.path) });
-  }
-  assertSamePackageFiles(incomingFiles, writtenFiles);
   await removeVerifiedStageDirectory(directoryHandle, transaction.stageName, transaction.transactionId);
   await removeFileAtPath(directoryHandle, PACKAGE_TRANSACTION_PATH);
 }
@@ -593,17 +594,6 @@ async function removeVerifiedStageDirectory(directoryHandle, stageName, transact
     throw new Error('Refusing to remove an unverified staging directory.');
   }
   await directoryHandle.removeEntry(stageName, { recursive: true });
-}
-
-function assertSamePackageFiles(expectedFiles, actualFiles) {
-  const expected = normalizePackageFiles(expectedFiles);
-  const actual = normalizePackageFiles(actualFiles);
-  if (expected.length !== actual.length) throw new Error('Staged package file count does not match.');
-  for (let index = 0; index < expected.length; index += 1) {
-    if (expected[index].path !== actual[index].path || !equalBytes(expected[index].data, actual[index].data)) {
-      throw new Error(`Staged package verification failed for ${expected[index].path}.`);
-    }
-  }
 }
 
 async function writeFileToDirectoryHandle(directoryHandle, path, data) {
@@ -698,14 +688,6 @@ function parseJsonBytes(bytes, label) {
 
 function isMissingHandleError(error) {
   return error?.name === 'NotFoundError' || /not found/i.test(String(error?.message || ''));
-}
-
-function equalBytes(a, b) {
-  if (a.length !== b.length) return false;
-  for (let index = 0; index < a.length; index += 1) {
-    if (a[index] !== b[index]) return false;
-  }
-  return true;
 }
 
 function createTransactionId() {
