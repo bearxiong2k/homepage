@@ -39,6 +39,12 @@ import { APP_VERSION_LABEL, APP_VERSION_SHORT } from './app-version.js';
 import { analyzeNoteMarkdown, ensureNoteMarkdownStyles, renderNoteMarkdown } from './note-markdown.js';
 import { marginaliaPerformanceTrace } from './performance-trace.js';
 import { MAX_SOURCE_BOOKMARKS, normalizeSourceBookmarkRecord } from './source-bookmarks.js';
+import {
+  SPLIT_PAGE_ZOOM_DEFAULT,
+  applySplitPageZoomSurface,
+  nextSplitPageZoom,
+  splitPageZoomAction
+} from './split-page-zoom.js';
 
 const storageMode = currentStorageMode();
 const storage = createStorageAdapter({ mode: storageMode });
@@ -164,6 +170,8 @@ const state = {
   splitSourceWindowTarget: null,
   splitSourceFallbackTimer: 0,
   splitSourceFallbackResizeReadyAt: 0,
+  splitPageZoom: SPLIT_PAGE_ZOOM_DEFAULT,
+  splitPageZoomLayoutRaf: 0,
   lifecycleGeneration: 0,
   lifecycleSuspended: document.visibilityState === 'hidden',
   hiddenAt: 0
@@ -377,6 +385,7 @@ function bindChromeEvents() {
   syncHistoryControls();
   syncReadingModeControls();
   window.addEventListener('resize', () => {
+    refreshSourceSplitPageZoomSurface();
     applyNotesTabTop(currentNotesTabTop());
     maybeReleaseSplitSourceWidthFallback();
     positionSourceNavigatorPanel();
@@ -1863,6 +1872,7 @@ async function createPdfRectHighlight(page, rect) {
 }
 
 function onFrameKeyDown(event) {
+  if (handleSourceSplitPageZoomShortcut(event)) return;
   if (handleSideNoteKeyboardAction(event)) return;
   if (handleReaderPositionShortcut(event)) return;
   if (isFrameInteractiveControl(event?.target)) return;
@@ -1875,11 +1885,52 @@ function onFrameKeyDown(event) {
 }
 
 function handleDocumentKeyDown(event) {
+  if (handleSourceSplitPageZoomShortcut(event)) return;
   if (handleReaderPositionShortcut(event)) return;
   if (handleSaveBundleHotkey(event)) return;
   if (handleInkToolHotkey(event)) return;
   if (handleHistoryHotkey(event)) return;
   if (event.key === 'Escape') handleEscapeKey(event);
+}
+
+function handleSourceSplitPageZoomShortcut(event) {
+  if (!state.splitNotesActive) return false;
+  const action = splitPageZoomAction(event);
+  if (!action) return false;
+  event.preventDefault();
+  event.stopPropagation();
+  const nextZoom = nextSplitPageZoom(state.splitPageZoom, action);
+  setSourceSplitPageZoom(nextZoom);
+  return true;
+}
+
+function setSourceSplitPageZoom(zoom, options = {}) {
+  const doc = state.iframeLoaded ? getFrameDoc() : null;
+  const scrollY = Math.max(0, doc?.defaultView?.scrollY || 0);
+  state.splitPageZoom = applySplitPageZoomSurface(document, window, zoom, state.splitNotesActive);
+  if (state.splitNotesActive) setSplitSourceWidthFallback(false);
+  if (state.splitPageZoomLayoutRaf) cancelAnimationFrame(state.splitPageZoomLayoutRaf);
+  state.splitPageZoomLayoutRaf = requestAnimationFrame(() => {
+    state.splitPageZoomLayoutRaf = requestAnimationFrame(() => {
+      state.splitPageZoomLayoutRaf = 0;
+      if (!state.splitNotesActive || !doc || doc !== getFrameDoc()) return;
+      doc.defaultView?.scrollTo?.(0, scrollY);
+      layoutSideNotes(doc);
+      renderQuickMarks(doc);
+      renderLayoutResizers(doc);
+      scheduleHtmlAnchorMetricsRefresh(doc);
+      scheduleSplitNotesStateBroadcast(doc);
+      broadcastSplitSourceScroll(doc);
+    });
+  });
+  if (options.announce !== false) {
+    setStatus(`Split source page zoom: ${Math.round(state.splitPageZoom * 100)}%.`);
+  }
+}
+
+function refreshSourceSplitPageZoomSurface() {
+  if (!state.splitNotesActive) return;
+  state.splitPageZoom = applySplitPageZoomSurface(document, window, state.splitPageZoom, true);
 }
 
 function handleSideNoteKeyboardAction(event) {
@@ -2617,6 +2668,8 @@ function setSplitNotesActive(active, options = {}) {
   const next = Boolean(active);
   const changed = state.splitNotesActive !== next;
   state.splitNotesActive = next;
+  if (next) refreshSourceSplitPageZoomSurface();
+  else applySplitPageZoomSurface(document, window, SPLIT_PAGE_ZOOM_DEFAULT, false);
   document.body.classList.toggle('reader-split-notes-source', next);
   els.splitNotesBtn?.classList.toggle('is-active', next);
   els.splitNotesBtn?.setAttribute('aria-pressed', String(next));
@@ -2651,6 +2704,10 @@ function closeSplitNotesSession(options = {}) {
     cancelAnimationFrame(state.splitScrollRaf);
     state.splitScrollRaf = 0;
   }
+  if (state.splitPageZoomLayoutRaf) {
+    cancelAnimationFrame(state.splitPageZoomLayoutRaf);
+    state.splitPageZoomLayoutRaf = 0;
+  }
   if (state.splitSourceFallbackTimer) {
     window.clearTimeout(state.splitSourceFallbackTimer);
     state.splitSourceFallbackTimer = 0;
@@ -2661,6 +2718,7 @@ function closeSplitNotesSession(options = {}) {
   state.splitNotesWindow = null;
   state.splitSourceWindowTarget = null;
   state.splitSourceFallbackResizeReadyAt = 0;
+  state.splitPageZoom = SPLIT_PAGE_ZOOM_DEFAULT;
   setSplitSourceWidthFallback(false);
   if (state.splitWindowMonitorTimer) {
     window.clearInterval(state.splitWindowMonitorTimer);

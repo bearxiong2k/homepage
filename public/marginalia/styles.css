@@ -34,6 +34,22 @@ body {
   overflow-x: clip;
 }
 
+body.split-page-zoom-active {
+  width: var(--split-page-viewport-width);
+  height: var(--split-page-viewport-height);
+  min-height: var(--split-page-viewport-height);
+  zoom: var(--split-page-zoom);
+}
+
+body.split-page-zoom-active .app-shell {
+  width: var(--split-page-viewport-width);
+  height: var(--split-page-viewport-height);
+}
+
+body.split-page-zoom-active #readerFrame {
+  height: 100%;
+}
+
 a { color: var(--accent); }
 
 button, input, textarea, select {
@@ -837,6 +853,10 @@ body.has-pinned-note .notes-tab-arrow {
   background: #f8f6f0;
 }
 
+.split-notes-body.split-page-zoom-active {
+  min-height: var(--split-page-viewport-height);
+}
+
 .split-notes-body .right-panel {
   z-index: 44;
   width: min(var(--reader-notes-panel-width), calc(100vw - var(--split-notes-drawer-margin)));
@@ -859,10 +879,18 @@ body.has-pinned-note .notes-tab-arrow {
   background: #f8f6f0;
 }
 
+.split-page-zoom-active .split-notes-scroller {
+  height: var(--split-page-viewport-height);
+}
+
 .split-notes-canvas {
   position: relative;
   min-height: 100vh;
   padding-right: 12px;
+}
+
+.split-page-zoom-active .split-notes-canvas {
+  min-height: var(--split-page-viewport-height);
 }
 
 .split-side-note {

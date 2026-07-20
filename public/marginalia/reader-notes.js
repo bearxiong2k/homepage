@@ -2,6 +2,13 @@ import { createReaderSessionChannel } from './reader-session-channel.js';
 import { createStorageAdapter } from './storage-adapter.js';
 import { analyzeNoteMarkdown, ensureNoteMarkdownStyles, renderNoteMarkdown } from './note-markdown.js';
 import { currentStorageMode } from './runtime.js';
+import {
+  SPLIT_PAGE_ZOOM_DEFAULT,
+  applySplitPageZoomSurface,
+  nextSplitPageZoom,
+  splitPageZoomAction,
+  splitPageZoomViewport
+} from './split-page-zoom.js';
 
 const params = new URLSearchParams(location.search);
 const docId = params.get('doc') || '';
@@ -38,7 +45,8 @@ const state = {
   remoteScrollTargetY: null,
   remoteScrollTargetUntil: 0,
   notesPanelWidth: null,
-  notesPanelResizeSession: null
+  notesPanelResizeSession: null,
+  splitPageZoom: SPLIT_PAGE_ZOOM_DEFAULT
 };
 
 const els = {
@@ -89,9 +97,11 @@ function init() {
   els.canvas.addEventListener('focusout', onSideNoteFocusOut);
   els.canvas.addEventListener('keydown', onSideNoteKeyDown);
   els.canvas.addEventListener('paste', onSideNotePaste);
+  document.addEventListener('keydown', handleSplitPageZoomShortcut);
   state.notesPanelWidth = loadNotesPanelWidth();
+  applyNotesSplitPageZoom();
   applyNotesPanelWidth();
-  window.addEventListener('resize', constrainNotesPanelWidthToViewport);
+  window.addEventListener('resize', handleSplitNotesWindowResize);
   window.addEventListener('beforeunload', () => {
     state.channel?.post('close-notes');
     storage.revokeAllNoteImageUrls?.();
@@ -124,7 +134,7 @@ function applySourceState(payload) {
   state.metricsById = new Map((payload.noteMetrics || []).map((metric) => [metric.id, metric]));
   state.activeAnnotationId = payload.activeAnnotationId || null;
   state.sourceScrollY = Math.max(0, Number(payload.scrollY) || 0);
-  state.sourceScrollHeight = Math.max(window.innerHeight, Number(payload.scrollHeight) || 0);
+  state.sourceScrollHeight = Math.max(splitNotesViewport().height, Number(payload.scrollHeight) || 0);
   state.sourceViewportHeight = Math.max(0, Number(payload.viewportHeight) || 0);
   state.inkTool = payload.inkTool === 'eraser' ? 'eraser' : 'pen';
   state.inkColor = typeof payload.inkColor === 'string' ? payload.inkColor : state.inkColor;
@@ -139,7 +149,8 @@ function applySourceState(payload) {
 
 function renderSideNotes() {
   const focusSnapshot = captureSplitSideNoteFocus();
-  els.canvas.style.height = `${Math.max(window.innerHeight, Math.ceil(state.sourceScrollHeight || window.innerHeight))}px`;
+  const viewportHeight = splitNotesViewport().height;
+  els.canvas.style.height = `${Math.max(viewportHeight, Math.ceil(state.sourceScrollHeight || viewportHeight))}px`;
   els.canvas.textContent = '';
   if (!state.annotations.length) {
     renderEmptyState('No notes in this source.');
@@ -168,6 +179,37 @@ function renderSideNotes() {
   restoreSplitSideNoteFocus(focusSnapshot);
 }
 
+function handleSplitPageZoomShortcut(event) {
+  const action = splitPageZoomAction(event);
+  if (!action) return false;
+  event.preventDefault();
+  event.stopPropagation();
+  const scrollY = Math.max(0, els.scroller?.scrollTop || 0);
+  state.splitPageZoom = nextSplitPageZoom(state.splitPageZoom, action);
+  applyNotesSplitPageZoom();
+  constrainNotesPanelWidthToViewport();
+  renderSideNotes();
+  els.scroller.scrollTop = scrollY;
+  state.lastLocalScrollSentAt = Date.now();
+  state.channel?.post('notes-scroll', { scrollY });
+  setStatus(`Split notes page zoom: ${Math.round(state.splitPageZoom * 100)}%.`);
+  return true;
+}
+
+function applyNotesSplitPageZoom() {
+  state.splitPageZoom = applySplitPageZoomSurface(document, window, state.splitPageZoom, true);
+}
+
+function splitNotesViewport() {
+  return splitPageZoomViewport({ width: window.innerWidth, height: window.innerHeight }, state.splitPageZoom);
+}
+
+function handleSplitNotesWindowResize() {
+  applyNotesSplitPageZoom();
+  constrainNotesPanelWidthToViewport();
+  renderSideNotes();
+}
+
 function orderedSplitAnnotations() {
   const storedIndex = new Map(state.annotations.map((annotation, index) => [annotation.id, index]));
   return state.annotations.slice().sort((a, b) => {
@@ -182,7 +224,7 @@ function orderedSplitAnnotations() {
 }
 
 function renderEmptyState(message) {
-  els.canvas.style.height = `${Math.max(window.innerHeight, Math.ceil(state.sourceScrollHeight || 0))}px`;
+  els.canvas.style.height = `${Math.max(splitNotesViewport().height, Math.ceil(state.sourceScrollHeight || 0))}px`;
   els.canvas.textContent = '';
   const empty = document.createElement('p');
   empty.className = 'split-notes-empty';
@@ -903,7 +945,9 @@ function onNotesPanelResizeMove(event) {
   const session = state.notesPanelResizeSession;
   if (!session || event.pointerId !== session.pointerId) return;
   event.preventDefault();
-  state.notesPanelWidth = normalizeNotesPanelWidth(session.startWidth + session.startX - event.clientX);
+  state.notesPanelWidth = normalizeNotesPanelWidth(
+    session.startWidth + (session.startX - event.clientX) / state.splitPageZoom
+  );
   applyNotesPanelWidth();
 }
 
@@ -958,12 +1002,12 @@ function applyNotesPanelWidth() {
 }
 
 function currentNotesPanelWidth() {
-  const width = els.rightPanel?.getBoundingClientRect?.().width;
+  const width = Number.parseFloat(getComputedStyle(els.rightPanel).width);
   return normalizeNotesPanelWidth(Number.isFinite(width) && width > 0 ? width : state.notesPanelWidth);
 }
 
 function notesPanelWidthBounds() {
-  const max = Math.max(1, window.innerWidth - SPLIT_NOTES_DRAWER_MARGIN);
+  const max = Math.max(1, splitNotesViewport().width - SPLIT_NOTES_DRAWER_MARGIN);
   return { min: Math.min(NOTES_PANEL_WIDTH.min, max), max };
 }
 
