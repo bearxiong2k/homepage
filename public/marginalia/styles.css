@@ -899,6 +899,34 @@ body.has-pinned-note .notes-tab-arrow {
   right: 18px;
 }
 
+.split-side-note.is-pinned {
+  position: fixed;
+  z-index: 40;
+  top: 0 !important;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: auto;
+  overscroll-behavior: none;
+}
+
+.split-side-note.is-pinned .split-side-note-card {
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: 0.78rem 0.8rem 1rem;
+  background: rgba(255, 253, 248, 0.98);
+  box-shadow: 0 14px 34px rgba(52, 38, 18, 0.18);
+}
+
+.split-notes-body.has-pinned-note .split-notes-scroller {
+  overflow: hidden;
+}
+
+.split-notes-body.has-pinned-note .split-side-note:not(.is-pinned),
+.split-notes-body.split-focus-mode .split-side-note:not(.is-active) {
+  visibility: hidden;
+}
+
 .split-side-note-card {
   border-left: 2px solid #d8c7a8;
   padding: 0.46rem 0.56rem 0.5rem 0.62rem;
@@ -959,13 +987,27 @@ body.has-pinned-note .notes-tab-arrow {
 }
 
 .split-side-note-tools {
-  float: right;
+  position: sticky;
+  z-index: 4;
+  top: 0.2rem;
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 4px;
-  max-width: min(100%, 15rem);
-  margin-left: 8px;
+  width: fit-content;
+  max-width: 100%;
+  gap: 3px;
+  margin: 0 0 0.35rem;
+  padding: 0.16rem;
+  border: 1px solid rgba(216, 199, 168, 0.88);
+  border-radius: 5px;
+  background: rgba(255, 253, 248, 0.94);
+  box-shadow: 0 6px 16px rgba(52, 38, 18, 0.12);
+  opacity: 0.78;
+  transition: opacity 120ms ease;
+}
+
+.split-side-note:hover .split-side-note-tools,
+.split-side-note.is-active .split-side-note-tools {
+  opacity: 1;
 }
 
 .split-side-note-tools button {
@@ -982,6 +1024,12 @@ body.has-pinned-note .notes-tab-arrow {
 .split-side-note-ink-tools button.danger {
   color: #8f1f12;
   border-color: #e1b6ad;
+}
+
+.split-side-note-tools button.is-active {
+  border-color: #7a3d00;
+  background: #f2d48d;
+  color: #2e1a00;
 }
 
 .split-side-note-status,
@@ -1535,6 +1583,11 @@ textarea {
   border-radius: 8px;
   padding: 12px;
   background: var(--panel);
+}
+
+.note-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .note-card-header {

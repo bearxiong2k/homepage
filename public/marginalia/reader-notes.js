@@ -37,6 +37,15 @@ const state = {
   markdownAnalysisTimers: new WeakMap(),
   markdownRevision: 0,
   collapsedSideNoteIds: new Set(),
+  pinnedAnnotationId: null,
+  focusModeAnnotationId: null,
+  mode: 'select',
+  attachTargetAnnotationId: null,
+  removeTargetAnnotationId: null,
+  features: {
+    focusMode: true,
+    singleBlockTextHighlights: true
+  },
   expandedNavigatorNoteIds: new Set(),
   noteNavigatorExpandAll: false,
   scrollRaf: 0,
@@ -133,6 +142,16 @@ function applySourceState(payload) {
   state.annotations = Array.isArray(payload.annotations) ? payload.annotations : [];
   state.metricsById = new Map((payload.noteMetrics || []).map((metric) => [metric.id, metric]));
   state.activeAnnotationId = payload.activeAnnotationId || null;
+  state.pinnedAnnotationId = payload.pinnedAnnotationId || null;
+  state.focusModeAnnotationId = payload.focusModeAnnotationId || null;
+  state.collapsedSideNoteIds = new Set(Array.isArray(payload.collapsedSideNoteIds) ? payload.collapsedSideNoteIds : []);
+  state.mode = typeof payload.mode === 'string' ? payload.mode : 'select';
+  state.attachTargetAnnotationId = payload.attachTargetAnnotationId || null;
+  state.removeTargetAnnotationId = payload.removeTargetAnnotationId || null;
+  state.features = {
+    focusMode: payload.features?.focusMode !== false,
+    singleBlockTextHighlights: payload.features?.singleBlockTextHighlights !== false
+  };
   state.sourceScrollY = Math.max(0, Number(payload.scrollY) || 0);
   state.sourceScrollHeight = Math.max(splitNotesViewport().height, Number(payload.scrollHeight) || 0);
   state.sourceViewportHeight = Math.max(0, Number(payload.viewportHeight) || 0);
@@ -140,6 +159,8 @@ function applySourceState(payload) {
   state.inkColor = typeof payload.inkColor === 'string' ? payload.inkColor : state.inkColor;
   state.inkWidth = Number.isFinite(Number(payload.inkWidth)) ? Number(payload.inkWidth) : state.inkWidth;
   state.inkPressureEnabled = payload.inkPressureEnabled !== false;
+  document.body.classList.toggle('has-pinned-note', Boolean(state.pinnedAnnotationId));
+  document.body.classList.toggle('split-focus-mode', Boolean(state.focusModeAnnotationId));
   document.title = payload.documentTitle ? `${payload.documentTitle} - Split Notes` : 'Split Notes - Marginalia';
   renderSideNotes();
   renderNavigator();
@@ -165,6 +186,7 @@ function renderSideNotes() {
     note.className = [
       'split-side-note',
       annotation.id === state.activeAnnotationId ? 'is-active' : '',
+      annotation.id === state.pinnedAnnotationId ? 'is-pinned' : '',
       isCollapsed ? 'is-collapsed' : '',
       metric?.status === 'unresolved' ? 'is-unresolved' : '',
       metric?.status === 'pending' ? 'is-target-pending' : ''
@@ -235,6 +257,11 @@ function renderEmptyState(message) {
 function sideNoteHtml(annotation, metric) {
   const title = escapeHtml(sideNoteTitle(annotation));
   const isCollapsed = state.collapsedSideNoteIds.has(annotation.id);
+  const isPinned = state.pinnedAnnotationId === annotation.id;
+  const isFocused = state.focusModeAnnotationId === annotation.id;
+  const isAttaching = state.mode === 'attach-highlight' && state.attachTargetAnnotationId === annotation.id;
+  const isRemoving = state.mode === 'remove-highlight' && state.removeTargetAnnotationId === annotation.id;
+  const hasHighlights = splitAnnotationHasHighlights(annotation);
   const status = metric?.status === 'pending'
     ? '<p class="split-side-note-status">Loading target...</p>'
     : metric?.status === 'unresolved'
@@ -243,15 +270,23 @@ function sideNoteHtml(annotation, metric) {
   return `
     <div class="split-side-note-card">
       <div class="split-side-note-tools">
+        ${state.features.focusMode ? `<button type="button" class="split-side-note-tool ${isFocused ? 'is-active' : ''}" data-split-note-action="focus" title="Focus mode" aria-label="${isFocused ? 'Exit focus mode' : 'Enter focus mode'}" aria-pressed="${String(isFocused)}">F</button>` : ''}
         <button type="button" class="split-side-note-tool" data-split-note-action="toggle-collapse" title="${isCollapsed ? 'Expand note' : 'Collapse note'}" aria-label="${isCollapsed ? 'Expand note' : 'Collapse note'}" aria-expanded="${String(!isCollapsed)}">${isCollapsed ? '▼' : '▲'}</button>
-        <button type="button" data-split-note-action="goto">Go to</button>
-        <button type="button" class="danger" data-split-note-action="delete-note" title="Delete note">Delete</button>
+        ${state.features.singleBlockTextHighlights ? `<button type="button" class="split-side-note-tool ${isAttaching ? 'is-active' : ''}" data-split-note-action="attach" title="${isAttaching ? 'Adding highlights to this note' : 'Add highlight'}" aria-label="${isAttaching ? 'Finish adding highlights' : 'Add highlight to note'}" aria-pressed="${String(isAttaching)}">+</button>` : ''}
+        ${state.features.singleBlockTextHighlights && hasHighlights ? `<button type="button" class="split-side-note-tool ${isRemoving ? 'is-active' : ''}" data-split-note-action="remove-highlight" title="${isRemoving ? 'Click a highlight to remove it' : 'Remove highlight'}" aria-label="${isRemoving ? 'Finish removing highlights' : 'Remove highlight from note'}" aria-pressed="${String(isRemoving)}">−</button>` : ''}
+        <button type="button" class="split-side-note-tool ${isPinned ? 'is-active' : ''}" data-split-note-action="pin" title="${isPinned ? 'Unpin note editor' : 'Pin note editor'}" aria-label="${isPinned ? 'Unpin note editor' : 'Pin note editor'}" aria-pressed="${String(isPinned)}">「」</button>
+        <button type="button" class="split-side-note-tool danger" data-split-note-action="delete-note" title="Delete note" aria-label="Delete note">×</button>
       </div>
       <h3 class="split-side-note-title" contenteditable="plaintext-only" data-split-note-field="title" data-placeholder="Title">${title}</h3>
       ${status}
       ${sideNoteBlocksHtml(annotation)}
     </div>
   `;
+}
+
+function splitAnnotationHasHighlights(annotation) {
+  if (annotation?.highlight?.enabled && ['text', 'pdf-rect'].includes(annotation?.target?.type)) return true;
+  return (annotation?.targets || []).some((target) => ['text', 'pdf-rect'].includes(target?.type));
 }
 
 function sideNoteBlocksHtml(annotation) {
@@ -448,6 +483,7 @@ function createNavigatorCard(annotation) {
   const metric = state.metricsById.get(annotation.id);
   const expanded = isNavigatorNoteExpanded(annotation.id);
   const card = document.createElement('article');
+  card.tabIndex = -1;
   card.className = [
     'note-card',
     annotation.id === state.activeAnnotationId ? 'is-active' : '',
@@ -523,9 +559,12 @@ function captureSplitNavigatorFocus() {
 }
 
 function restoreSplitNavigatorFocus(snapshot) {
-  if (!snapshot?.annotationId || !snapshot.action) return;
+  if (!snapshot?.annotationId) return;
   const card = els.noteList.querySelector(`.note-card[data-annotation-id="${cssEscape(snapshot.annotationId)}"]`);
-  card?.querySelector(`[data-action="${cssEscape(snapshot.action)}"]`)?.focus?.({ preventScroll: true });
+  const target = snapshot.action
+    ? card?.querySelector(`[data-action="${cssEscape(snapshot.action)}"]`)
+    : card;
+  target?.focus?.({ preventScroll: true });
 }
 
 function navigatorTitle(annotation) {
@@ -573,11 +612,23 @@ function onSideNoteClick(event) {
   const actionButton = event.target?.closest?.('[data-split-note-action]');
   const action = actionButton?.dataset?.splitNoteAction || '';
   if (action === 'toggle-collapse') {
-    toggleSideNoteCollapse(annotationId);
+    state.channel?.post('toggle-note-collapse', { annotationId });
     return;
   }
-  if (action === 'goto') {
-    state.channel?.post('jump-to-annotation', { annotationId });
+  if (action === 'pin') {
+    state.channel?.post('toggle-pin-note', { annotationId });
+    return;
+  }
+  if (action === 'focus') {
+    state.channel?.post('toggle-focus-note', { annotationId });
+    return;
+  }
+  if (action === 'attach') {
+    state.channel?.post('toggle-attach-highlight', { annotationId });
+    return;
+  }
+  if (action === 'remove-highlight') {
+    state.channel?.post('toggle-remove-highlight', { annotationId });
     return;
   }
   if (action === 'delete-note') {
@@ -857,7 +908,19 @@ function onNavigatorClick(event) {
     requestDeleteAnnotation(annotationId, event.target);
     return;
   }
-  state.channel?.post(action === 'goto' || !action ? 'jump-to-annotation' : 'activate-annotation', { annotationId });
+  if (action === 'goto') alignSplitNoteToTop(annotationId);
+}
+
+function alignSplitNoteToTop(annotationId) {
+  const metric = state.metricsById.get(annotationId);
+  const top = Number(metric?.top);
+  state.channel?.post('activate-annotation', { annotationId });
+  if (!Number.isFinite(top)) return;
+  const scrollY = Math.max(0, top);
+  els.scroller.scrollTop = scrollY;
+  state.pendingScrollY = scrollY;
+  state.lastLocalScrollSentAt = Date.now();
+  state.channel?.post('notes-scroll', { scrollY });
 }
 
 function onNotesScroll() {
@@ -917,6 +980,15 @@ function toggleNavigator() {
   els.toggleNotesBtn.setAttribute('aria-label', label);
   const arrow = els.toggleNotesBtn.querySelector('.notes-tab-arrow');
   if (arrow) arrow.textContent = collapsed ? '‹' : '›';
+  if (!collapsed) requestAnimationFrame(focusActiveSplitNavigatorCard);
+}
+
+function focusActiveSplitNavigatorCard() {
+  if (!state.activeAnnotationId || els.rightPanel.classList.contains('is-collapsed')) return;
+  const card = els.noteList.querySelector(`.note-card[data-annotation-id="${cssEscape(state.activeAnnotationId)}"]`);
+  if (!card) return;
+  card.focus({ preventScroll: true });
+  card.scrollIntoView({ block: 'center', inline: 'nearest' });
 }
 
 function onNotesPanelResizerPointerDown(event) {
@@ -1031,12 +1103,6 @@ function loadNotesPanelWidth() {
 
 function saveNotesPanelWidth() {
   localStorage.setItem(notesPanelWidthStorageKey(), JSON.stringify(normalizeNotesPanelWidth(state.notesPanelWidth)));
-}
-
-function toggleSideNoteCollapse(annotationId) {
-  if (state.collapsedSideNoteIds.has(annotationId)) state.collapsedSideNoteIds.delete(annotationId);
-  else state.collapsedSideNoteIds.add(annotationId);
-  renderSideNotes();
 }
 
 function toggleExpandAllNotes() {
