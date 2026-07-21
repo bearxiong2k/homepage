@@ -451,6 +451,7 @@ async function renderPageNumber(pageNumber) {
       record.lastVisibleAt = performance.now();
       renderedPages.add(pageNumber);
       record.pageEl.dataset.renderState = 'rendered';
+      notifyPageChanged(pageNumber, 'rendered');
       observer?.unobserve(record.pageEl);
       evictRenderedSurfaces();
       updatePdfDiagnostics('render');
@@ -707,6 +708,7 @@ async function renderTextLayer(record, textLayerEl, viewport, generation, render
     if (!isRenderCancelled(error)) {
       record.pageEl.dataset.textLayer = 'failed';
       syncPdfPageAccessibility(record);
+      notifyPageChanged(pageNumberFromElement(record.pageEl), 'text');
       console.warn('PDF text layer failed', error);
     }
     return false;
