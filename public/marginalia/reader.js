@@ -1965,10 +1965,15 @@ function refreshReaderPageZoomSurface() {
 }
 
 function syncReaderFrameZoom() {
-  const sourceZoom = state.currentDocument?.sourceType === 'pdf'
+  const isPdf = state.currentDocument?.sourceType === 'pdf';
+  const sourceZoom = isPdf
     ? SPLIT_PAGE_ZOOM_DEFAULT
     : state.htmlSourceZoom;
   applyReaderFrameZoom(els.frame, state.readerPageZoom, sourceZoom);
+  if (!state.iframeLoaded) return;
+  const doc = getFrameDoc();
+  if (isPdf) doc.documentElement.style.setProperty('--reader-app-zoom', String(state.readerPageZoom));
+  else doc.documentElement.style.removeProperty('--reader-app-zoom');
 }
 
 function stepHtmlSourceZoom(direction) {

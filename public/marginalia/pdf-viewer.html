@@ -11,6 +11,7 @@
       color: #211b16;
       font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --reader-side-note-layer-width: clamp(240px, 28vw, min(520px, 46vw));
+      --reader-app-zoom: 1;
     }
 
     body {
@@ -46,6 +47,7 @@
       background: rgba(244, 241, 235, .94);
       box-shadow: 0 10px 26px rgba(52, 38, 18, .16);
       backdrop-filter: blur(7px);
+      zoom: var(--reader-app-zoom);
     }
 
     .pdf-toolbar-main {
