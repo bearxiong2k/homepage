@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'marginalia-static-';
-const APP_VERSION = '20260721-145758';
+const APP_VERSION = '20260721-154811';
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 const PDFJS_CMAP_ASSETS = [
   '78-EUC-H.bcmap',
@@ -292,7 +292,7 @@ let deferredCacheWarmPromise = null;
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(assetUrls(CORE_ASSETS)))
+      .then((cache) => cache.addAll(assetRequests(CORE_ASSETS)))
   );
 });
 
@@ -411,6 +411,10 @@ function assetUrls(assets) {
   return assets.map((asset) => new URL(asset, self.registration.scope));
 }
 
+function assetRequests(assets) {
+  return assetUrls(assets).map((url) => new Request(url, { cache: 'reload' }));
+}
+
 function warmDeferredCache() {
   if (deferredCacheWarmPromise) return deferredCacheWarmPromise;
   deferredCacheWarmPromise = cacheDeferredAssets()
@@ -422,11 +426,11 @@ function warmDeferredCache() {
 
 async function cacheDeferredAssets() {
   const cache = await caches.open(CACHE_NAME);
-  const urls = assetUrls(DEFERRED_ASSETS);
-  const missing = (await Promise.all(urls.map(async (url) => await cache.match(url) ? null : url)))
+  const requests = assetRequests(DEFERRED_ASSETS);
+  const missing = (await Promise.all(requests.map(async (request) => await cache.match(request) ? null : request)))
     .filter(Boolean);
   for (let index = 0; index < missing.length; index += CACHE_WARM_BATCH_SIZE) {
     const batch = missing.slice(index, index + CACHE_WARM_BATCH_SIZE);
-    await Promise.allSettled(batch.map((url) => cache.add(url)));
+    await Promise.allSettled(batch.map((request) => cache.add(request)));
   }
 }

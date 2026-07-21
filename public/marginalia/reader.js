@@ -41,8 +41,10 @@ import { marginaliaPerformanceTrace } from './performance-trace.js';
 import { MAX_SOURCE_BOOKMARKS, normalizeSourceBookmarkRecord } from './source-bookmarks.js';
 import {
   SPLIT_PAGE_ZOOM_DEFAULT,
+  applyReaderFrameZoom,
   applySplitPageZoomSurface,
   nextSplitPageZoom,
+  normalizeSplitPageZoom,
   splitPageZoomAction
 } from './split-page-zoom.js';
 
@@ -170,8 +172,10 @@ const state = {
   splitSourceWindowTarget: null,
   splitSourceFallbackTimer: 0,
   splitSourceFallbackResizeReadyAt: 0,
-  splitPageZoom: SPLIT_PAGE_ZOOM_DEFAULT,
-  splitPageZoomLayoutRaf: 0,
+  readerPageZoom: SPLIT_PAGE_ZOOM_DEFAULT,
+  readerPageZoomLayoutRaf: 0,
+  htmlSourceZoom: SPLIT_PAGE_ZOOM_DEFAULT,
+  htmlSourceToolbarCollapsed: false,
   lifecycleGeneration: 0,
   lifecycleSuspended: document.visibilityState === 'hidden',
   hiddenAt: 0
@@ -180,6 +184,12 @@ const state = {
 const els = {
   docList: document.querySelector('#docList'),
   frame: document.querySelector('#readerFrame'),
+  htmlSourceToolbar: document.querySelector('#htmlSourceToolbar'),
+  htmlSourceToolbarToggleBtn: document.querySelector('#htmlSourceToolbarToggleBtn'),
+  htmlSourceZoomOutBtn: document.querySelector('#htmlSourceZoomOutBtn'),
+  htmlSourceZoomInput: document.querySelector('#htmlSourceZoomInput'),
+  htmlSourceZoomInBtn: document.querySelector('#htmlSourceZoomInBtn'),
+  htmlSourceZoomResetBtn: document.querySelector('#htmlSourceZoomResetBtn'),
   status: document.querySelector('#status'),
   reloadBtn: document.querySelector('#reloadBtn'),
   undoBtn: document.querySelector('#undoBtn'),
@@ -356,6 +366,12 @@ function bindChromeEvents() {
   els.insertSourceBookmarkBtn?.addEventListener('click', insertSelectedSourceBookmark);
   els.sourceBookmarkList?.addEventListener('click', handleSourceBookmarkListClick);
   els.splitNotesBtn?.addEventListener('click', () => toggleSplitNotesWindow().catch((error) => setStatus(error.message, true)));
+  els.htmlSourceToolbarToggleBtn?.addEventListener('click', toggleHtmlSourceToolbar);
+  els.htmlSourceZoomOutBtn?.addEventListener('click', () => stepHtmlSourceZoom(-1));
+  els.htmlSourceZoomInBtn?.addEventListener('click', () => stepHtmlSourceZoom(1));
+  els.htmlSourceZoomResetBtn?.addEventListener('click', () => setHtmlSourceZoom(SPLIT_PAGE_ZOOM_DEFAULT));
+  els.htmlSourceZoomInput?.addEventListener('change', commitHtmlSourceZoomInput);
+  els.htmlSourceZoomInput?.addEventListener('keydown', onHtmlSourceZoomInputKeyDown);
   els.toggleNotesBtn.addEventListener('pointerdown', onNotesTabPointerDown);
   els.toggleNotesBtn.addEventListener('click', onNotesTabClick);
   els.notesPanelResizer?.addEventListener('pointerdown', onNotesPanelResizerPointerDown);
@@ -385,7 +401,7 @@ function bindChromeEvents() {
   syncHistoryControls();
   syncReadingModeControls();
   window.addEventListener('resize', () => {
-    refreshSourceSplitPageZoomSurface();
+    refreshReaderPageZoomSurface();
     applyNotesTabTop(currentNotesTabTop());
     maybeReleaseSplitSourceWidthFallback();
     positionSourceNavigatorPanel();
@@ -414,6 +430,8 @@ function bindChromeEvents() {
   });
   document.addEventListener('visibilitychange', handleReaderVisibilityChange);
   document.addEventListener('keydown', handleDocumentKeyDown);
+  refreshReaderPageZoomSurface();
+  syncHtmlSourceZoomControls();
 }
 
 function handleReaderVisibilityChange() {
@@ -1210,6 +1228,9 @@ async function loadDocument(docId) {
     setStatus(`Document not found: ${docId}`, true);
     return;
   }
+  state.htmlSourceZoom = SPLIT_PAGE_ZOOM_DEFAULT;
+  syncHtmlSourceZoomControls();
+  syncReaderFrameZoom();
   readerPerformance.mark('document-metadata-ready', { sourceType: currentDocument.sourceType });
   hideSourceStartPanel();
   syncBundleControls();
@@ -1298,6 +1319,11 @@ async function loadDocument(docId) {
   setStatus('Loading document…');
   try {
     state.pendingReaderPosition = await readerPositionPromise;
+    state.htmlSourceZoom = currentDocument.sourceType === 'pdf'
+      ? SPLIT_PAGE_ZOOM_DEFAULT
+      : normalizeSplitPageZoom(state.pendingReaderPosition?.sourceZoom);
+    syncHtmlSourceZoomControls();
+    syncReaderFrameZoom();
     readerPerformance.mark('saved-position-ready');
     const shouldHideFrameUntilRestored = hasSavedReaderScrollPosition(state.pendingReaderPosition);
     setReaderFrameRestoring(shouldHideFrameUntilRestored);
@@ -1314,6 +1340,8 @@ async function loadDocument(docId) {
     readerPerformance.mark('annotations-ready', { annotations: state.annotations.length });
     storage.sweepUnreferencedNoteImages?.(docId).catch(() => {});
     state.iframeLoaded = true;
+    syncHtmlSourceZoomControls();
+    syncReaderFrameZoom();
     renderSourceNavigator();
     await instrumentIframe();
     await waitForFramePdfReadyIfNeeded();
@@ -1872,7 +1900,7 @@ async function createPdfRectHighlight(page, rect) {
 }
 
 function onFrameKeyDown(event) {
-  if (handleSourceSplitPageZoomShortcut(event)) return;
+  if (handleReaderPageZoomShortcut(event)) return;
   if (handleSideNoteKeyboardAction(event)) return;
   if (handleReaderPositionShortcut(event)) return;
   if (isFrameInteractiveControl(event?.target)) return;
@@ -1885,7 +1913,7 @@ function onFrameKeyDown(event) {
 }
 
 function handleDocumentKeyDown(event) {
-  if (handleSourceSplitPageZoomShortcut(event)) return;
+  if (handleReaderPageZoomShortcut(event)) return;
   if (handleReaderPositionShortcut(event)) return;
   if (handleSaveBundleHotkey(event)) return;
   if (handleInkToolHotkey(event)) return;
@@ -1893,27 +1921,27 @@ function handleDocumentKeyDown(event) {
   if (event.key === 'Escape') handleEscapeKey(event);
 }
 
-function handleSourceSplitPageZoomShortcut(event) {
-  if (!state.splitNotesActive) return false;
+function handleReaderPageZoomShortcut(event) {
   const action = splitPageZoomAction(event);
   if (!action) return false;
   event.preventDefault();
   event.stopPropagation();
-  const nextZoom = nextSplitPageZoom(state.splitPageZoom, action);
-  setSourceSplitPageZoom(nextZoom);
+  const nextZoom = nextSplitPageZoom(state.readerPageZoom, action);
+  setReaderPageZoom(nextZoom);
   return true;
 }
 
-function setSourceSplitPageZoom(zoom, options = {}) {
+function setReaderPageZoom(zoom, options = {}) {
   const doc = state.iframeLoaded ? getFrameDoc() : null;
   const scrollY = Math.max(0, doc?.defaultView?.scrollY || 0);
-  state.splitPageZoom = applySplitPageZoomSurface(document, window, zoom, state.splitNotesActive);
+  state.readerPageZoom = applySplitPageZoomSurface(document, window, zoom, true);
+  syncReaderFrameZoom();
   if (state.splitNotesActive) setSplitSourceWidthFallback(false);
-  if (state.splitPageZoomLayoutRaf) cancelAnimationFrame(state.splitPageZoomLayoutRaf);
-  state.splitPageZoomLayoutRaf = requestAnimationFrame(() => {
-    state.splitPageZoomLayoutRaf = requestAnimationFrame(() => {
-      state.splitPageZoomLayoutRaf = 0;
-      if (!state.splitNotesActive || !doc || doc !== getFrameDoc()) return;
+  if (state.readerPageZoomLayoutRaf) cancelAnimationFrame(state.readerPageZoomLayoutRaf);
+  state.readerPageZoomLayoutRaf = requestAnimationFrame(() => {
+    state.readerPageZoomLayoutRaf = requestAnimationFrame(() => {
+      state.readerPageZoomLayoutRaf = 0;
+      if (!doc || doc !== getFrameDoc()) return;
       doc.defaultView?.scrollTo?.(0, scrollY);
       layoutSideNotes(doc);
       renderQuickMarks(doc);
@@ -1924,13 +1952,104 @@ function setSourceSplitPageZoom(zoom, options = {}) {
     });
   });
   if (options.announce !== false) {
-    setStatus(`Split source page zoom: ${Math.round(state.splitPageZoom * 100)}%.`);
+    setStatus(`Reader app zoom: ${Math.round(state.readerPageZoom * 100)}%.`);
   }
 }
 
-function refreshSourceSplitPageZoomSurface() {
-  if (!state.splitNotesActive) return;
-  state.splitPageZoom = applySplitPageZoomSurface(document, window, state.splitPageZoom, true);
+function refreshReaderPageZoomSurface() {
+  state.readerPageZoom = applySplitPageZoomSurface(document, window, state.readerPageZoom, true);
+  syncReaderFrameZoom();
+}
+
+function syncReaderFrameZoom() {
+  const sourceZoom = state.currentDocument?.sourceType === 'pdf'
+    ? SPLIT_PAGE_ZOOM_DEFAULT
+    : state.htmlSourceZoom;
+  applyReaderFrameZoom(els.frame, state.readerPageZoom, sourceZoom);
+}
+
+function stepHtmlSourceZoom(direction) {
+  const action = direction > 0 ? 'in' : 'out';
+  setHtmlSourceZoom(nextSplitPageZoom(state.htmlSourceZoom, action));
+}
+
+function setHtmlSourceZoom(zoom, options = {}) {
+  if (state.currentDocument?.sourceType === 'pdf') return;
+  const doc = state.iframeLoaded ? getFrameDoc() : null;
+  const position = doc ? captureReaderPosition(doc, { precise: true }) : null;
+  state.htmlSourceZoom = normalizeSplitPageZoom(zoom);
+  syncReaderFrameZoom();
+  syncHtmlSourceZoomControls();
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (!doc || doc !== getFrameDoc()) return;
+    const scrollY = position ? restoredHtmlScrollY(doc, position) : null;
+    if (Number.isFinite(scrollY)) doc.defaultView.scrollTo(0, Math.max(0, scrollY));
+    layoutSideNotes(doc);
+    renderQuickMarks(doc);
+    renderLayoutResizers(doc);
+    scheduleHtmlAnchorMetricsRefresh(doc);
+    scheduleSplitNotesStateBroadcast(doc);
+    saveReaderScrollPosition(doc, { precise: true });
+  }));
+  if (options.announce !== false) {
+    setStatus(`HTML source zoom: ${Math.round(state.htmlSourceZoom * 100)}%.`);
+  }
+}
+
+function commitHtmlSourceZoomInput() {
+  const zoom = parseHtmlSourceZoomInput(els.htmlSourceZoomInput?.value);
+  if (!Number.isFinite(zoom)) {
+    els.htmlSourceZoomInput?.setAttribute('aria-invalid', 'true');
+    syncHtmlSourceZoomControls({ force: true });
+    setStatus('Enter an HTML source zoom greater than 0, such as 100%.', true);
+    return;
+  }
+  els.htmlSourceZoomInput?.removeAttribute('aria-invalid');
+  setHtmlSourceZoom(zoom);
+}
+
+function onHtmlSourceZoomInputKeyDown(event) {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    els.htmlSourceZoomInput?.removeAttribute('aria-invalid');
+    syncHtmlSourceZoomControls({ force: true });
+    els.htmlSourceZoomInput?.blur();
+    return;
+  }
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  commitHtmlSourceZoomInput();
+  els.htmlSourceZoomInput?.blur();
+}
+
+function parseHtmlSourceZoomInput(value) {
+  const normalized = String(value || '').trim().replace(/%$/, '');
+  if (!normalized) return NaN;
+  const percent = Number.parseFloat(normalized);
+  return Number.isFinite(percent) && percent > 0 ? normalizeSplitPageZoom(percent / 100) : NaN;
+}
+
+function toggleHtmlSourceToolbar() {
+  state.htmlSourceToolbarCollapsed = !state.htmlSourceToolbarCollapsed;
+  syncHtmlSourceZoomControls();
+}
+
+function syncHtmlSourceZoomControls(options = {}) {
+  const visible = Boolean(state.currentDocument && state.currentDocument.sourceType !== 'pdf');
+  if (els.htmlSourceToolbar) {
+    els.htmlSourceToolbar.hidden = !visible;
+    els.htmlSourceToolbar.classList.toggle('is-collapsed', state.htmlSourceToolbarCollapsed);
+  }
+  if (els.htmlSourceToolbarToggleBtn) {
+    const collapsed = state.htmlSourceToolbarCollapsed;
+    els.htmlSourceToolbarToggleBtn.textContent = collapsed ? '▶' : '◀';
+    els.htmlSourceToolbarToggleBtn.title = collapsed ? 'Expand HTML zoom controls' : 'Collapse HTML zoom controls';
+    els.htmlSourceToolbarToggleBtn.setAttribute('aria-label', collapsed ? 'Expand HTML zoom controls' : 'Collapse HTML zoom controls');
+    els.htmlSourceToolbarToggleBtn.setAttribute('aria-expanded', String(!collapsed));
+  }
+  if (els.htmlSourceZoomInput && (options.force || document.activeElement !== els.htmlSourceZoomInput)) {
+    els.htmlSourceZoomInput.value = `${Math.round(state.htmlSourceZoom * 100)}%`;
+  }
 }
 
 function handleSideNoteKeyboardAction(event) {
@@ -2689,8 +2808,7 @@ function setSplitNotesActive(active, options = {}) {
   const next = Boolean(active);
   const changed = state.splitNotesActive !== next;
   state.splitNotesActive = next;
-  if (next) refreshSourceSplitPageZoomSurface();
-  else applySplitPageZoomSurface(document, window, SPLIT_PAGE_ZOOM_DEFAULT, false);
+  refreshReaderPageZoomSurface();
   document.body.classList.toggle('reader-split-notes-source', next);
   els.splitNotesBtn?.classList.toggle('is-active', next);
   els.splitNotesBtn?.setAttribute('aria-pressed', String(next));
@@ -2725,9 +2843,9 @@ function closeSplitNotesSession(options = {}) {
     cancelAnimationFrame(state.splitScrollRaf);
     state.splitScrollRaf = 0;
   }
-  if (state.splitPageZoomLayoutRaf) {
-    cancelAnimationFrame(state.splitPageZoomLayoutRaf);
-    state.splitPageZoomLayoutRaf = 0;
+  if (state.readerPageZoomLayoutRaf) {
+    cancelAnimationFrame(state.readerPageZoomLayoutRaf);
+    state.readerPageZoomLayoutRaf = 0;
   }
   if (state.splitSourceFallbackTimer) {
     window.clearTimeout(state.splitSourceFallbackTimer);
@@ -2739,7 +2857,6 @@ function closeSplitNotesSession(options = {}) {
   state.splitNotesWindow = null;
   state.splitSourceWindowTarget = null;
   state.splitSourceFallbackResizeReadyAt = 0;
-  state.splitPageZoom = SPLIT_PAGE_ZOOM_DEFAULT;
   setSplitSourceWidthFallback(false);
   if (state.splitWindowMonitorTimer) {
     window.clearInterval(state.splitWindowMonitorTimer);
@@ -7210,6 +7327,7 @@ function hasSavedReaderScrollPosition(position) {
       || position.id
       || Number.isFinite(Number(position.pageNumber))
       || Number.isFinite(Number(position.pageIndex))
+      || normalizeSplitPageZoom(position.sourceZoom) !== SPLIT_PAGE_ZOOM_DEFAULT
       || position.viewState
     )
   );
@@ -7289,9 +7407,13 @@ function captureReaderPosition(doc, options = {}) {
 
 function captureHtmlReaderPosition(doc, base) {
   const anchor = readerPositionAnchor(doc);
-  if (!anchor) return base;
-  return {
+  const position = {
     ...base,
+    sourceZoom: state.htmlSourceZoom
+  };
+  if (!anchor) return position;
+  return {
+    ...position,
     ...anchor
   };
 }
@@ -10251,13 +10373,15 @@ function annotationTextContent(element) {
 
 function rectInParent(rect) {
   const frameRect = els.frame.getBoundingClientRect();
+  const scaleX = frameRect.width / Math.max(1, els.frame.clientWidth || frameRect.width || 1);
+  const scaleY = frameRect.height / Math.max(1, els.frame.clientHeight || frameRect.height || 1);
   return {
-    left: frameRect.left + rect.left,
-    right: frameRect.left + rect.right,
-    top: frameRect.top + rect.top,
-    bottom: frameRect.top + rect.bottom,
-    width: rect.width,
-    height: rect.height
+    left: frameRect.left + rect.left * scaleX,
+    right: frameRect.left + rect.right * scaleX,
+    top: frameRect.top + rect.top * scaleY,
+    bottom: frameRect.top + rect.bottom * scaleY,
+    width: rect.width * scaleX,
+    height: rect.height * scaleY
   };
 }
 

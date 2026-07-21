@@ -79,3 +79,25 @@ export function applySplitPageZoomSurface(doc, view, zoom, active = true) {
   root.style.setProperty('--split-page-viewport-height', `${viewport.height}px`);
   return viewport.scale;
 }
+
+export function readerFrameZoomGeometry(pageZoom, sourceZoom = 1) {
+  const normalizedPageZoom = normalizeSplitPageZoom(pageZoom);
+  const normalizedSourceZoom = normalizeSplitPageZoom(sourceZoom);
+  return {
+    pageZoom: normalizedPageZoom,
+    sourceZoom: normalizedSourceZoom,
+    frameScale: normalizedSourceZoom / normalizedPageZoom,
+    frameSizePercent: normalizedPageZoom / normalizedSourceZoom * 100
+  };
+}
+
+export function applyReaderFrameZoom(frame, pageZoom, sourceZoom = 1) {
+  if (!frame?.style) return readerFrameZoomGeometry(pageZoom, sourceZoom);
+  const geometry = readerFrameZoomGeometry(pageZoom, sourceZoom);
+  frame.style.width = `${geometry.frameSizePercent}%`;
+  frame.style.height = `${geometry.frameSizePercent}%`;
+  frame.style.transform = `scale(${geometry.frameScale})`;
+  frame.dataset.pageZoom = String(geometry.pageZoom);
+  frame.dataset.sourceZoom = String(geometry.sourceZoom);
+  return geometry;
+}

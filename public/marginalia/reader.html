@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Reader - Marginalia</title>
-  <link rel="manifest" href="manifest.webmanifest?v=20260721-145758">
+  <link rel="manifest" href="manifest.webmanifest?v=20260721-154811">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -56,6 +56,15 @@
           <div id="libraryChooserList" class="library-chooser-list"></div>
         </div>
       </section>
+      <div id="htmlSourceToolbar" class="html-source-toolbar" role="toolbar" aria-label="HTML source zoom controls" hidden>
+        <button id="htmlSourceToolbarToggleBtn" type="button" title="Collapse HTML zoom controls" aria-label="Collapse HTML zoom controls" aria-expanded="true">◀</button>
+        <div class="html-source-toolbar-main">
+          <button id="htmlSourceZoomOutBtn" type="button" title="Zoom HTML source out" aria-label="Zoom HTML source out">−</button>
+          <input id="htmlSourceZoomInput" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="100%" aria-label="HTML source zoom percent">
+          <button id="htmlSourceZoomInBtn" type="button" title="Zoom HTML source in" aria-label="Zoom HTML source in">+</button>
+          <button id="htmlSourceZoomResetBtn" type="button" title="Reset HTML source zoom" aria-label="Reset HTML source zoom">100%</button>
+        </div>
+      </div>
       <iframe id="readerFrame" title="Source reader" sandbox="allow-same-origin"></iframe>
       <section id="readerNotice" class="reader-notice" role="region" aria-live="polite" aria-labelledby="readerNoticeTitle" hidden>
         <button id="readerNoticeClose" class="reader-notice-close" type="button" title="Dismiss reader notice" aria-label="Dismiss reader notice">x</button>

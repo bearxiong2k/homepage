@@ -739,10 +739,68 @@ body.has-pinned-note .notes-tab-arrow {
   border: 0;
   background: white;
   overscroll-behavior: none;
+  transform-origin: top left;
 }
 
 #readerFrame.is-restoring-position {
   visibility: hidden;
+}
+
+.html-source-toolbar {
+  position: absolute;
+  z-index: 23;
+  top: 8px;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: max-content;
+  max-width: calc(100% - 8px);
+  min-height: 34px;
+  padding: 3px;
+  border: 1px solid rgba(216, 199, 168, .88);
+  border-left: 0;
+  border-radius: 0 8px 8px 0;
+  background: rgba(244, 241, 235, .94);
+  box-shadow: 0 10px 26px rgba(52, 38, 18, .16);
+  backdrop-filter: blur(7px);
+}
+
+.html-source-toolbar-main {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.html-source-toolbar.is-collapsed .html-source-toolbar-main {
+  display: none;
+}
+
+.html-source-toolbar button,
+.html-source-toolbar input {
+  min-height: 26px;
+  border: 1px solid #d1c1a9;
+  border-radius: 5px;
+  background: #fffdf8;
+  color: #211b16;
+  font: 13px/1.2 var(--sans);
+}
+
+.html-source-toolbar button {
+  min-width: 28px;
+  padding: 0 6px;
+}
+
+.html-source-toolbar input {
+  width: 78px;
+  padding: 0 6px;
+  text-align: center;
+}
+
+.html-source-toolbar button:hover,
+.html-source-toolbar input:hover,
+.html-source-toolbar input:focus {
+  border-color: #ad6a23;
 }
 
 .source-start-panel {
