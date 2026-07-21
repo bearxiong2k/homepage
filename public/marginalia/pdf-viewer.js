@@ -66,6 +66,7 @@ const MAX_PAGE_SCALE = 10;
 const ZOOM_STEP_RATIO = 0.1;
 const PDF_READ_AHEAD_PREVIOUS = 1;
 const PDF_READ_AHEAD_NEXT = 2;
+const FORCED_PAGE_WINDOW_PREPARE_ATTEMPTS = 4;
 const PDF_PAGE_GAP = 18;
 const PDF_SCROLL_ANCHOR_VIEWPORT_RATIO = 0.35;
 const pdfPerformance = marginaliaPerformanceTrace('pdf');
@@ -87,6 +88,7 @@ let panelResizeSession = null;
 let pdfWindowScrolling = false;
 let pdfWindowScrollIdleTimer = 0;
 let readAheadRequestId = 0;
+let latestAnnotationPagePreparationRequestId = 0;
 let lockedHorizontalScrollLeft = 0;
 let lastNonReadingViewportWidth = 0;
 let currentPageNumber = 1;
@@ -248,16 +250,16 @@ async function ensurePageShell(pageNumber) {
 }
 
 async function updatePageWindow(centerPage = currentPageNumber, options = {}) {
-  if (!pdfDocument || (viewerSuspended && !options.allowWhileSuspended)) return;
+  if (!pdfDocument || (viewerSuspended && !options.allowWhileSuspended)) return false;
   const normalized = normalizedPageNumber(centerPage);
-  if (!normalized) return;
+  if (!normalized) return false;
   const generation = ++pageWindowGeneration;
   const anchor = visiblePageState();
   const desiredPages = pageWindowNumbers(normalized, pdfDocument.numPages, {
     limit: DEFAULT_LIVE_PAGE_LIMIT
   });
   await Promise.all(desiredPages.map((pageNumber) => ensurePageShell(pageNumber)));
-  if (generation !== pageWindowGeneration || !pdfDocument) return;
+  if (generation !== pageWindowGeneration || !pdfDocument) return false;
   const desired = new Set(desiredPages);
   for (const [pageNumber] of [...orderedPageRecords()]) {
     if (!desired.has(pageNumber)) evictPageRecord(pageNumber);
@@ -266,6 +268,19 @@ async function updatePageWindow(centerPage = currentPageNumber, options = {}) {
   rebuildVirtualPageLayout();
   restoreVirtualScrollAnchor(anchor);
   updatePdfDiagnostics('window');
+  return Boolean(pageRecords.get(normalized)?.pageEl?.isConnected);
+}
+
+async function ensureCommittedPageWindow(pageNumber, annotationRequestId = null) {
+  for (let attempt = 0; attempt < FORCED_PAGE_WINDOW_PREPARE_ATTEMPTS; attempt += 1) {
+    if (Number.isInteger(annotationRequestId)
+      && annotationRequestId !== latestAnnotationPagePreparationRequestId) return false;
+    const committed = await updatePageWindow(pageNumber);
+    if (Number.isInteger(annotationRequestId)
+      && annotationRequestId !== latestAnnotationPagePreparationRequestId) return false;
+    if (committed) return true;
+  }
+  throw new Error(`PDF page ${pageNumber} preparation was superseded.`);
 }
 
 function rebuildVirtualPageLayout() {
@@ -370,10 +385,30 @@ function handleReaderPdfEnsurePage(event) {
   const pageNumber = normalizedPageNumber(event.detail?.pageNumber)
     || normalizedPageNumber(Number(event.detail?.pageIndex) + 1);
   if (!pageNumber) return;
-  queueReadAheadPages(pageNumber, { forceDrain: true, scrollToPage: Boolean(event.detail?.scrollToPage) })
+  const requestId = Number(event.detail?.requestId);
+  const requestDetail = Number.isInteger(requestId) && requestId > 0 ? { requestId } : {};
+  if (requestDetail.requestId) latestAnnotationPagePreparationRequestId = requestDetail.requestId;
+  queueReadAheadPages(pageNumber, {
+    forceDrain: true,
+    scrollToPage: Boolean(event.detail?.scrollToPage),
+    annotationRequestId: requestDetail.requestId || null
+  })
+    .then((prepared) => {
+      if (requestDetail.requestId
+        && requestDetail.requestId !== latestAnnotationPagePreparationRequestId) return;
+      if (!prepared) throw new Error(`PDF page ${pageNumber} preparation did not commit.`);
+      notifyPageChanged(pageNumber, 'prepared', requestDetail);
+    })
     .catch((error) => {
-      document.documentElement.dataset.pdfError = error.message || 'PDF page preparation failed.';
-      status(error.message || 'PDF page preparation failed.');
+      if (requestDetail.requestId
+        && requestDetail.requestId !== latestAnnotationPagePreparationRequestId) return;
+      const message = error?.message || 'PDF page preparation failed.';
+      notifyPageChanged(pageNumber, 'prepare-error', {
+        ...requestDetail,
+        message
+      });
+      document.documentElement.dataset.pdfError = message;
+      status(message);
     });
 }
 
@@ -415,7 +450,10 @@ async function queueReadAheadPages(pageNumber = currentPageNumber, options = {})
   const targetPage = normalizedPageNumber(pageNumber);
   if (!targetPage) return;
   const requestId = ++readAheadRequestId;
-  await updatePageWindow(targetPage);
+  const pageWindowPrepared = options.forceDrain
+    ? await ensureCommittedPageWindow(targetPage, options.annotationRequestId)
+    : await updatePageWindow(targetPage);
+  if (!pageWindowPrepared) return false;
   if (!pdfDocument || viewerSuspended || (requestId !== readAheadRequestId && !options.forceDrain)) return;
   const pages = readAheadPageNumbers(targetPage, pdfDocument.numPages, {
     previousCount: PDF_READ_AHEAD_PREVIOUS,
@@ -427,6 +465,7 @@ async function queueReadAheadPages(pageNumber = currentPageNumber, options = {})
   if (options.scrollToPage) scrollToPageNumber(targetPage);
   if (options.forceDrain) forceDrainRenderQueue();
   else drainRenderQueue();
+  return Boolean(pageRecords.get(targetPage)?.pageEl?.isConnected);
 }
 
 function requestReadAheadPages(pageNumber = currentPageNumber, options = {}) {
@@ -1863,10 +1902,11 @@ function clearPdfInputError(input) {
   }
 }
 
-function notifyPageChanged(pageNumber, phase = 'shell') {
+function notifyPageChanged(pageNumber, phase = 'shell', detail = {}) {
   const normalized = normalizedPageNumber(pageNumber);
   document.dispatchEvent(new CustomEvent('pdf-page-ready', {
     detail: {
+      ...detail,
       pageNumber: normalized,
       pageIndex: normalized != null ? normalized - 1 : null,
       phase

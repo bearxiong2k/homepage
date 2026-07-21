@@ -725,6 +725,21 @@ body.has-pinned-note .notes-tab-arrow {
   line-height: 1.2;
 }
 
+.drawer-head-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.navigator-dock-button[aria-pressed="true"] {
+  border-color: #7a3d00;
+  background: #f2d48d;
+  color: #2e1a00;
+}
+
 .reader-frame-wrap {
   position: relative;
   min-width: 0;
@@ -926,8 +941,28 @@ body.has-pinned-note .notes-tab-arrow {
   z-index: 46;
 }
 
+.split-notes-body.split-navigator-docked.split-navigator-open .split-notes-scroller {
+  margin-right: var(--reader-notes-panel-width);
+}
+
+.split-notes-body.split-navigator-docked.split-navigator-open .right-panel {
+  box-shadow: none;
+}
+
+.split-notes-body.split-navigator-docked.split-navigator-open .notes-tab {
+  right: var(--reader-notes-panel-width);
+}
+
+.split-notes-body.split-navigator-docked.split-navigator-open .split-side-note.is-pinned {
+  right: var(--reader-notes-panel-width);
+}
+
 .split-notes-body .note-drawer-body {
   padding: 12px;
+}
+
+.split-notes-body .drawer-head {
+  padding-right: 40px;
 }
 
 .split-notes-scroller {

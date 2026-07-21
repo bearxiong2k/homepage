@@ -17,6 +17,7 @@ const INK_SPACE = { width: 1000, height: 562.5 };
 const INK_CANVAS_HEIGHT = { min: 96, default: 420, max: 1800 };
 const NOTES_PANEL_WIDTH = { min: 260, default: 360 };
 const SPLIT_NOTES_DRAWER_MARGIN = 42;
+const SPLIT_NOTES_WINDOW_NAME_PREFIX = 'marginalia-notes-';
 const storage = createStorageAdapter({ mode: currentStorageMode() });
 
 const state = {
@@ -55,6 +56,9 @@ const state = {
   remoteScrollTargetUntil: 0,
   notesPanelWidth: null,
   notesPanelResizeSession: null,
+  navigatorDocked: false,
+  navigatorUndockedWindowSize: null,
+  navigatorSurfaceResizeRaf: 0,
   splitPageZoom: SPLIT_PAGE_ZOOM_DEFAULT
 };
 
@@ -65,6 +69,7 @@ const els = {
   noteList: document.querySelector('#noteList'),
   noteCount: document.querySelector('#noteCount'),
   expandAllNotesBtn: document.querySelector('#expandAllNotesBtn'),
+  dockNotesNavigatorBtn: document.querySelector('#dockNotesNavigatorBtn'),
   rightPanel: document.querySelector('#rightPanel'),
   toggleNotesBtn: document.querySelector('#toggleNotesBtn'),
   notesPanelResizer: document.querySelector('#notesPanelResizer')
@@ -95,6 +100,7 @@ function init() {
   els.notesPanelResizer?.addEventListener('pointerdown', onNotesPanelResizerPointerDown);
   els.notesPanelResizer?.addEventListener('keydown', onNotesPanelResizerKeyDown);
   els.expandAllNotesBtn?.addEventListener('click', toggleExpandAllNotes);
+  els.dockNotesNavigatorBtn?.addEventListener('click', toggleNavigatorDock);
   els.noteList.addEventListener('click', onNavigatorClick);
   els.canvas.addEventListener('click', onSideNoteClick);
   els.canvas.addEventListener('dblclick', onSideNoteDoubleClick);
@@ -107,11 +113,13 @@ function init() {
   els.canvas.addEventListener('keydown', onSideNoteKeyDown);
   els.canvas.addEventListener('paste', onSideNotePaste);
   document.addEventListener('keydown', handleSplitPageZoomShortcut);
-  state.notesPanelWidth = loadNotesPanelWidth();
+  state.notesPanelWidth = loadNotesPanelWidth(false);
   applyNotesSplitPageZoom();
   applyNotesPanelWidth();
+  syncSplitNavigatorLayout();
   window.addEventListener('resize', handleSplitNotesWindowResize);
   window.addEventListener('beforeunload', () => {
+    if (state.navigatorSurfaceResizeRaf) cancelAnimationFrame(state.navigatorSurfaceResizeRaf);
     state.channel?.post('close-notes');
     storage.revokeAllNoteImageUrls?.();
   });
@@ -972,7 +980,81 @@ function toggleNavigator() {
   els.toggleNotesBtn.setAttribute('aria-label', label);
   const arrow = els.toggleNotesBtn.querySelector('.notes-tab-arrow');
   if (arrow) arrow.textContent = collapsed ? '‹' : '›';
+  syncSplitNavigatorLayout();
+  scheduleNavigatorSurfaceResize();
   if (!collapsed) requestAnimationFrame(focusActiveSplitNavigatorCard);
+}
+
+function toggleNavigatorDock() {
+  const docked = !state.navigatorDocked;
+  saveNotesPanelWidth();
+  if (docked) state.navigatorUndockedWindowSize = captureSplitNotesWindowSize();
+  state.navigatorDocked = docked;
+  if (docked) els.rightPanel.classList.remove('is-collapsed');
+  const preferredPanelWidth = loadNotesPanelWidth(docked);
+  state.notesPanelWidth = preferredPanelWidth;
+  syncSplitNavigatorLayout();
+  resizeSplitNotesWindowForNavigator(docked);
+  applyNotesPanelWidth();
+  renderSideNotes();
+  scheduleNavigatorSurfaceResize();
+  requestAnimationFrame(() => {
+    if (state.navigatorDocked !== docked) return;
+    state.notesPanelWidth = preferredPanelWidth;
+    applyNotesPanelWidth();
+    scheduleNavigatorSurfaceResize();
+    if (docked) focusActiveSplitNavigatorCard();
+  });
+  setStatus(docked
+    ? 'Notes navigator docked beside side notes.'
+    : 'Notes navigator returned to a floating panel.');
+}
+
+function syncSplitNavigatorLayout() {
+  const open = !els.rightPanel.classList.contains('is-collapsed');
+  document.body.classList.toggle('split-navigator-docked', state.navigatorDocked);
+  document.body.classList.toggle('split-navigator-open', open);
+  if (!els.dockNotesNavigatorBtn) return;
+  const label = state.navigatorDocked
+    ? 'Return navigator to a floating panel'
+    : 'Dock navigator beside side notes';
+  els.dockNotesNavigatorBtn.textContent = state.navigatorDocked ? 'Float' : 'Dock';
+  els.dockNotesNavigatorBtn.title = label;
+  els.dockNotesNavigatorBtn.setAttribute('aria-label', label);
+  els.dockNotesNavigatorBtn.setAttribute('aria-pressed', String(state.navigatorDocked));
+}
+
+function captureSplitNotesWindowSize() {
+  return {
+    innerWidth: Math.max(1, Math.round(window.innerWidth || 1)),
+    outerWidth: Math.max(1, Math.round(window.outerWidth || window.innerWidth || 1))
+  };
+}
+
+function splitNotesDockedOuterWidth(windowSize, pageZoom = SPLIT_PAGE_ZOOM_DEFAULT) {
+  const innerWidth = Math.max(1, Number(windowSize?.innerWidth) || 1);
+  const outerWidth = Math.max(innerWidth, Number(windowSize?.outerWidth) || innerWidth);
+  const chromeWidth = Math.max(0, outerWidth - innerWidth);
+  const zoom = Math.max(0.1, Number(pageZoom) || SPLIT_PAGE_ZOOM_DEFAULT);
+  return Math.max(1, Math.round(innerWidth + NOTES_PANEL_WIDTH.default * zoom + chromeWidth));
+}
+
+function resizeSplitNotesWindowForNavigator(docked) {
+  const original = state.navigatorUndockedWindowSize;
+  if (!original) return;
+  if (!window.opener || !window.name.startsWith(SPLIT_NOTES_WINDOW_NAME_PREFIX)) {
+    if (!docked) state.navigatorUndockedWindowSize = null;
+    return;
+  }
+  const targetOuterWidth = docked
+    ? splitNotesDockedOuterWidth(original, state.splitPageZoom)
+    : original.outerWidth;
+  try {
+    window.resizeTo(targetOuterWidth, Math.max(1, window.outerHeight || window.innerHeight || 1));
+  } catch {
+    // Popup resize support varies; the docked layout remains usable within the current window.
+  }
+  if (!docked) state.navigatorUndockedWindowSize = null;
 }
 
 function focusActiveSplitNavigatorCard() {
@@ -1013,6 +1095,7 @@ function onNotesPanelResizeMove(event) {
     session.startWidth + (session.startX - event.clientX) / state.splitPageZoom
   );
   applyNotesPanelWidth();
+  scheduleNavigatorSurfaceResize();
 }
 
 function finishNotesPanelResize(event) {
@@ -1025,6 +1108,7 @@ function finishNotesPanelResize(event) {
   document.removeEventListener('pointercancel', finishNotesPanelResize);
   state.notesPanelResizeSession = null;
   saveNotesPanelWidth();
+  scheduleNavigatorSurfaceResize();
   setStatus(`Notes navigator width ${Math.round(state.notesPanelWidth)} pixels.`);
 }
 
@@ -1044,7 +1128,18 @@ function onNotesPanelResizerKeyDown(event) {
   state.notesPanelWidth = normalizeNotesPanelWidth(next);
   applyNotesPanelWidth();
   saveNotesPanelWidth();
+  scheduleNavigatorSurfaceResize();
   setStatus(`Notes navigator width ${Math.round(state.notesPanelWidth)} pixels.`);
+}
+
+function scheduleNavigatorSurfaceResize() {
+  if (!state.navigatorDocked || state.navigatorSurfaceResizeRaf) return;
+  state.navigatorSurfaceResizeRaf = requestAnimationFrame(() => {
+    state.navigatorSurfaceResizeRaf = 0;
+    els.canvas.querySelectorAll('.split-side-note-ink').forEach((canvas) => {
+      drawSplitInkCanvas(canvas, inkStrokesForCanvas(canvas));
+    });
+  });
 }
 
 function constrainNotesPanelWidthToViewport() {
@@ -1081,15 +1176,22 @@ function normalizeNotesPanelWidth(value) {
   return Math.min(bounds.max, Math.max(bounds.min, Number.isFinite(value) ? value : fallback));
 }
 
-function notesPanelWidthStorageKey() {
-  return `reader-split-notes-panel-width:${docId || 'default'}`;
+function notesPanelWidthStorageKey(docked = state.navigatorDocked) {
+  const mode = docked ? 'docked' : 'floating';
+  return `reader-split-notes-${mode}-panel-width:${docId || 'default'}`;
 }
 
-function loadNotesPanelWidth() {
+function loadNotesPanelWidth(docked = state.navigatorDocked) {
   try {
-    return normalizeNotesPanelWidth(JSON.parse(localStorage.getItem(notesPanelWidthStorageKey()) || 'null'));
+    const stored = JSON.parse(localStorage.getItem(notesPanelWidthStorageKey(docked)) || 'null');
+    if (Number.isFinite(stored)) return stored;
+    if (!docked) {
+      const legacy = JSON.parse(localStorage.getItem(`reader-split-notes-panel-width:${docId || 'default'}`) || 'null');
+      if (Number.isFinite(legacy)) return legacy;
+    }
+    return NOTES_PANEL_WIDTH.default;
   } catch {
-    return normalizeNotesPanelWidth(null);
+    return NOTES_PANEL_WIDTH.default;
   }
 }
 

@@ -297,6 +297,7 @@ const MATH_DELIMITERS = [
 ];
 const BLANK_NOTE_BLOCK = { type: 'blank' };
 let serviceWorkerRegistrationScheduled = false;
+let pdfAnnotationJumpRequestSequence = 0;
 
 init().catch((error) => {
   setStatus(error.message, true);
@@ -1676,8 +1677,26 @@ function handlePdfPageReady(doc, event) {
     schedulePdfFrameRefresh(doc);
     return;
   }
-  if (!['shell', 'canvas', 'rendered', 'text', 'released', 'evicted'].includes(phase)) return;
   const pageIndex = Number(event.detail?.pageIndex);
+  if (phase === 'prepared' || phase === 'prepare-error') {
+    const pending = state.pendingPdfAnnotationJump;
+    const requestId = Number(event.detail?.requestId);
+    if (Number.isInteger(pageIndex)
+      && pageIndex >= 0
+      && Number.isInteger(requestId)
+      && requestId > 0
+      && pending?.pageIndex === pageIndex
+      && pending.requestId === requestId) {
+      if (phase === 'prepare-error') {
+        failPendingPdfAnnotationJump(doc, pending, event.detail?.message);
+        return;
+      }
+      pending.pageWindowPrepared = true;
+      retryPendingPdfAnnotationJump(doc);
+    }
+    return;
+  }
+  if (!['shell', 'canvas', 'rendered', 'text', 'released', 'evicted'].includes(phase)) return;
   if (!Number.isInteger(pageIndex) || pageIndex < 0) return;
   if (phase === 'evicted') {
     for (const annotation of state.annotations) {
@@ -9488,9 +9507,14 @@ function jumpToAnnotation(annotationId, options) {
     syncJumpToNoteButton(doc);
     return;
   }
-  const targetTop = note
-    ? doc.defaultView.scrollY + note.getBoundingClientRect().top
-    : annotationTop(doc, annotation);
+  const canonicalNoteTop = annotationHasSideNote(annotation)
+    ? sideNotePosition(doc, annotation)?.top
+    : null;
+  const targetTop = Number.isFinite(canonicalNoteTop)
+    ? canonicalNoteTop
+    : note
+      ? doc.defaultView.scrollY + note.getBoundingClientRect().top
+      : annotationTop(doc, annotation);
   if (Number.isFinite(targetTop)) {
     const viewportOffset = options.alignNoteTop ? 0 : doc.defaultView.innerHeight * NOTE_JUMP_VIEWPORT_OFFSET_RATIO;
     doc.defaultView.scrollTo(0, Math.max(0, targetTop - viewportOffset));
@@ -9558,26 +9582,37 @@ function requestPdfPageForAnnotationJump(doc, annotation, options) {
     annotationId: annotation.id,
     pageIndex,
     pageNumber,
-    alignNoteTop: options.alignNoteTop === true
+    alignNoteTop: options.alignNoteTop === true,
+    pageWindowPrepared: false,
+    requestId: ++pdfAnnotationJumpRequestSequence
   };
-  if (pdfAnnotationJumpReady(doc, pendingJump)) return false;
+  const targetReady = pdfAnnotationJumpTargetReady(doc, pendingJump);
   state.pendingPdfAnnotationJump = pendingJump;
-  state.pdfPendingJumpStatusUntil = performance.now() + 1500;
-  state.pdfPendingJumpNotice = {
-    annotationId: annotation.id,
-    pageNumber,
-    until: state.pdfPendingJumpStatusUntil
-  };
-  schedulePdfPendingJumpNoticeClear(annotation.id);
+  state.pdfPendingJumpStatusUntil = 0;
+  state.pdfPendingJumpNotice = null;
+  if (state.pdfPendingJumpNoticeTimer) {
+    window.clearTimeout(state.pdfPendingJumpNoticeTimer);
+    state.pdfPendingJumpNoticeTimer = 0;
+  }
   doc.dispatchEvent(new doc.defaultView.CustomEvent('reader-pdf-ensure-page', {
     detail: {
       annotationId: annotation.id,
       pageIndex,
-      pageNumber
+      pageNumber,
+      requestId: pendingJump.requestId
     }
   }));
-  setStatus(`Loading page ${pageNumber} for selected note...`);
-  renderNavigatorNoteCards([annotation.id]);
+  if (!targetReady) {
+    state.pdfPendingJumpStatusUntil = performance.now() + 1500;
+    state.pdfPendingJumpNotice = {
+      annotationId: annotation.id,
+      pageNumber,
+      until: state.pdfPendingJumpStatusUntil
+    };
+    schedulePdfPendingJumpNoticeClear(annotation.id);
+    setStatus(`Loading page ${pageNumber} for selected note...`);
+    renderNavigatorNoteCards([annotation.id]);
+  }
   return true;
 }
 
@@ -9590,7 +9625,27 @@ function retryPendingPdfAnnotationJump(doc) {
   settlePendingPdfAnnotationJump(doc, pending);
 }
 
+function failPendingPdfAnnotationJump(doc, pending, message) {
+  if (state.pendingPdfAnnotationJump !== pending || doc !== getFrameDoc()) return false;
+  state.pendingPdfAnnotationJump = null;
+  state.pdfPendingJumpStatusUntil = 0;
+  if (state.pdfPendingJumpNotice?.annotationId === pending.annotationId) state.pdfPendingJumpNotice = null;
+  if (state.pdfPendingJumpNoticeTimer) {
+    window.clearTimeout(state.pdfPendingJumpNoticeTimer);
+    state.pdfPendingJumpNoticeTimer = 0;
+  }
+  renderNavigatorNoteCards([pending.annotationId]);
+  syncJumpToNoteButton(doc);
+  scheduleSplitNotesStateBroadcast(doc);
+  setStatus(String(message || `Could not prepare page ${pending.pageNumber} for the selected note.`), true);
+  return true;
+}
+
 function pdfAnnotationJumpReady(doc, pending) {
+  return pending?.pageWindowPrepared === true && pdfAnnotationJumpTargetReady(doc, pending);
+}
+
+function pdfAnnotationJumpTargetReady(doc, pending) {
   const page = pdfAnnotationJumpPage(doc, pending);
   if (!page || page.dataset.renderState !== 'rendered') return false;
   const annotation = state.annotations.find((item) => item.id === pending?.annotationId);

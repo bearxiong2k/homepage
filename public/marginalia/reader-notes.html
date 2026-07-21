@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Split Notes - Marginalia</title>
-  <link rel="manifest" href="manifest.webmanifest?v=20260721-174201">
+  <link rel="manifest" href="manifest.webmanifest?v=20260721-235558">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="split-notes-body">
@@ -25,7 +25,10 @@
           <h2 class="brand">Notes</h2>
           <p id="noteCount" class="small"></p>
         </div>
-        <button id="expandAllNotesBtn" class="drawer-head-action" type="button">Expand all</button>
+        <div class="drawer-head-actions">
+          <button id="expandAllNotesBtn" class="drawer-head-action" type="button">Expand all</button>
+          <button id="dockNotesNavigatorBtn" class="drawer-head-action navigator-dock-button" type="button" title="Dock navigator beside side notes" aria-label="Dock navigator beside side notes" aria-pressed="false">Dock</button>
+        </div>
       </div>
       <div id="noteList" class="note-list"></div>
     </div>
