@@ -912,15 +912,7 @@ function onNavigatorClick(event) {
 }
 
 function alignSplitNoteToTop(annotationId) {
-  const metric = state.metricsById.get(annotationId);
-  const top = Number(metric?.top);
-  state.channel?.post('activate-annotation', { annotationId });
-  if (!Number.isFinite(top)) return;
-  const scrollY = Math.max(0, top);
-  els.scroller.scrollTop = scrollY;
-  state.pendingScrollY = scrollY;
-  state.lastLocalScrollSentAt = Date.now();
-  state.channel?.post('notes-scroll', { scrollY });
+  state.channel?.post('jump-to-annotation', { annotationId });
 }
 
 function onNotesScroll() {
