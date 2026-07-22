@@ -45,6 +45,7 @@ const state = {
   removeTargetAnnotationId: null,
   features: {
     focusMode: true,
+    blockNotes: true,
     singleBlockTextHighlights: true
   },
   expandedNavigatorNoteIds: new Set(),
@@ -158,6 +159,7 @@ function applySourceState(payload) {
   state.removeTargetAnnotationId = payload.removeTargetAnnotationId || null;
   state.features = {
     focusMode: payload.features?.focusMode !== false,
+    blockNotes: payload.features?.blockNotes !== false,
     singleBlockTextHighlights: payload.features?.singleBlockTextHighlights !== false
   };
   state.sourceScrollY = Math.max(0, Number(payload.scrollY) || 0);
@@ -709,10 +711,34 @@ function onSideNoteClick(event) {
 function onSideNoteDoubleClick(event) {
   const body = event.target?.closest?.('.split-side-note-body.is-rendered');
   const note = body?.closest?.('.split-side-note');
-  if (!body || !note) return;
+  if (body && note) {
+    event.preventDefault();
+    event.stopPropagation();
+    beginSplitTextEdit(note.dataset.annotationId, body.dataset.blockId);
+    return;
+  }
+  if (event.target?.closest?.('.split-side-note')) return;
   event.preventDefault();
   event.stopPropagation();
-  beginSplitTextEdit(note.dataset.annotationId, body.dataset.blockId);
+  if (state.focusModeAnnotationId) {
+    setStatus('Disable focus mode before creating a new note.', true);
+    return;
+  }
+  if (!state.features.blockNotes) {
+    setStatus('Block notes are unavailable for this document.', true);
+    return;
+  }
+  const documentY = splitNoteDocumentY(els.scroller.scrollTop, event.clientY, state.splitPageZoom);
+  state.channel?.post('create-note-at-position', { documentY });
+  window.getSelection()?.removeAllRanges();
+  setStatus('Creating side note...');
+}
+
+function splitNoteDocumentY(scrollTop, clientY, pageZoom = SPLIT_PAGE_ZOOM_DEFAULT) {
+  const scrollY = Math.max(0, Number(scrollTop) || 0);
+  const viewportY = Math.max(0, Number(clientY) || 0);
+  const zoom = Math.max(0.1, Number(pageZoom) || SPLIT_PAGE_ZOOM_DEFAULT);
+  return scrollY + viewportY / zoom;
 }
 
 function onSideNoteInput(event) {

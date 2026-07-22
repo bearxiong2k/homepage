@@ -2770,6 +2770,10 @@ function handleSplitNotesMessage(envelope) {
     if (payload.annotationId) activateAnnotationFromNavigator(payload.annotationId);
     return;
   }
+  if (type === 'create-note-at-position') {
+    createSplitNoteAtDocumentPosition(payload).catch((error) => setStatus(error.message, true));
+    return;
+  }
   if (type === 'toggle-note-collapse') {
     if (payload.annotationId) toggleSideNoteCollapse(payload.annotationId);
     return;
@@ -2986,6 +2990,7 @@ function buildSplitNotesSourceState(doc = state.iframeLoaded ? getFrameDoc() : n
     removeTargetAnnotationId: state.removeTargetAnnotationId || null,
     features: {
       focusMode: compatibilityFeatureEnabled('focusMode'),
+      blockNotes: compatibilityFeatureEnabled('blockNotes'),
       singleBlockTextHighlights: compatibilityFeatureEnabled('singleBlockTextHighlights')
     },
     scrollY: Math.max(0, view?.scrollY || 0),
@@ -8563,6 +8568,23 @@ async function createBlankSideNoteAt(event) {
   renderAnnotations();
   renderNoteList();
   editAnnotationInline(annotation.id, false);
+}
+
+async function createSplitNoteAtDocumentPosition(payload) {
+  if (!state.iframeLoaded) {
+    setStatus('Open a source before adding a note.', true);
+    return;
+  }
+  const requestedDocumentY = Number(payload?.documentY);
+  if (!Number.isFinite(requestedDocumentY)) return;
+  const doc = getFrameDoc();
+  const view = doc.defaultView;
+  const scrollHeight = Math.max(doc.documentElement.scrollHeight, doc.body?.scrollHeight || 0, view.innerHeight || 0);
+  const documentY = clampNumber(requestedDocumentY, 0, scrollHeight, view.scrollY || 0);
+  await createBlankSideNoteAt({
+    clientX: Math.max(0, layoutMetrics(doc).sourceWidth),
+    clientY: documentY - (view.scrollY || 0)
+  });
 }
 
 function nearestAnchorForDocumentY(doc, y) {
