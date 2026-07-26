@@ -47,6 +47,7 @@ import {
   normalizeSplitPageZoom,
   splitPageZoomAction
 } from './split-page-zoom.js';
+import { planSideNoteStack } from './side-note-layout.js';
 
 const storageMode = currentStorageMode();
 const storage = createStorageAdapter({ mode: storageMode });
@@ -7682,19 +7683,18 @@ function layoutSideNotes(doc) {
     .filter(Boolean)
     .sort((a, b) => a.top - b.top);
 
-  const gap = 12;
-  let highestBottom = -Infinity;
-  notes.forEach((entry, index) => {
-    entry.note.style.zIndex = String(index + 1);
-    if (!state.activeAnnotationId && entry.top < highestBottom + gap) {
-      entry.note.classList.add('is-overlapping');
-    }
-    highestBottom = Math.max(highestBottom, entry.top + entry.note.getBoundingClientRect().height);
+  const stack = planSideNoteStack(
+    notes.map((entry) => ({
+      ...entry,
+      annotationId: entry.note.dataset.annotationId,
+      height: entry.note.getBoundingClientRect().height
+    })),
+    state.activeAnnotationId
+  );
+  stack.forEach((entry) => {
+    entry.note.style.zIndex = String(entry.zIndex);
+    entry.note.classList.toggle('is-overlapping', entry.overlapping);
   });
-  if (state.activeAnnotationId) {
-    const activeNote = notes.find((entry) => entry.note.dataset.annotationId === state.activeAnnotationId);
-    if (activeNote) activeNote.note.style.zIndex = String(notes.length + 10);
-  }
   requestAnimationFrame(() => redrawSideInkCanvases(doc));
 }
 
@@ -8606,6 +8606,11 @@ function nearestAnchorForDocumentY(doc, y) {
 function beginInlineTextEdit(annotationId, note, focusField = 'body', pointerEvent = null, requestedBlockId = '') {
   const annotation = state.annotations.find((item) => item.id === annotationId);
   if (!annotation) return;
+  if (state.activeAnnotationId !== annotationId) {
+    state.activeAnnotationId = annotationId;
+    syncActiveAnnotationState();
+    renderNoteList({ anchorAnnotationId: annotationId });
+  }
   const title = note.querySelector('.reader-side-note-title');
   const bodies = Array.from(note.querySelectorAll('.reader-side-note-body'));
   const clickedBody = pointerEvent?.target?.closest?.('.reader-side-note-body');

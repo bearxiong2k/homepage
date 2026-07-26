@@ -9,6 +9,7 @@ import {
   splitPageZoomAction,
   splitPageZoomViewport
 } from './split-page-zoom.js';
+import { planSideNoteStack } from './side-note-layout.js';
 
 const params = new URLSearchParams(location.search);
 const docId = params.get('doc') || '';
@@ -60,6 +61,8 @@ const state = {
   navigatorDocked: false,
   navigatorUndockedWindowSize: null,
   navigatorSurfaceResizeRaf: 0,
+  sideNoteLayoutRaf: 0,
+  pendingTextBlockFocusAnnotationId: null,
   splitPageZoom: SPLIT_PAGE_ZOOM_DEFAULT
 };
 
@@ -121,6 +124,7 @@ function init() {
   window.addEventListener('resize', handleSplitNotesWindowResize);
   window.addEventListener('beforeunload', () => {
     if (state.navigatorSurfaceResizeRaf) cancelAnimationFrame(state.navigatorSurfaceResizeRaf);
+    if (state.sideNoteLayoutRaf) cancelAnimationFrame(state.sideNoteLayoutRaf);
     state.channel?.post('close-notes');
     storage.revokeAllNoteImageUrls?.();
   });
@@ -174,6 +178,7 @@ function applySourceState(payload) {
   document.title = payload.documentTitle ? `${payload.documentTitle} - Split Notes` : 'Split Notes - Marginalia';
   renderSideNotes();
   renderNavigator();
+  focusPendingSplitTextBlock();
   applySourceScroll(state.sourceScrollY);
   setStatus(state.annotations.length ? 'Split notes synced.' : 'No notes in this source.');
 }
@@ -182,33 +187,89 @@ function renderSideNotes() {
   const focusSnapshot = captureSplitSideNoteFocus();
   const viewportHeight = splitNotesViewport().height;
   els.canvas.style.height = `${Math.max(viewportHeight, Math.ceil(state.sourceScrollHeight || viewportHeight))}px`;
-  els.canvas.textContent = '';
   if (!state.annotations.length) {
     renderEmptyState('No notes in this source.');
     return;
   }
   const currentIds = new Set(state.annotations.map((annotation) => annotation.id));
+  els.canvas.querySelectorAll('.split-notes-empty').forEach((empty) => empty.remove());
   state.collapsedSideNoteIds = new Set([...state.collapsedSideNoteIds].filter((id) => currentIds.has(id)));
+  state.textEditSessions = new Map(
+    [...state.textEditSessions].filter(([key]) => currentIds.has(key.split(':', 1)[0]))
+  );
+  const existingById = new Map(
+    Array.from(els.canvas.querySelectorAll('.split-side-note[data-annotation-id]'))
+      .map((note) => [note.dataset.annotationId, note])
+  );
   for (const annotation of orderedSplitAnnotations()) {
     const metric = state.metricsById.get(annotation.id);
-    const isCollapsed = state.collapsedSideNoteIds.has(annotation.id);
-    const note = document.createElement('article');
-    note.className = [
-      'split-side-note',
-      annotation.id === state.activeAnnotationId ? 'is-active' : '',
-      annotation.id === state.pinnedAnnotationId ? 'is-pinned' : '',
-      isCollapsed ? 'is-collapsed' : '',
-      metric?.status === 'unresolved' ? 'is-unresolved' : '',
-      metric?.status === 'pending' ? 'is-target-pending' : ''
-    ].filter(Boolean).join(' ');
-    note.dataset.annotationId = annotation.id;
-    note.style.top = `${Math.max(0, Math.round(metric?.top ?? 24))}px`;
-    note.innerHTML = sideNoteHtml(annotation, metric);
+    const existing = existingById.get(annotation.id);
+    const editing = existing?.classList.contains('is-editing')
+      && splitNoteEditingActive(annotation.id);
+    const note = editing ? existing : createSplitSideNote(annotation, metric);
+    syncSplitSideNoteShell(note, annotation, metric, editing);
     els.canvas.append(note);
-    hydrateSplitNoteBlocks(note, annotation);
-    renderSplitInkCanvases(note, annotation);
+    if (!editing) {
+      hydrateSplitNoteBlocks(note, annotation);
+      renderSplitInkCanvases(note, annotation);
+    }
+    existingById.delete(annotation.id);
   }
+  existingById.forEach((note) => note.remove());
   restoreSplitSideNoteFocus(focusSnapshot);
+  layoutSplitSideNotes();
+  requestSplitSideNoteLayout();
+}
+
+function createSplitSideNote(annotation, metric) {
+  const note = document.createElement('article');
+  note.dataset.annotationId = annotation.id;
+  note.innerHTML = sideNoteHtml(annotation, metric);
+  return note;
+}
+
+function syncSplitSideNoteShell(note, annotation, metric, editing = false) {
+  const isCollapsed = state.collapsedSideNoteIds.has(annotation.id);
+  const isPinned = annotation.id === state.pinnedAnnotationId;
+  note.className = [
+    'split-side-note',
+    annotation.id === state.activeAnnotationId ? 'is-active' : '',
+    isPinned ? 'is-pinned' : '',
+    isCollapsed ? 'is-collapsed' : '',
+    editing ? 'is-editing' : '',
+    metric?.status === 'unresolved' ? 'is-unresolved' : '',
+    metric?.status === 'pending' ? 'is-target-pending' : ''
+  ].filter(Boolean).join(' ');
+  note.style.top = `${Math.max(0, Math.round(metric?.top ?? 24))}px`;
+  if (isPinned) note.style.removeProperty('z-index');
+}
+
+function splitNoteEditingActive(annotationId) {
+  const prefix = `${annotationId}:`;
+  return [...state.textEditSessions.keys()].some((key) => key.startsWith(prefix));
+}
+
+function requestSplitSideNoteLayout() {
+  if (state.sideNoteLayoutRaf) return;
+  state.sideNoteLayoutRaf = requestAnimationFrame(() => {
+    state.sideNoteLayoutRaf = 0;
+    layoutSplitSideNotes();
+  });
+}
+
+function layoutSplitSideNotes() {
+  const entries = Array.from(els.canvas.querySelectorAll('.split-side-note:not(.is-pinned)'))
+    .map((note) => ({
+      annotationId: note.dataset.annotationId,
+      note,
+      top: Number.parseFloat(note.style.top) || 0,
+      height: note.getBoundingClientRect().height
+    }));
+  const stack = planSideNoteStack(entries, state.activeAnnotationId);
+  stack.forEach((entry) => {
+    entry.note.style.zIndex = String(entry.zIndex);
+    entry.note.classList.toggle('is-overlapping', entry.overlapping);
+  });
 }
 
 function handleSplitPageZoomShortcut(event) {
@@ -277,6 +338,9 @@ function sideNoteHtml(annotation, metric) {
     : metric?.status === 'unresolved'
       ? '<p class="split-side-note-status">Target unresolved</p>'
       : '';
+  const titleLabel = title
+    ? `Note title: ${escapeHtml(readableSnippet(sideNoteTitle(annotation), 80))}`
+    : 'Empty note title. Press Enter to edit';
   return `
     <div class="split-side-note-card">
       <div class="split-side-note-tools">
@@ -287,9 +351,9 @@ function sideNoteHtml(annotation, metric) {
         <button type="button" class="split-side-note-tool ${isPinned ? 'is-active' : ''}" data-split-note-action="pin" title="${isPinned ? 'Unpin note editor' : 'Pin note editor'}" aria-label="${isPinned ? 'Unpin note editor' : 'Pin note editor'}" aria-pressed="${String(isPinned)}">「」</button>
         <button type="button" class="split-side-note-tool danger" data-split-note-action="delete-note" title="Delete note" aria-label="Delete note">×</button>
       </div>
-      <h3 class="split-side-note-title" contenteditable="plaintext-only" data-split-note-field="title" data-placeholder="Title">${title}</h3>
+      <span class="split-side-note-title" data-split-note-field="title" data-placeholder="Title" tabindex="0" aria-label="${titleLabel}">${title}</span>
       ${status}
-      ${sideNoteBlocksHtml(annotation)}
+      ${sideNoteBlocksHtml(annotation, isPinned)}
     </div>
   `;
 }
@@ -299,11 +363,15 @@ function splitAnnotationHasHighlights(annotation) {
   return (annotation?.targets || []).some((target) => ['text', 'pdf-rect'].includes(target?.type));
 }
 
-function sideNoteBlocksHtml(annotation) {
+function sideNoteBlocksHtml(annotation, isPinned = state.pinnedAnnotationId === annotation.id) {
   const blocks = sideNoteBlocks(annotation);
-  if (blocks.length === 1 && blocks[0]?.type === 'blank') return insertionBoundaryHtml({});
-  const parts = [insertionBoundaryHtml({ beforeBlockId: blocks[0]?.id })];
-  blocks.forEach((block) => {
+  const soleBlank = blocks.length === 1 && blocks[0]?.type === 'blank';
+  if (soleBlank && !isPinned) {
+    return `<span class="split-side-note-blank" data-block-id="${escapeHtml(blocks[0].id)}" role="button" aria-label="Empty note block. Press Enter to add text" tabindex="0"></span>`;
+  }
+  const parts = isPinned ? [insertionBoundaryHtml({ beforeBlockId: soleBlank ? '' : blocks[0]?.id })] : [];
+  blocks.forEach((block, index) => {
+    if (isPinned && soleBlank) return;
     if (block?.type === 'ink') {
       const height = normalizeInkHeight(block.ink?.height);
       parts.push(`
@@ -325,14 +393,17 @@ function sideNoteBlocksHtml(annotation) {
             <img class="split-side-note-image" data-asset-path="${escapeHtml(block.assetPath)}" alt="${escapeHtml(block.alt || '')}" loading="eager" decoding="async" hidden>
             <span class="split-side-note-image-placeholder">Loading ${escapeHtml(block.originalName || block.alt || 'picture')}…</span>
           </div>
-          <label class="split-side-note-image-alt">Alt text<input type="text" maxlength="500" value="${escapeHtml(block.alt || '')}" data-split-note-action="image-alt" data-block-id="${escapeHtml(block.id)}"></label>
+          ${isPinned ? `<label class="split-side-note-image-alt">Alt text<input type="text" maxlength="500" value="${escapeHtml(block.alt || '')}" data-split-note-action="image-alt" data-block-id="${escapeHtml(block.id)}"></label>` : ''}
         </div>
       `);
     } else {
       const text = block?.type === 'text' ? block.markdown || '' : '';
+      const bodyLabel = text.trim()
+        ? `Note text: ${escapeHtml(readableSnippet(text, 100))}`
+        : `Empty ${index ? 'continued ' : ''}note text. Press Enter to edit`;
       parts.push(`
         <div class="split-side-note-text-block" data-block-id="${escapeHtml(block.id)}">
-          <div class="split-side-note-body" tabindex="0" data-block-id="${escapeHtml(block.id)}" data-placeholder="Note">${escapeHtml(text)}</div>
+          <div class="split-side-note-body" tabindex="0" data-block-id="${escapeHtml(block.id)}" data-placeholder="${index ? 'Continue note' : 'Note'}" aria-label="${bodyLabel}">${escapeHtml(text)}</div>
           <div class="split-side-note-text-actions">
             <span class="split-side-note-render-feedback" aria-live="polite" hidden></span>
             <button type="button" class="split-side-note-text-mode" data-split-note-action="edit-text" data-block-id="${escapeHtml(block.id)}" hidden>Edit</button>
@@ -340,7 +411,7 @@ function sideNoteBlocksHtml(annotation) {
         </div>
       `);
     }
-    parts.push(insertionBoundaryHtml({ afterBlockId: block.id }, block.id));
+    if (isPinned) parts.push(insertionBoundaryHtml({ afterBlockId: block.id }, block.id));
   });
   return parts.join('');
 }
@@ -391,6 +462,7 @@ async function renderSplitMarkdownBlock(body, button, blockId, source) {
       body.tabIndex = 0;
       button.hidden = true;
       setSplitRenderFeedback(button, '');
+      requestSplitSideNoteLayout();
       return;
     }
     ensureNoteMarkdownStyles(document);
@@ -402,8 +474,10 @@ async function renderSplitMarkdownBlock(body, button, blockId, source) {
     button.textContent = 'Edit';
     button.dataset.splitNoteAction = 'edit-text';
     setSplitRenderFeedback(button, '');
+    requestSplitSideNoteLayout();
   } catch {
     if (body.isConnected) body.textContent = source;
+    requestSplitSideNoteLayout();
   }
 }
 
@@ -423,16 +497,19 @@ async function hydrateSplitImage(image, placeholder, block) {
     image.addEventListener('load', () => {
       image.hidden = false;
       placeholder.hidden = true;
+      requestSplitSideNoteLayout();
     }, { once: true });
     image.addEventListener('error', () => {
       image.hidden = true;
       placeholder.hidden = false;
       placeholder.textContent = `Picture unavailable: ${block.originalName || block.alt || 'image'}`;
+      requestSplitSideNoteLayout();
     }, { once: true });
     image.src = url;
   } catch {
     if (!image.isConnected) return;
     placeholder.textContent = `Picture unavailable: ${block.originalName || block.alt || 'image'}`;
+    requestSplitSideNoteLayout();
   }
 }
 
@@ -699,13 +776,33 @@ function onSideNoteClick(event) {
     });
     return;
   }
+  if (annotationId !== state.activeAnnotationId) {
+    activateSplitSideNote(annotationId);
+    return;
+  }
+  const title = event.target?.closest?.('.split-side-note-title');
+  if (title) {
+    beginSplitTitleEdit(annotationId, event);
+    return;
+  }
   const plainBody = event.target?.closest?.('.split-side-note-body:not(.is-rendered)');
   if (plainBody) {
-    beginSplitTextEdit(annotationId, plainBody.dataset.blockId);
+    beginSplitTextEdit(annotationId, plainBody.dataset.blockId, event);
+    return;
+  }
+  const blank = event.target?.closest?.('.split-side-note-blank');
+  if (blank) {
+    state.pendingTextBlockFocusAnnotationId = annotationId;
+    state.channel?.post('insert-note-block', {
+      annotationId,
+      blockType: 'text',
+      afterBlockId: blank.dataset.blockId || ''
+    });
+    setStatus('Adding text block...');
     return;
   }
   if (event.target?.closest?.('[contenteditable], input, canvas, .split-side-note-ink-tools, .is-rendered')) return;
-  state.channel?.post('activate-annotation', { annotationId });
+  activateSplitSideNote(annotationId);
 }
 
 function onSideNoteDoubleClick(event) {
@@ -714,7 +811,7 @@ function onSideNoteDoubleClick(event) {
   if (body && note) {
     event.preventDefault();
     event.stopPropagation();
-    beginSplitTextEdit(note.dataset.annotationId, body.dataset.blockId);
+    beginSplitTextEdit(note.dataset.annotationId, body.dataset.blockId, event);
     return;
   }
   if (event.target?.closest?.('.split-side-note')) return;
@@ -765,7 +862,7 @@ function onSideNoteFocusOut(event) {
   const note = event.target?.closest?.('.split-side-note');
   if (!note || !event.target?.closest?.('[contenteditable]')) return;
   if (event.target.matches('[data-split-note-field="title"]')) {
-    state.channel?.post('save-note-text', { annotationId: note.dataset.annotationId, title: editablePlainText(event.target) });
+    finishSplitTitleEdit(note.dataset.annotationId, { save: true });
     return;
   }
   const body = event.target.closest('.split-side-note-body');
@@ -774,10 +871,32 @@ function onSideNoteFocusOut(event) {
 
 function onSideNoteKeyDown(event) {
   const body = event.target?.closest?.('.split-side-note-body');
+  const title = event.target?.closest?.('.split-side-note-title');
   const note = event.target?.closest?.('.split-side-note');
+  const annotationId = note?.dataset.annotationId || '';
+  if (title && !title.isContentEditable && ['Enter', 'F2'].includes(event.key)) {
+    event.preventDefault();
+    activateSplitSideNote(annotationId);
+    beginSplitTitleEdit(annotationId);
+    return;
+  }
   if (body && !body.isContentEditable && !body.classList.contains('is-rendered') && ['Enter', 'F2'].includes(event.key)) {
     event.preventDefault();
-    beginSplitTextEdit(note?.dataset.annotationId, body.dataset.blockId);
+    activateSplitSideNote(annotationId);
+    beginSplitTextEdit(annotationId, body.dataset.blockId);
+    return;
+  }
+  const blank = event.target?.closest?.('.split-side-note-blank');
+  if (blank && ['Enter', ' '].includes(event.key)) {
+    event.preventDefault();
+    activateSplitSideNote(annotationId);
+    state.pendingTextBlockFocusAnnotationId = annotationId;
+    state.channel?.post('insert-note-block', {
+      annotationId,
+      blockType: 'text',
+      afterBlockId: blank.dataset.blockId || ''
+    });
+    setStatus('Adding text block...');
     return;
   }
   if (!event.target?.closest?.('[contenteditable]')) return;
@@ -786,14 +905,15 @@ function onSideNoteKeyDown(event) {
     insertTextAtEditableSelection(body, '\t');
     return;
   }
-  if (body && event.key === 'Escape') {
+  if ((body || title) && event.key === 'Escape') {
     event.preventDefault();
-    finishSplitTextEdit(note?.dataset.annotationId, body.dataset.blockId, { save: false });
+    if (body) finishSplitTextEdit(annotationId, body.dataset.blockId, { save: false });
+    else finishSplitTitleEdit(annotationId, { save: false });
     return;
   }
   if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
     event.preventDefault();
-    if (body) finishSplitTextEdit(note?.dataset.annotationId, body.dataset.blockId, { save: true });
+    if (body) finishSplitTextEdit(annotationId, body.dataset.blockId, { save: true });
     else event.target.blur();
   }
 }
@@ -833,15 +953,22 @@ function onSideNotePaste(event) {
   document.execCommand?.('insertText', false, text);
 }
 
-function beginSplitTextEdit(annotationId, blockId) {
+function beginSplitTextEdit(annotationId, blockId, pointerEvent = null) {
   const annotation = state.annotations.find((item) => item.id === annotationId);
   const block = sideNoteBlocks(annotation).find((item) => item.id === blockId);
   const note = els.canvas.querySelector(`.split-side-note[data-annotation-id="${cssEscape(annotationId)}"]`);
   const body = note?.querySelector(`.split-side-note-body[data-block-id="${cssEscape(blockId)}"]`);
   const button = note?.querySelector(`.split-side-note-text-mode[data-block-id="${cssEscape(blockId)}"]`);
   if (block?.type !== 'text' || !body || !button) return;
+  activateSplitSideNote(annotationId);
+  if (body.isContentEditable) {
+    body.focus({ preventScroll: true });
+    placeSplitCaretFromPoint(body, pointerEvent);
+    return;
+  }
   const key = `${annotationId}:${blockId}`;
   state.textEditSessions.set(key, { original: block.markdown || '' });
+  note.classList.add('is-editing');
   body.textContent = block.markdown || '';
   body.classList.remove('is-rendered', 'note-markdown');
   body.contentEditable = 'plaintext-only';
@@ -851,7 +978,30 @@ function beginSplitTextEdit(annotationId, blockId) {
   button.hidden = false;
   setSplitRenderFeedback(button, '');
   body.focus({ preventScroll: true });
-  placeCaretAtEnd(body);
+  placeSplitCaretFromPoint(body, pointerEvent);
+  layoutSplitSideNotes();
+}
+
+function beginSplitTitleEdit(annotationId, pointerEvent = null) {
+  const annotation = state.annotations.find((item) => item.id === annotationId);
+  const note = els.canvas.querySelector(`.split-side-note[data-annotation-id="${cssEscape(annotationId)}"]`);
+  const title = note?.querySelector('.split-side-note-title');
+  if (!annotation || !title) return;
+  activateSplitSideNote(annotationId);
+  if (title.isContentEditable) {
+    title.focus({ preventScroll: true });
+    placeSplitCaretFromPoint(title, pointerEvent);
+    return;
+  }
+  const key = `${annotationId}:title`;
+  if (!state.textEditSessions.has(key)) {
+    state.textEditSessions.set(key, { original: annotation.note?.title || '' });
+  }
+  note.classList.add('is-editing');
+  title.contentEditable = 'plaintext-only';
+  title.focus({ preventScroll: true });
+  placeSplitCaretFromPoint(title, pointerEvent);
+  layoutSplitSideNotes();
 }
 
 async function tryRenderSplitTextBlock(annotationId, blockId) {
@@ -885,12 +1035,57 @@ function finishSplitTextEdit(annotationId, blockId, options = {}) {
   const block = blocks.find((item) => item.id === blockId);
   if (block?.type === 'text') block.markdown = markdown;
   if (annotation?.note && block?.type === 'text') annotation.note.blocks = blocks;
+  if (!splitNoteEditingActive(annotationId)) note?.classList.remove('is-editing');
   if (options.save !== false) {
     state.channel?.post('save-note-text', { annotationId, blockId, markdown });
     setStatus('Saving note...');
   }
   renderSideNotes();
   renderNavigator();
+}
+
+function finishSplitTitleEdit(annotationId, options = {}) {
+  const key = `${annotationId}:title`;
+  const session = state.textEditSessions.get(key);
+  if (!session) return;
+  const note = els.canvas.querySelector(`.split-side-note[data-annotation-id="${cssEscape(annotationId)}"]`);
+  const title = note?.querySelector('.split-side-note-title');
+  const value = options.save === false ? session.original : editablePlainText(title);
+  state.textEditSessions.delete(key);
+  const annotation = state.annotations.find((item) => item.id === annotationId);
+  if (annotation?.note) annotation.note.title = value;
+  if (!splitNoteEditingActive(annotationId)) note?.classList.remove('is-editing');
+  if (options.save !== false) {
+    state.channel?.post('save-note-text', { annotationId, title: value });
+    setStatus('Saving note...');
+  }
+  renderSideNotes();
+  renderNavigator();
+}
+
+function focusPendingSplitTextBlock() {
+  const annotationId = state.pendingTextBlockFocusAnnotationId;
+  if (!annotationId) return;
+  const annotation = state.annotations.find((item) => item.id === annotationId);
+  const block = sideNoteBlocks(annotation).find((item) => item?.type === 'text');
+  if (!block) return;
+  state.pendingTextBlockFocusAnnotationId = null;
+  requestAnimationFrame(() => beginSplitTextEdit(annotationId, block.id));
+}
+
+function activateSplitSideNote(annotationId) {
+  if (!annotationId) return false;
+  const changed = state.activeAnnotationId !== annotationId;
+  state.activeAnnotationId = annotationId;
+  els.canvas.querySelectorAll('.split-side-note[data-annotation-id]').forEach((note) => {
+    note.classList.toggle('is-active', note.dataset.annotationId === annotationId);
+  });
+  layoutSplitSideNotes();
+  if (changed) {
+    renderNavigator();
+    state.channel?.post('activate-annotation', { annotationId });
+  }
+  return changed;
 }
 
 function scheduleSplitMarkdownAnalysis(body) {
@@ -1376,6 +1571,7 @@ function renderSplitInkCanvases(note, annotation) {
 
 function beginSplitInkStroke(event, annotationId, blockId) {
   if (event.button !== 0) return;
+  if (annotationId !== state.activeAnnotationId) return;
   const canvas = event.currentTarget;
   const stroke = {
     color: state.inkColor,
@@ -1598,6 +1794,32 @@ function placeCaretAtEnd(element) {
   range.selectNodeContents(element);
   range.collapse(false);
   const selection = document.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function placeSplitCaretFromPoint(element, pointerEvent) {
+  if (!pointerEvent || !Number.isFinite(pointerEvent.clientX) || !Number.isFinite(pointerEvent.clientY)) {
+    placeCaretAtEnd(element);
+    return;
+  }
+  const doc = element.ownerDocument;
+  let range = null;
+  if (doc.caretRangeFromPoint) {
+    range = doc.caretRangeFromPoint(pointerEvent.clientX, pointerEvent.clientY);
+  } else if (doc.caretPositionFromPoint) {
+    const position = doc.caretPositionFromPoint(pointerEvent.clientX, pointerEvent.clientY);
+    if (position) {
+      range = doc.createRange();
+      range.setStart(position.offsetNode, position.offset);
+      range.collapse(true);
+    }
+  }
+  if (!range || !element.contains(range.startContainer)) {
+    placeCaretAtEnd(element);
+    return;
+  }
+  const selection = doc.getSelection();
   selection.removeAllRanges();
   selection.addRange(range);
 }
