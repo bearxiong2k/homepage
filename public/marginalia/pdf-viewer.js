@@ -584,6 +584,7 @@ async function renderPage(record, generation, renderToken) {
   const textLayerEl = document.createElement('div');
   textLayerEl.className = 'textLayer pdf-page-text-layer';
   textLayerEl.setAttribute('aria-label', `Page ${pageNumberFromElement(pageEl)} text`);
+  textLayerEl.tabIndex = -1;
   textLayerEl.style.setProperty('--total-scale-factor', String(cssScale));
   canvas.width = Math.ceil(outputViewport.width);
   canvas.height = Math.ceil(outputViewport.height);
@@ -1238,6 +1239,7 @@ function beginTextSelectionDrag(event) {
   if (!textLayer) return;
   const start = textPositionFromPoint(event.clientX, event.clientY);
   if (!start) return;
+  textLayer.focus({ preventScroll: true });
   textSelectionDrag = {
     pointerId: event.pointerId,
     start,
