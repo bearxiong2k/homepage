@@ -590,6 +590,7 @@ body.is-file-dragging .file-drop-catcher {
   overflow: visible;
   border-right: 0;
   border-left: 1px solid var(--border);
+  background: var(--panel);
   box-shadow: var(--shadow);
   transform: translateX(0);
 }
@@ -1029,7 +1030,7 @@ body.has-pinned-note .notes-tab-arrow {
 .split-side-note.is-active .split-side-note-card,
 .split-side-note.is-editing .split-side-note-card {
   padding: 0.36rem 0.44rem 0.42rem 0.58rem;
-  background: rgba(255, 253, 248, 0.84);
+  background: rgba(255, 253, 248, 0.97);
   box-shadow: 0 8px 22px rgba(52, 38, 18, 0.12);
   backdrop-filter: blur(1.5px);
 }

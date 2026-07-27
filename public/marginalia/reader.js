@@ -5993,7 +5993,7 @@ function injectReaderStyles(doc) {
     .reader-side-note { position: absolute; width: 100%; pointer-events: auto; }
     .reader-side-note.is-pinned { position: fixed !important; top: 0 !important; right: 0 !important; bottom: 0 !important; left: var(--reader-text-note-edge) !important; z-index: 92 !important; width: auto; min-width: 220px; overflow: auto; overscroll-behavior: none; }
     .reader-side-note-card { position: relative; border-left: 2px solid #d8c7a8; padding: 0 0 0 .58rem; color: #151515; background: transparent; font-family: Georgia, 'Times New Roman', serif; font-size: 1.03rem; line-height: 1.45; cursor: text; overflow: visible; }
-    .reader-side-note.is-overlapping .reader-side-note-card, .reader-side-note.is-active .reader-side-note-card, .reader-side-note.is-editing .reader-side-note-card { padding: .36rem .44rem .42rem .58rem; background: rgba(255, 253, 248, .84); box-shadow: 0 8px 22px rgba(52, 38, 18, .12); backdrop-filter: blur(1.5px); }
+    .reader-side-note.is-overlapping .reader-side-note-card, .reader-side-note.is-active .reader-side-note-card, .reader-side-note.is-editing .reader-side-note-card { padding: .36rem .44rem .42rem .58rem; background: rgba(255, 253, 248, .97); box-shadow: 0 8px 22px rgba(52, 38, 18, .12); backdrop-filter: blur(1.5px); }
     .reader-side-note.is-pinned .reader-side-note-card { min-height: 100%; padding: .78rem .8rem 1rem; background: rgba(255, 253, 248, .96); box-shadow: 0 14px 34px rgba(52, 38, 18, .18); cursor: default; }
     .reader-side-note.is-active .reader-side-note-card { border-left-color: #7a3d00; }
     .reader-side-note.is-unresolved .reader-side-note-card { border-left-color: #9b2f23; }

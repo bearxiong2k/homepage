@@ -11,7 +11,7 @@ export function planSideNoteStack(entries = [], activeAnnotationId = null, gap =
     .sort((left, right) => left.top - right.top || left.sourceIndex - right.sourceIndex);
   let highestBottom = -Infinity;
   const stack = ordered.map((entry, index) => {
-    const overlapping = !activeAnnotationId && entry.top < highestBottom + gap;
+    const overlapping = entry.top < highestBottom + gap;
     highestBottom = Math.max(highestBottom, entry.top + entry.height);
     return {
       ...entry,
