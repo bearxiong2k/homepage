@@ -969,6 +969,7 @@ body.has-pinned-note .notes-tab-arrow {
 .split-notes-scroller {
   height: 100vh;
   overflow: auto;
+  overflow-anchor: none;
   overscroll-behavior: none;
   background: #f8f6f0;
 }
@@ -1030,13 +1031,14 @@ body.has-pinned-note .notes-tab-arrow {
 .split-side-note.is-active .split-side-note-card,
 .split-side-note.is-editing .split-side-note-card {
   padding: 0.36rem 0.44rem 0.42rem 0.58rem;
-  background: rgba(255, 253, 248, 0.97);
-  box-shadow: 0 8px 22px rgba(52, 38, 18, 0.12);
-  backdrop-filter: blur(1.5px);
+  background: #fffdf8;
+  box-shadow: none;
 }
 
-.split-side-note.is-active .split-side-note-card {
+.split-side-note.is-active .split-side-note-card,
+.split-side-note.is-editing .split-side-note-card {
   border-left-color: #7a3d00;
+  box-shadow: 0 6px 16px rgba(52, 38, 18, 0.14);
 }
 
 .split-side-note.is-pinned .split-side-note-card {

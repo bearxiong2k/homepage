@@ -47,6 +47,7 @@ import {
   normalizeSplitPageZoom,
   splitPageZoomAction
 } from './split-page-zoom.js';
+import { clampSplitScrollPosition } from './split-scroll-sync.js';
 import { planSideNoteStack } from './side-note-layout.js';
 
 const storageMode = currentStorageMode();
@@ -2922,6 +2923,7 @@ function broadcastSplitSourceScroll(doc = getFrameDoc()) {
   if (!state.splitNotesActive || !state.splitChannel || !doc?.defaultView) return;
   const y = Math.max(0, doc.defaultView.scrollY || 0);
   if (consumeSplitRemoteScrollEcho(y)) return;
+  state.splitLastLocalScrollSentAt = Date.now();
   state.splitPendingScrollY = y;
   if (state.splitScrollRaf) return;
   state.splitScrollRaf = requestAnimationFrame(() => {
@@ -2930,7 +2932,6 @@ function broadcastSplitSourceScroll(doc = getFrameDoc()) {
     const currentScrollY = Number(doc.defaultView.scrollY);
     const scrollY = Math.max(0, Number.isFinite(currentScrollY) ? currentScrollY : state.splitPendingScrollY || 0);
     state.splitPendingScrollY = scrollY;
-    state.splitLastLocalScrollSentAt = Date.now();
     state.splitChannel.post('source-scroll', {
       scrollY
     });
@@ -2943,8 +2944,17 @@ function applySplitNotesScroll(scrollY, sentAt = 0) {
   const doc = getFrameDoc();
   const view = doc?.defaultView;
   if (!view) return;
-  const y = Math.max(0, Number(scrollY) || 0);
+  const scrollHeight = Math.max(
+    view.document.documentElement.scrollHeight,
+    view.document.body?.scrollHeight || 0
+  );
+  const y = clampSplitScrollPosition(scrollY, scrollHeight, view.innerHeight);
   if (Math.abs((view.scrollY || 0) - y) < 1) return;
+  if (state.splitScrollRaf) {
+    cancelAnimationFrame(state.splitScrollRaf);
+    state.splitScrollRaf = 0;
+  }
+  state.splitPendingScrollY = y;
   markSplitRemoteScrollTarget(y);
   view.scrollTo(0, y);
 }
@@ -5993,9 +6003,9 @@ function injectReaderStyles(doc) {
     .reader-side-note { position: absolute; width: 100%; pointer-events: auto; }
     .reader-side-note.is-pinned { position: fixed !important; top: 0 !important; right: 0 !important; bottom: 0 !important; left: var(--reader-text-note-edge) !important; z-index: 92 !important; width: auto; min-width: 220px; overflow: auto; overscroll-behavior: none; }
     .reader-side-note-card { position: relative; border-left: 2px solid #d8c7a8; padding: 0 0 0 .58rem; color: #151515; background: transparent; font-family: Georgia, 'Times New Roman', serif; font-size: 1.03rem; line-height: 1.45; cursor: text; overflow: visible; }
-    .reader-side-note.is-overlapping .reader-side-note-card, .reader-side-note.is-active .reader-side-note-card, .reader-side-note.is-editing .reader-side-note-card { padding: .36rem .44rem .42rem .58rem; background: rgba(255, 253, 248, .97); box-shadow: 0 8px 22px rgba(52, 38, 18, .12); backdrop-filter: blur(1.5px); }
+    .reader-side-note.is-overlapping .reader-side-note-card, .reader-side-note.is-active .reader-side-note-card, .reader-side-note.is-editing .reader-side-note-card { padding: .36rem .44rem .42rem .58rem; background: #fffdf8; box-shadow: none; }
     .reader-side-note.is-pinned .reader-side-note-card { min-height: 100%; padding: .78rem .8rem 1rem; background: rgba(255, 253, 248, .96); box-shadow: 0 14px 34px rgba(52, 38, 18, .18); cursor: default; }
-    .reader-side-note.is-active .reader-side-note-card { border-left-color: #7a3d00; }
+    .reader-side-note.is-active .reader-side-note-card, .reader-side-note.is-editing .reader-side-note-card { border-left-color: #7a3d00; box-shadow: 0 6px 16px rgba(52, 38, 18, .14); }
     .reader-side-note.is-unresolved .reader-side-note-card { border-left-color: #9b2f23; }
     .reader-side-note-collapse { min-width: 1.3rem; }
     .reader-side-note-title { display: block; min-height: 1.2em; margin: 0 0 .18rem; font-weight: 700; line-height: 1.25; white-space: pre-wrap; overflow-wrap: break-word; }

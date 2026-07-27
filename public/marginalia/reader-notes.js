@@ -9,6 +9,7 @@ import {
   splitPageZoomAction,
   splitPageZoomViewport
 } from './split-page-zoom.js';
+import { clampSplitScrollPosition } from './split-scroll-sync.js';
 import { planSideNoteStack } from './side-note-layout.js';
 
 const params = new URLSearchParams(location.search);
@@ -56,6 +57,7 @@ const state = {
   lastLocalScrollSentAt: 0,
   remoteScrollTargetY: null,
   remoteScrollTargetUntil: 0,
+  hasSourceState: false,
   notesPanelWidth: null,
   notesPanelResizeSession: null,
   navigatorDocked: false,
@@ -136,7 +138,7 @@ function init() {
 function handleSessionMessage(envelope) {
   const { type, payload = {} } = envelope;
   if (type === 'source-state') {
-    applySourceState(payload);
+    applySourceState(payload, envelope.sentAt);
     return;
   }
   if (type === 'source-scroll') {
@@ -151,7 +153,9 @@ function handleSessionMessage(envelope) {
   }
 }
 
-function applySourceState(payload) {
+function applySourceState(payload, sentAt = 0) {
+  const initialState = !state.hasSourceState;
+  state.hasSourceState = true;
   state.annotations = Array.isArray(payload.annotations) ? payload.annotations : [];
   state.metricsById = new Map((payload.noteMetrics || []).map((metric) => [metric.id, metric]));
   state.activeAnnotationId = payload.activeAnnotationId || null;
@@ -179,7 +183,7 @@ function applySourceState(payload) {
   renderSideNotes();
   renderNavigator();
   focusPendingSplitTextBlock();
-  applySourceScroll(state.sourceScrollY);
+  if (initialState) applySourceScroll(state.sourceScrollY, sentAt);
   setStatus(state.annotations.length ? 'Split notes synced.' : 'No notes in this source.');
 }
 
@@ -197,35 +201,57 @@ function renderSideNotes() {
   state.textEditSessions = new Map(
     [...state.textEditSessions].filter(([key]) => currentIds.has(key.split(':', 1)[0]))
   );
-  const existingById = new Map(
-    Array.from(els.canvas.querySelectorAll('.split-side-note[data-annotation-id]'))
-      .map((note) => [note.dataset.annotationId, note])
-  );
-  for (const annotation of orderedSplitAnnotations()) {
+  const existingById = new Map();
+  els.canvas.querySelectorAll('.split-side-note[data-annotation-id]').forEach((note) => {
+    existingById.get(note.dataset.annotationId)?.remove();
+    existingById.set(note.dataset.annotationId, note);
+  });
+  orderedSplitAnnotations().forEach((annotation, index) => {
     const metric = state.metricsById.get(annotation.id);
     const existing = existingById.get(annotation.id);
     const editing = existing?.classList.contains('is-editing')
       && splitNoteEditingActive(annotation.id);
-    const note = editing ? existing : createSplitSideNote(annotation, metric);
+    const renderKey = splitSideNoteRenderKey(annotation, metric);
+    const needsRender = !existing || (!editing && existing.dataset.renderKey !== renderKey);
+    const note = existing || createSplitSideNote(annotation, metric, renderKey);
+    if (existing && needsRender) {
+      note.innerHTML = sideNoteHtml(annotation, metric);
+      note.dataset.renderKey = renderKey;
+    }
     syncSplitSideNoteShell(note, annotation, metric, editing);
-    els.canvas.append(note);
-    if (!editing) {
+    const current = els.canvas.children[index];
+    if (current !== note) els.canvas.insertBefore(note, current || null);
+    if (!editing && needsRender) {
       hydrateSplitNoteBlocks(note, annotation);
       renderSplitInkCanvases(note, annotation);
     }
     existingById.delete(annotation.id);
-  }
+  });
   existingById.forEach((note) => note.remove());
   restoreSplitSideNoteFocus(focusSnapshot);
   layoutSplitSideNotes();
   requestSplitSideNoteLayout();
 }
 
-function createSplitSideNote(annotation, metric) {
+function createSplitSideNote(annotation, metric, renderKey = splitSideNoteRenderKey(annotation, metric)) {
   const note = document.createElement('article');
   note.dataset.annotationId = annotation.id;
+  note.dataset.renderKey = renderKey;
   note.innerHTML = sideNoteHtml(annotation, metric);
   return note;
+}
+
+function splitSideNoteRenderKey(annotation, metric) {
+  return JSON.stringify({
+    annotation,
+    collapsed: state.collapsedSideNoteIds.has(annotation.id),
+    pinned: annotation.id === state.pinnedAnnotationId,
+    focused: annotation.id === state.focusModeAnnotationId,
+    attaching: state.mode === 'attach-highlight' && annotation.id === state.attachTargetAnnotationId,
+    removing: state.mode === 'remove-highlight' && annotation.id === state.removeTargetAnnotationId,
+    features: state.features,
+    status: metric?.status || ''
+  });
 }
 
 function syncSplitSideNoteShell(note, annotation, metric, editing = false) {
@@ -1147,6 +1173,7 @@ function alignSplitNoteToTop(annotationId) {
 function onNotesScroll() {
   const y = Math.max(0, els.scroller.scrollTop || 0);
   if (consumeRemoteScrollEcho(y)) return;
+  state.lastLocalScrollSentAt = Date.now();
   state.pendingScrollY = y;
   if (state.scrollRaf) return;
   state.scrollRaf = requestAnimationFrame(() => {
@@ -1154,15 +1181,19 @@ function onNotesScroll() {
     const currentScrollY = Number(els.scroller.scrollTop);
     const scrollY = Math.max(0, Number.isFinite(currentScrollY) ? currentScrollY : state.pendingScrollY || 0);
     state.pendingScrollY = scrollY;
-    state.lastLocalScrollSentAt = Date.now();
     state.channel?.post('notes-scroll', { scrollY });
   });
 }
 
 function applySourceScroll(scrollY, sentAt = 0) {
   if (Number(sentAt) && Number(sentAt) < state.lastLocalScrollSentAt) return;
-  const y = Math.max(0, Number(scrollY) || 0);
+  const y = clampSplitScrollPosition(scrollY, els.scroller.scrollHeight, els.scroller.clientHeight);
   if (Math.abs((els.scroller.scrollTop || 0) - y) < 1) return;
+  if (state.scrollRaf) {
+    cancelAnimationFrame(state.scrollRaf);
+    state.scrollRaf = 0;
+  }
+  state.pendingScrollY = y;
   markRemoteScrollTarget(y);
   els.scroller.scrollTop = y;
 }

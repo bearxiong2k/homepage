@@ -9,16 +9,25 @@ export function planSideNoteStack(entries = [], activeAnnotationId = null, gap =
       height: Math.max(0, finiteNumber(entry?.height, 0))
     }))
     .sort((left, right) => left.top - right.top || left.sourceIndex - right.sourceIndex);
+  const overlaps = ordered.map(() => false);
   let highestBottom = -Infinity;
-  const stack = ordered.map((entry, index) => {
-    const overlapping = entry.top < highestBottom + gap;
-    highestBottom = Math.max(highestBottom, entry.top + entry.height);
-    return {
-      ...entry,
-      overlapping,
-      zIndex: index + 1
-    };
+  let highestBottomIndex = -1;
+  ordered.forEach((entry, index) => {
+    if (entry.top < highestBottom + gap) {
+      overlaps[index] = true;
+      if (highestBottomIndex >= 0) overlaps[highestBottomIndex] = true;
+    }
+    const bottom = entry.top + entry.height;
+    if (bottom > highestBottom) {
+      highestBottom = bottom;
+      highestBottomIndex = index;
+    }
   });
+  const stack = ordered.map((entry, index) => ({
+    ...entry,
+    overlapping: overlaps[index],
+    zIndex: index + 1
+  }));
   const active = activeAnnotationId
     ? stack.find((entry) => entry.annotationId === activeAnnotationId)
     : null;
