@@ -1,6 +1,13 @@
 import { createReaderSessionChannel } from './reader-session-channel.js';
 import { createStorageAdapter } from './storage-adapter.js';
-import { analyzeNoteMarkdown, ensureNoteMarkdownStyles, renderNoteMarkdown } from './note-markdown.js';
+import {
+  analyzeNoteMarkdown,
+  captureNoteMarkdownEditAnchor,
+  centerNoteMarkdownCaret,
+  ensureNoteMarkdownStyles,
+  placeNoteMarkdownCaret,
+  renderNoteMarkdown
+} from './note-markdown.js';
 import { currentStorageMode } from './runtime.js';
 import {
   SPLIT_PAGE_ZOOM_DEFAULT,
@@ -9,7 +16,7 @@ import {
   splitPageZoomAction,
   splitPageZoomViewport
 } from './split-page-zoom.js';
-import { clampSplitScrollPosition } from './split-scroll-sync.js';
+import { clampSplitScrollPosition, nextSplitScrollPosition } from './split-scroll-sync.js';
 import { planSideNoteStack } from './side-note-layout.js';
 
 const params = new URLSearchParams(location.search);
@@ -57,6 +64,8 @@ const state = {
   lastLocalScrollSentAt: 0,
   remoteScrollTargetY: null,
   remoteScrollTargetUntil: 0,
+  remoteScrollDestinationY: null,
+  remoteScrollRaf: 0,
   hasSourceState: false,
   notesPanelWidth: null,
   notesPanelResizeSession: null,
@@ -127,6 +136,7 @@ function init() {
   window.addEventListener('beforeunload', () => {
     if (state.navigatorSurfaceResizeRaf) cancelAnimationFrame(state.navigatorSurfaceResizeRaf);
     if (state.sideNoteLayoutRaf) cancelAnimationFrame(state.sideNoteLayoutRaf);
+    cancelRemoteScrollFollower();
     state.channel?.post('close-notes');
     storage.revokeAllNoteImageUrls?.();
   });
@@ -303,6 +313,7 @@ function handleSplitPageZoomShortcut(event) {
   if (!action) return false;
   event.preventDefault();
   event.stopPropagation();
+  cancelRemoteScrollFollower();
   const scrollY = Math.max(0, els.scroller?.scrollTop || 0);
   state.splitPageZoom = nextSplitPageZoom(state.splitPageZoom, action);
   applyNotesSplitPageZoom();
@@ -992,6 +1003,9 @@ function beginSplitTextEdit(annotationId, blockId, pointerEvent = null) {
     placeSplitCaretFromPoint(body, pointerEvent);
     return;
   }
+  const markdownEditAnchor = body.classList.contains('is-rendered')
+    ? captureNoteMarkdownEditAnchor(body, pointerEvent, block.markdown)
+    : null;
   const key = `${annotationId}:${blockId}`;
   state.textEditSessions.set(key, { original: block.markdown || '' });
   note.classList.add('is-editing');
@@ -1004,8 +1018,13 @@ function beginSplitTextEdit(annotationId, blockId, pointerEvent = null) {
   button.hidden = false;
   setSplitRenderFeedback(button, '');
   body.focus({ preventScroll: true });
-  placeSplitCaretFromPoint(body, pointerEvent);
+  if (!placeNoteMarkdownCaret(body, markdownEditAnchor)) placeSplitCaretFromPoint(body, pointerEvent);
   layoutSplitSideNotes();
+  if (markdownEditAnchor) {
+    requestAnimationFrame(() => {
+      centerNoteMarkdownCaret(body, note.classList.contains('is-pinned') ? note : els.scroller);
+    });
+  }
 }
 
 function beginSplitTitleEdit(annotationId, pointerEvent = null) {
@@ -1173,6 +1192,7 @@ function alignSplitNoteToTop(annotationId) {
 function onNotesScroll() {
   const y = Math.max(0, els.scroller.scrollTop || 0);
   if (consumeRemoteScrollEcho(y)) return;
+  cancelRemoteScrollFollower();
   state.lastLocalScrollSentAt = Date.now();
   state.pendingScrollY = y;
   if (state.scrollRaf) return;
@@ -1188,14 +1208,57 @@ function onNotesScroll() {
 function applySourceScroll(scrollY, sentAt = 0) {
   if (Number(sentAt) && Number(sentAt) < state.lastLocalScrollSentAt) return;
   const y = clampSplitScrollPosition(scrollY, els.scroller.scrollHeight, els.scroller.clientHeight);
-  if (Math.abs((els.scroller.scrollTop || 0) - y) < 1) return;
   if (state.scrollRaf) {
     cancelAnimationFrame(state.scrollRaf);
     state.scrollRaf = 0;
   }
   state.pendingScrollY = y;
-  markRemoteScrollTarget(y);
-  els.scroller.scrollTop = y;
+  state.remoteScrollDestinationY = y;
+  if (state.remoteScrollRaf) {
+    cancelAnimationFrame(state.remoteScrollRaf);
+    state.remoteScrollRaf = 0;
+  }
+  if (Math.abs((els.scroller.scrollTop || 0) - y) < 0.75) {
+    cancelRemoteScrollFollower();
+    return;
+  }
+  stepRemoteScrollFollower();
+}
+
+function stepRemoteScrollFollower() {
+  if (state.remoteScrollDestinationY == null) return;
+  const target = clampSplitScrollPosition(
+    state.remoteScrollDestinationY,
+    els.scroller.scrollHeight,
+    els.scroller.clientHeight
+  );
+  state.remoteScrollDestinationY = target;
+  const current = Math.max(0, els.scroller.scrollTop || 0);
+  const next = splitScrollMotionReduced(window)
+    ? target
+    : nextSplitScrollPosition(current, target, els.scroller.clientHeight);
+  if (Math.abs(next - current) > 0.1) {
+    markRemoteScrollTarget(next);
+    els.scroller.scrollTop = next;
+  }
+  if (Math.abs(target - next) <= 0.75) {
+    state.remoteScrollDestinationY = null;
+    return;
+  }
+  state.remoteScrollRaf = requestAnimationFrame(() => {
+    state.remoteScrollRaf = 0;
+    stepRemoteScrollFollower();
+  });
+}
+
+function cancelRemoteScrollFollower() {
+  if (state.remoteScrollRaf) cancelAnimationFrame(state.remoteScrollRaf);
+  state.remoteScrollRaf = 0;
+  state.remoteScrollDestinationY = null;
+}
+
+function splitScrollMotionReduced(view) {
+  return Boolean(view?.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
 }
 
 function markRemoteScrollTarget(scrollY) {

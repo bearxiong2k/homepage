@@ -1,7 +1,7 @@
 import { installNoteMath } from './note-math.js';
 import { noteMermaidPlaceholder, renderNoteMermaidDiagrams } from './note-mermaid.js';
 
-export const NOTE_MARKDOWN_RENDERER_VERSION = '2:markdown-it-14.3.0:katex-0.17.0:mermaid-11.16.0';
+export const NOTE_MARKDOWN_RENDERER_VERSION = '3:markdown-it-14.3.0:katex-0.17.0:mermaid-11.16.0';
 
 const DEFAULT_CACHE_SIZE = 128;
 const MARKDOWN_IT_SCRIPT_URL = new URL('./vendor/markdown-it/markdown-it.min.js', import.meta.url).href;
@@ -63,6 +63,7 @@ export function createNoteMarkdownRenderer({ markdownIt, katex, cacheSize = DEFA
     }
 
     const tokens = md.parse(normalizedSource, {});
+    annotateNoteMarkdownSourceLines(tokens);
     const entry = {
       tokens,
       hasRenderableSyntax: tokensHaveRenderableSyntax(tokens),
@@ -155,6 +156,116 @@ export function isSafeNoteLink(value) {
   const href = String(value ?? '').trim();
   if (/^#[^\s]*$/.test(href)) return true;
   return /^(?:https?:|mailto:)/i.test(href);
+}
+
+export function noteMarkdownSourceOffset(source, lineIndex) {
+  const value = String(source ?? '');
+  const targetLine = Math.max(0, Math.trunc(Number(lineIndex) || 0));
+  let offset = 0;
+  for (let line = 0; line < targetLine; line += 1) {
+    const nextBreak = value.indexOf('\n', offset);
+    if (nextBreak < 0) return value.length;
+    offset = nextBreak + 1;
+  }
+  return offset;
+}
+
+export function captureNoteMarkdownEditAnchor(body, pointerEvent, source) {
+  if (!body || !pointerEvent?.target?.closest) return null;
+  const sourceElement = pointerEvent.target.closest('[data-note-source-start-line]');
+  if (!sourceElement || !body.contains?.(sourceElement)) return null;
+  const startLine = Math.max(0, Math.trunc(Number(sourceElement.dataset.noteSourceStartLine) || 0));
+  const endLine = Math.max(startLine + 1, Math.trunc(Number(sourceElement.dataset.noteSourceEndLine) || startLine + 1));
+  const rect = sourceElement.getBoundingClientRect?.();
+  const height = Math.max(0, Number(rect?.height) || 0);
+  const ratio = height > 0 && Number.isFinite(pointerEvent.clientY)
+    ? Math.min(0.999999, Math.max(0, (pointerEvent.clientY - rect.top) / height))
+    : 0;
+  const line = startLine + Math.min(endLine - startLine - 1, Math.floor(ratio * (endLine - startLine)));
+  return {
+    line,
+    sourceOffset: noteMarkdownSourceOffset(source, line)
+  };
+}
+
+export function placeNoteMarkdownCaret(element, anchor) {
+  const requestedOffset = Number(anchor?.sourceOffset);
+  const doc = element?.ownerDocument;
+  const selection = doc?.getSelection?.();
+  if (!doc?.createRange || !selection || !Number.isFinite(requestedOffset)) return false;
+  const textNodes = [];
+  collectTextNodes(element, textNodes);
+  let remaining = Math.max(0, Math.trunc(requestedOffset));
+  let targetNode = null;
+  let targetOffset = 0;
+  for (const node of textNodes) {
+    const length = String(node.nodeValue || '').length;
+    if (remaining <= length) {
+      targetNode = node;
+      targetOffset = remaining;
+      break;
+    }
+    remaining -= length;
+  }
+  const range = doc.createRange();
+  if (targetNode) {
+    range.setStart(targetNode, targetOffset);
+  } else {
+    range.selectNodeContents(element);
+    range.collapse(false);
+  }
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  return true;
+}
+
+export function centerNoteMarkdownCaret(element, scrollSurface = null) {
+  const doc = element?.ownerDocument;
+  const selection = doc?.getSelection?.();
+  if (!selection?.rangeCount) return false;
+  const selectedRange = selection.getRangeAt(0);
+  if (!element.contains?.(selectedRange.startContainer)) return false;
+  const range = selectedRange.cloneRange();
+  range.collapse(true);
+  const rect = range.getClientRects?.()[0] || range.getBoundingClientRect?.();
+  if (!rect || !Number.isFinite(rect.top)) return false;
+  const caretCenter = rect.top + (Number(rect.height) || 0) / 2;
+  if (scrollSurface?.getBoundingClientRect && Number.isFinite(scrollSurface.scrollTop)) {
+    const surfaceRect = scrollSurface.getBoundingClientRect();
+    const surfaceCenter = surfaceRect.top + surfaceRect.height / 2;
+    const visualScale = surfaceRect.height > 0 && scrollSurface.clientHeight > 0
+      ? surfaceRect.height / scrollSurface.clientHeight
+      : 1;
+    scrollSurface.scrollTop = Math.max(0, scrollSurface.scrollTop + (caretCenter - surfaceCenter) / visualScale);
+    return true;
+  }
+  const view = doc.defaultView;
+  if (!view?.scrollTo || !Number.isFinite(view.innerHeight)) return false;
+  const scrollY = Math.max(0, Number(view.scrollY) || 0);
+  view.scrollTo(Number(view.scrollX) || 0, Math.max(0, scrollY + caretCenter - view.innerHeight / 2));
+  return true;
+}
+
+function annotateNoteMarkdownSourceLines(tokens) {
+  for (const token of tokens || []) {
+    if (!Array.isArray(token?.map) || token.map.length < 2 || typeof token.attrSet !== 'function') continue;
+    if (token.nesting !== 1 && !['code_block', 'hr'].includes(token.type)) continue;
+    const startLine = Math.max(0, Math.trunc(Number(token.map[0]) || 0));
+    const endLine = Math.max(startLine + 1, Math.trunc(Number(token.map[1]) || startLine + 1));
+    token.attrSet('data-note-source-start-line', String(startLine));
+    token.attrSet('data-note-source-end-line', String(endLine));
+  }
+}
+
+function collectTextNodes(node, output) {
+  for (const child of node?.childNodes || []) {
+    if (child?.nodeType === 3) {
+      output.push(child);
+      continue;
+    }
+    if (child?.nodeType === 1) collectTextNodes(child, output);
+  }
 }
 
 function installRestrictedRenderRules(md) {
