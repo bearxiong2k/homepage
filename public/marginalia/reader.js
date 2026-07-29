@@ -54,7 +54,12 @@ import {
   normalizeSplitPageZoom,
   splitPageZoomAction
 } from './split-page-zoom.js';
-import { clampSplitScrollPosition, nextSplitScrollPosition } from './split-scroll-sync.js';
+import {
+  SPLIT_SCROLL_FOLLOW_DELAY_MS,
+  SPLIT_SCROLL_SETTLE_DISTANCE,
+  clampSplitScrollPosition,
+  nextSplitScrollPosition
+} from './split-scroll-sync.js';
 import { planSideNoteStack } from './side-note-layout.js';
 
 const storageMode = currentStorageMode();
@@ -181,6 +186,8 @@ const state = {
   splitRemoteScrollDestinationY: null,
   splitRemoteScrollRaf: 0,
   splitRemoteScrollView: null,
+  splitRemoteScrollReadyAt: 0,
+  splitRemoteScrollLastFrameAt: 0,
   splitWindowMonitorTimer: 0,
   splitSourceWindowTarget: null,
   splitSourceFallbackTimer: 0,
@@ -2973,23 +2980,46 @@ function applySplitNotesScroll(scrollY, sentAt = 0) {
     state.splitScrollRafView = null;
   }
   state.splitPendingScrollY = y;
-  state.splitRemoteScrollDestinationY = y;
-  if (state.splitRemoteScrollRaf) {
-    (state.splitRemoteScrollView || window).cancelAnimationFrame(state.splitRemoteScrollRaf);
-    state.splitRemoteScrollRaf = 0;
+  if (splitScrollMotionReduced(view)) {
+    cancelSplitRemoteScrollFollower();
+    if (Math.abs((view.scrollY || 0) - y) <= SPLIT_SCROLL_SETTLE_DISTANCE) return;
+    markSplitRemoteScrollTarget(y);
+    view.scrollTo(0, y);
+    return;
   }
+  if (state.splitRemoteScrollView && state.splitRemoteScrollView !== view) {
+    cancelSplitRemoteScrollFollower();
+  }
+  state.splitRemoteScrollDestinationY = y;
   state.splitRemoteScrollView = view;
-  if (Math.abs((view.scrollY || 0) - y) < 0.75) {
+  if (Math.abs((view.scrollY || 0) - y) <= SPLIT_SCROLL_SETTLE_DISTANCE) {
     cancelSplitRemoteScrollFollower();
     return;
   }
-  stepSplitRemoteScrollFollower(view);
+  if (!state.splitRemoteScrollRaf) {
+    state.splitRemoteScrollReadyAt = view.performance.now() + SPLIT_SCROLL_FOLLOW_DELAY_MS;
+    state.splitRemoteScrollLastFrameAt = 0;
+    scheduleSplitRemoteScrollFollower(view);
+  }
 }
 
-function stepSplitRemoteScrollFollower(view = state.splitRemoteScrollView) {
+function scheduleSplitRemoteScrollFollower(view = state.splitRemoteScrollView) {
+  if (state.splitRemoteScrollRaf || state.splitRemoteScrollDestinationY == null || !view) return;
+  state.splitRemoteScrollRaf = view.requestAnimationFrame((timestamp) => {
+    state.splitRemoteScrollRaf = 0;
+    stepSplitRemoteScrollFollower(view, timestamp);
+  });
+}
+
+function stepSplitRemoteScrollFollower(view = state.splitRemoteScrollView, timestamp = null) {
   if (state.splitRemoteScrollDestinationY == null || !view) return;
   if (view !== getFrameDoc()?.defaultView) {
     cancelSplitRemoteScrollFollower();
+    return;
+  }
+  const frameNow = Number.isFinite(Number(timestamp)) ? Number(timestamp) : view.performance.now();
+  if (frameNow < state.splitRemoteScrollReadyAt) {
+    scheduleSplitRemoteScrollFollower(view);
     return;
   }
   const scrollHeight = Math.max(
@@ -3003,22 +3033,20 @@ function stepSplitRemoteScrollFollower(view = state.splitRemoteScrollView) {
   );
   state.splitRemoteScrollDestinationY = target;
   const current = Math.max(0, view.scrollY || 0);
-  const next = splitScrollMotionReduced(view)
-    ? target
-    : nextSplitScrollPosition(current, target, view.innerHeight);
+  const elapsedMs = state.splitRemoteScrollLastFrameAt
+    ? Math.max(1, frameNow - state.splitRemoteScrollLastFrameAt)
+    : undefined;
+  state.splitRemoteScrollLastFrameAt = frameNow;
+  const next = nextSplitScrollPosition(current, target, view.innerHeight, elapsedMs);
   if (Math.abs(next - current) > 0.1) {
     markSplitRemoteScrollTarget(next);
     view.scrollTo(0, next);
   }
-  if (Math.abs(target - next) <= 0.75) {
-    state.splitRemoteScrollDestinationY = null;
-    state.splitRemoteScrollView = null;
+  if (Math.abs(target - next) <= SPLIT_SCROLL_SETTLE_DISTANCE) {
+    cancelSplitRemoteScrollFollower();
     return;
   }
-  state.splitRemoteScrollRaf = view.requestAnimationFrame(() => {
-    state.splitRemoteScrollRaf = 0;
-    stepSplitRemoteScrollFollower(view);
-  });
+  scheduleSplitRemoteScrollFollower(view);
 }
 
 function cancelSplitRemoteScrollFollower() {
@@ -3027,6 +3055,8 @@ function cancelSplitRemoteScrollFollower() {
   state.splitRemoteScrollRaf = 0;
   state.splitRemoteScrollDestinationY = null;
   state.splitRemoteScrollView = null;
+  state.splitRemoteScrollReadyAt = 0;
+  state.splitRemoteScrollLastFrameAt = 0;
 }
 
 function splitScrollMotionReduced(view) {

@@ -1,7 +1,10 @@
-export const SPLIT_SCROLL_FOLLOW_FACTOR = 0.82;
+export const SPLIT_SCROLL_FOLLOW_DELAY_MS = 48;
+export const SPLIT_SCROLL_FOLLOW_RESPONSE_MS = 58;
+export const SPLIT_SCROLL_MAX_STEP_VIEWPORT_RATIO = 0.16;
 export const SPLIT_SCROLL_SETTLE_DISTANCE = 0.75;
-export const SPLIT_SCROLL_MIN_SNAP_DISTANCE = 240;
-export const SPLIT_SCROLL_SNAP_VIEWPORT_RATIO = 0.55;
+
+const SPLIT_SCROLL_NOMINAL_FRAME_MS = 1000 / 60;
+const SPLIT_SCROLL_MAX_MOTION_FRAME_MS = 24;
 
 export function clampSplitScrollPosition(scrollPosition, scrollHeight, viewportHeight) {
   const position = Math.max(0, finiteNumber(scrollPosition, 0));
@@ -10,18 +13,29 @@ export function clampSplitScrollPosition(scrollPosition, scrollHeight, viewportH
   return Math.min(position, Math.max(0, height - viewport));
 }
 
-export function nextSplitScrollPosition(currentPosition, targetPosition, viewportHeight) {
+export function nextSplitScrollPosition(
+  currentPosition,
+  targetPosition,
+  viewportHeight,
+  elapsedMs = SPLIT_SCROLL_NOMINAL_FRAME_MS
+) {
   const current = Math.max(0, finiteNumber(currentPosition, 0));
   const target = Math.max(0, finiteNumber(targetPosition, current));
   const delta = target - current;
   const distance = Math.abs(delta);
   if (distance <= SPLIT_SCROLL_SETTLE_DISTANCE) return target;
-  const snapDistance = Math.max(
-    SPLIT_SCROLL_MIN_SNAP_DISTANCE,
-    Math.max(0, finiteNumber(viewportHeight, 0)) * SPLIT_SCROLL_SNAP_VIEWPORT_RATIO
+
+  const frameMs = Math.min(
+    SPLIT_SCROLL_MAX_MOTION_FRAME_MS,
+    Math.max(1, finiteNumber(elapsedMs, SPLIT_SCROLL_NOMINAL_FRAME_MS))
   );
-  if (distance >= snapDistance) return target;
-  const next = current + delta * SPLIT_SCROLL_FOLLOW_FACTOR;
+  const response = 1 - Math.exp(-frameMs / SPLIT_SCROLL_FOLLOW_RESPONSE_MS);
+  const viewport = Math.max(0, finiteNumber(viewportHeight, 0));
+  const frameScale = Math.min(1, frameMs / SPLIT_SCROLL_NOMINAL_FRAME_MS);
+  const maxStep = Math.max(1, viewport * SPLIT_SCROLL_MAX_STEP_VIEWPORT_RATIO * frameScale);
+  const responsiveStep = Math.max(1, distance * response);
+  const step = Math.sign(delta) * Math.min(distance, responsiveStep, maxStep);
+  const next = current + step;
   return Math.abs(target - next) <= SPLIT_SCROLL_SETTLE_DISTANCE ? target : next;
 }
 
