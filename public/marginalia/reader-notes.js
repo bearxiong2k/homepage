@@ -18,6 +18,7 @@ import {
 } from './split-page-zoom.js';
 import {
   SPLIT_SCROLL_FOLLOW_DELAY_MS,
+  SPLIT_SCROLL_STREAM_IDLE_MS,
   SPLIT_SCROLL_SETTLE_DISTANCE,
   clampSplitScrollPosition,
   nextSplitScrollPosition
@@ -73,6 +74,7 @@ const state = {
   remoteScrollRaf: 0,
   remoteScrollReadyAt: 0,
   remoteScrollLastFrameAt: 0,
+  remoteScrollLastTargetAt: 0,
   hasSourceState: false,
   notesPanelWidth: null,
   notesPanelResizeSession: null,
@@ -1227,13 +1229,15 @@ function applySourceScroll(scrollY, sentAt = 0) {
     els.scroller.scrollTop = y;
     return;
   }
+  const targetAt = performance.now();
   state.remoteScrollDestinationY = y;
+  state.remoteScrollLastTargetAt = targetAt;
   if (Math.abs((els.scroller.scrollTop || 0) - y) <= SPLIT_SCROLL_SETTLE_DISTANCE) {
-    cancelRemoteScrollFollower();
+    if (!state.remoteScrollRaf) cancelRemoteScrollFollower();
     return;
   }
   if (!state.remoteScrollRaf) {
-    state.remoteScrollReadyAt = performance.now() + SPLIT_SCROLL_FOLLOW_DELAY_MS;
+    state.remoteScrollReadyAt = targetAt + SPLIT_SCROLL_FOLLOW_DELAY_MS;
     state.remoteScrollLastFrameAt = 0;
     scheduleRemoteScrollFollower();
   }
@@ -1265,13 +1269,17 @@ function stepRemoteScrollFollower(timestamp = null) {
     ? Math.max(1, frameNow - state.remoteScrollLastFrameAt)
     : undefined;
   state.remoteScrollLastFrameAt = frameNow;
-  const next = nextSplitScrollPosition(current, target, els.scroller.clientHeight, elapsedMs);
+  const next = nextSplitScrollPosition(current, target, elapsedMs);
   if (Math.abs(next - current) > 0.1) {
     markRemoteScrollTarget(next);
     els.scroller.scrollTop = next;
   }
   if (Math.abs(target - next) <= SPLIT_SCROLL_SETTLE_DISTANCE) {
-    cancelRemoteScrollFollower();
+    if (frameNow - state.remoteScrollLastTargetAt >= SPLIT_SCROLL_STREAM_IDLE_MS) {
+      cancelRemoteScrollFollower();
+      return;
+    }
+    scheduleRemoteScrollFollower();
     return;
   }
   scheduleRemoteScrollFollower();
@@ -1283,6 +1291,7 @@ function cancelRemoteScrollFollower() {
   state.remoteScrollDestinationY = null;
   state.remoteScrollReadyAt = 0;
   state.remoteScrollLastFrameAt = 0;
+  state.remoteScrollLastTargetAt = 0;
 }
 
 function splitScrollMotionReduced(view) {

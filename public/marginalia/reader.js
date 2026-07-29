@@ -56,6 +56,7 @@ import {
 } from './split-page-zoom.js';
 import {
   SPLIT_SCROLL_FOLLOW_DELAY_MS,
+  SPLIT_SCROLL_STREAM_IDLE_MS,
   SPLIT_SCROLL_SETTLE_DISTANCE,
   clampSplitScrollPosition,
   nextSplitScrollPosition
@@ -188,6 +189,7 @@ const state = {
   splitRemoteScrollView: null,
   splitRemoteScrollReadyAt: 0,
   splitRemoteScrollLastFrameAt: 0,
+  splitRemoteScrollLastTargetAt: 0,
   splitWindowMonitorTimer: 0,
   splitSourceWindowTarget: null,
   splitSourceFallbackTimer: 0,
@@ -2990,14 +2992,16 @@ function applySplitNotesScroll(scrollY, sentAt = 0) {
   if (state.splitRemoteScrollView && state.splitRemoteScrollView !== view) {
     cancelSplitRemoteScrollFollower();
   }
+  const targetAt = view.performance.now();
   state.splitRemoteScrollDestinationY = y;
   state.splitRemoteScrollView = view;
+  state.splitRemoteScrollLastTargetAt = targetAt;
   if (Math.abs((view.scrollY || 0) - y) <= SPLIT_SCROLL_SETTLE_DISTANCE) {
-    cancelSplitRemoteScrollFollower();
+    if (!state.splitRemoteScrollRaf) cancelSplitRemoteScrollFollower();
     return;
   }
   if (!state.splitRemoteScrollRaf) {
-    state.splitRemoteScrollReadyAt = view.performance.now() + SPLIT_SCROLL_FOLLOW_DELAY_MS;
+    state.splitRemoteScrollReadyAt = targetAt + SPLIT_SCROLL_FOLLOW_DELAY_MS;
     state.splitRemoteScrollLastFrameAt = 0;
     scheduleSplitRemoteScrollFollower(view);
   }
@@ -3037,13 +3041,17 @@ function stepSplitRemoteScrollFollower(view = state.splitRemoteScrollView, times
     ? Math.max(1, frameNow - state.splitRemoteScrollLastFrameAt)
     : undefined;
   state.splitRemoteScrollLastFrameAt = frameNow;
-  const next = nextSplitScrollPosition(current, target, view.innerHeight, elapsedMs);
+  const next = nextSplitScrollPosition(current, target, elapsedMs);
   if (Math.abs(next - current) > 0.1) {
     markSplitRemoteScrollTarget(next);
     view.scrollTo(0, next);
   }
   if (Math.abs(target - next) <= SPLIT_SCROLL_SETTLE_DISTANCE) {
-    cancelSplitRemoteScrollFollower();
+    if (frameNow - state.splitRemoteScrollLastTargetAt >= SPLIT_SCROLL_STREAM_IDLE_MS) {
+      cancelSplitRemoteScrollFollower();
+      return;
+    }
+    scheduleSplitRemoteScrollFollower(view);
     return;
   }
   scheduleSplitRemoteScrollFollower(view);
@@ -3057,6 +3065,7 @@ function cancelSplitRemoteScrollFollower() {
   state.splitRemoteScrollView = null;
   state.splitRemoteScrollReadyAt = 0;
   state.splitRemoteScrollLastFrameAt = 0;
+  state.splitRemoteScrollLastTargetAt = 0;
 }
 
 function splitScrollMotionReduced(view) {

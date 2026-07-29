@@ -1,10 +1,9 @@
 export const SPLIT_SCROLL_FOLLOW_DELAY_MS = 48;
 export const SPLIT_SCROLL_FOLLOW_RESPONSE_MS = 58;
-export const SPLIT_SCROLL_MAX_STEP_VIEWPORT_RATIO = 0.16;
+export const SPLIT_SCROLL_STREAM_IDLE_MS = 96;
 export const SPLIT_SCROLL_SETTLE_DISTANCE = 0.75;
 
 const SPLIT_SCROLL_NOMINAL_FRAME_MS = 1000 / 60;
-const SPLIT_SCROLL_MAX_MOTION_FRAME_MS = 24;
 
 export function clampSplitScrollPosition(scrollPosition, scrollHeight, viewportHeight) {
   const position = Math.max(0, finiteNumber(scrollPosition, 0));
@@ -16,7 +15,6 @@ export function clampSplitScrollPosition(scrollPosition, scrollHeight, viewportH
 export function nextSplitScrollPosition(
   currentPosition,
   targetPosition,
-  viewportHeight,
   elapsedMs = SPLIT_SCROLL_NOMINAL_FRAME_MS
 ) {
   const current = Math.max(0, finiteNumber(currentPosition, 0));
@@ -25,16 +23,10 @@ export function nextSplitScrollPosition(
   const distance = Math.abs(delta);
   if (distance <= SPLIT_SCROLL_SETTLE_DISTANCE) return target;
 
-  const frameMs = Math.min(
-    SPLIT_SCROLL_MAX_MOTION_FRAME_MS,
-    Math.max(1, finiteNumber(elapsedMs, SPLIT_SCROLL_NOMINAL_FRAME_MS))
-  );
+  const frameMs = Math.max(1, finiteNumber(elapsedMs, SPLIT_SCROLL_NOMINAL_FRAME_MS));
   const response = 1 - Math.exp(-frameMs / SPLIT_SCROLL_FOLLOW_RESPONSE_MS);
-  const viewport = Math.max(0, finiteNumber(viewportHeight, 0));
-  const frameScale = Math.min(1, frameMs / SPLIT_SCROLL_NOMINAL_FRAME_MS);
-  const maxStep = Math.max(1, viewport * SPLIT_SCROLL_MAX_STEP_VIEWPORT_RATIO * frameScale);
   const responsiveStep = Math.max(1, distance * response);
-  const step = Math.sign(delta) * Math.min(distance, responsiveStep, maxStep);
+  const step = Math.sign(delta) * Math.min(distance, responsiveStep);
   const next = current + step;
   return Math.abs(target - next) <= SPLIT_SCROLL_SETTLE_DISTANCE ? target : next;
 }
