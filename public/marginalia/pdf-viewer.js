@@ -13,6 +13,10 @@ import {
   pageWindowNumbers,
   virtualGapHeight
 } from './pdf-page-window.js';
+import {
+  pdfSearchPageOrder,
+  pdfSearchTextFromContent
+} from './pdf-find-index.js';
 import { marginaliaPerformanceTrace } from './performance-trace.js';
 import {
   horizontalOffsetForCenteredZoom,
@@ -47,6 +51,7 @@ const horizontalPanLockBtn = document.querySelector('#horizontalPanLockBtn');
 const zoomLockBtn = document.querySelector('#zoomLockBtn');
 const toolbar = document.querySelector('#pdfToolbar');
 const toolbarToggleBtn = document.querySelector('#toolbarToggleBtn');
+const findIndexEl = document.querySelector('#pdfFindIndex');
 const pageRecords = new Map();
 const orderedPageRecordEntries = [];
 const pageShellPromises = new Map();
@@ -56,6 +61,9 @@ const renderingPages = new Map();
 const renderedPages = new Set();
 const renderingTextLayers = new Map();
 const renderedTextLayers = new Set();
+const pdfFindTextByPage = new Map();
+const pdfFindPageElements = new Map();
+const pdfFindIndexFailures = new Set();
 let pageMetrics = [];
 const MAX_RENDER_CONCURRENCY = 2;
 const MAX_SCROLL_RENDER_CONCURRENCY = 1;
@@ -69,6 +77,8 @@ const PDF_READ_AHEAD_NEXT = 2;
 const FORCED_PAGE_WINDOW_PREPARE_ATTEMPTS = 4;
 const PDF_PAGE_GAP = 18;
 const PDF_SCROLL_ANCHOR_VIEWPORT_RATIO = 0.35;
+const PDF_FIND_INDEX_IDLE_TIMEOUT_MS = 350;
+const PDF_FIND_UNTIL_FOUND_SUPPORTED = 'onbeforematch' in document.documentElement;
 const pdfPerformance = marginaliaPerformanceTrace('pdf');
 let activeRenderCount = 0;
 let activeTextLayerRenderCount = 0;
@@ -100,6 +110,14 @@ let fallbackBaseHeight = 1;
 let lifecycleGeneration = 0;
 let pdfLoadingTask = null;
 let viewStateChangeRaf = 0;
+let pdfFindIndexQueue = [];
+let pdfFindIndexIdleHandle = 0;
+let pdfFindIndexTimer = 0;
+let pdfFindIndexActivePage = 0;
+let pdfFindIndexGeneration = 0;
+let pdfFindIndexUrgent = false;
+let pdfFindIndexStartedAt = 0;
+let pdfFindIndexCharacterCount = 0;
 
 if (params.get('embedded') === 'reader') {
   document.documentElement.classList.add('reader-embedded');
@@ -139,6 +157,7 @@ pageNumberInput?.addEventListener('keydown', (event) => {
   pageNumberInput.blur();
 });
 document.addEventListener('selectionchange', scheduleSelectionOverlayUpdate);
+document.addEventListener('keydown', handlePdfFindShortcut, true);
 document.addEventListener('pointerdown', beginTextSelectionDrag, true);
 document.addEventListener('pointermove', updateTextSelectionDrag, true);
 document.addEventListener('pointerup', finishTextSelectionDrag, true);
@@ -154,6 +173,7 @@ window.addEventListener('message', handleReaderLifecycleMessage);
 window.addEventListener('resize', scheduleZoomRefresh);
 window.addEventListener('scroll', handlePdfWindowScroll, { passive: true });
 pdfViewport?.addEventListener('scroll', handlePdfViewportScroll, { passive: true });
+findIndexEl?.addEventListener('beforematch', handlePdfFindBeforeMatch);
 
 syncHorizontalPanLock();
 syncZoomLock();
@@ -193,6 +213,217 @@ async function renderPdf() {
   queueInitialVisiblePages({ priority: true });
   updatePdfDiagnostics('ready');
   pdfPerformance.measure('usable', startedAt, livePdfCounts());
+  startPdfFindIndex();
+}
+
+function startPdfFindIndex() {
+  if (!pdfDocument || !findIndexEl) return;
+  cancelPdfFindIndexSchedule();
+  pdfFindIndexGeneration += 1;
+  pdfFindIndexQueue = pdfSearchPageOrder(pdfDocument.numPages, currentPageNumber)
+    .filter((pageNumber) => !pdfFindTextByPage.has(pageNumber) && !pdfFindIndexFailures.has(pageNumber));
+  pdfFindIndexStartedAt = performance.now();
+  pdfFindIndexUrgent = false;
+  updatePdfFindIndexDiagnostics();
+  schedulePdfFindIndexWork();
+}
+
+function schedulePdfFindIndexWork(options = {}) {
+  if (options.urgent) pdfFindIndexUrgent = true;
+  if (!pdfDocument
+    || !findIndexEl
+    || viewerSuspended
+    || pdfFindIndexActivePage
+    || !pdfFindIndexQueue.length) {
+    updatePdfFindIndexDiagnostics();
+    return;
+  }
+  if (pdfFindIndexIdleHandle || pdfFindIndexTimer) {
+    if (!pdfFindIndexUrgent) return;
+    cancelPdfFindIndexSchedule();
+  }
+  if (pdfFindIndexUrgent || typeof requestIdleCallback !== 'function') {
+    pdfFindIndexTimer = window.setTimeout(() => {
+      pdfFindIndexTimer = 0;
+      runPdfFindIndexWork();
+    }, pdfFindIndexUrgent ? 0 : 24);
+    return;
+  }
+  pdfFindIndexIdleHandle = requestIdleCallback(() => {
+    pdfFindIndexIdleHandle = 0;
+    runPdfFindIndexWork();
+  }, { timeout: PDF_FIND_INDEX_IDLE_TIMEOUT_MS });
+}
+
+async function runPdfFindIndexWork() {
+  if (!pdfDocument || viewerSuspended || pdfFindIndexActivePage || !pdfFindIndexQueue.length) {
+    updatePdfFindIndexDiagnostics();
+    return;
+  }
+  const pageNumber = pdfFindIndexQueue.shift();
+  const generation = pdfFindIndexGeneration;
+  const existingRecord = pageRecords.get(pageNumber);
+  let page = existingRecord?.page || null;
+  pdfFindIndexActivePage = pageNumber;
+  updatePdfFindIndexDiagnostics();
+  try {
+    page ||= await pdfDocument.getPage(pageNumber);
+    const textContent = await page.getTextContent();
+    if (generation !== pdfFindIndexGeneration || !pdfDocument) return;
+    const text = pdfSearchTextFromContent(textContent);
+    pdfFindTextByPage.set(pageNumber, text);
+    pdfFindIndexFailures.delete(pageNumber);
+    pdfFindIndexCharacterCount += text.length;
+    if (text) ensurePdfFindPageElement(pageNumber, text);
+  } catch (error) {
+    if (generation === pdfFindIndexGeneration) {
+      pdfFindIndexFailures.add(pageNumber);
+      console.warn(`PDF search text indexing failed for page ${pageNumber}.`, error);
+    }
+  } finally {
+    if (page
+      && pageRecords.get(pageNumber)?.page !== page
+      && !pageShellPromises.has(pageNumber)) {
+      page.cleanup?.();
+    }
+    if (generation !== pdfFindIndexGeneration
+      && !pdfFindTextByPage.has(pageNumber)
+      && !pdfFindIndexQueue.includes(pageNumber)) {
+      pdfFindIndexQueue.unshift(pageNumber);
+    }
+    pdfFindIndexActivePage = 0;
+    updatePdfFindIndexDiagnostics();
+    if (generation === pdfFindIndexGeneration || !viewerSuspended) schedulePdfFindIndexWork();
+  }
+}
+
+function ensurePdfFindPageElement(pageNumber, text) {
+  if (!findIndexEl || !text) return null;
+  let pageEl = pdfFindPageElements.get(pageNumber);
+  if (!pageEl) {
+    pageEl = document.createElement('div');
+    pageEl.className = 'pdf-find-page';
+    pageEl.dataset.pageNumber = String(pageNumber);
+    findIndexEl.append(pageEl);
+    pdfFindPageElements.set(pageNumber, pageEl);
+  }
+  pageEl.textContent = text;
+  pageEl.dataset.lineCount = String(text.split('\n').length);
+  syncPdfFindPageGeometry(pageNumber, pageEl);
+  syncPdfFindPageSearchability(pageNumber);
+  return pageEl;
+}
+
+function syncPdfFindIndexGeometry() {
+  for (const [pageNumber, pageEl] of pdfFindPageElements) {
+    syncPdfFindPageGeometry(pageNumber, pageEl);
+  }
+}
+
+function syncPdfFindPageGeometry(pageNumber, pageEl = pdfFindPageElements.get(pageNumber)) {
+  const metric = pageMetrics[pageNumber - 1];
+  if (!pageEl || !metric) return;
+  const top = `${Math.max(0, Math.round(metric.top))}px`;
+  const height = Math.max(1, Math.round(metric.height));
+  const lineCount = Math.max(1, Number(pageEl.dataset.lineCount) || 1);
+  const lineHeight = `${Number(Math.max(1, height / lineCount).toFixed(3))}px`;
+  if (pageEl.style.top !== top) pageEl.style.top = top;
+  if (pageEl.style.height !== `${height}px`) pageEl.style.height = `${height}px`;
+  if (pageEl.style.lineHeight !== lineHeight) pageEl.style.lineHeight = lineHeight;
+}
+
+function syncPdfFindPageSearchability(pageNumber) {
+  const pageEl = pdfFindPageElements.get(pageNumber);
+  if (!pageEl) return;
+  const record = pageRecords.get(pageNumber);
+  const hasLiveText = record?.pageEl?.dataset?.textLayer === 'ready'
+    && Boolean(record.textLayerEl?.textContent?.trim());
+  if (hasLiveText) {
+    delete pageEl.dataset.matchPending;
+    pageEl.setAttribute('hidden', '');
+    return;
+  }
+  if (PDF_FIND_UNTIL_FOUND_SUPPORTED) {
+    pageEl.setAttribute('hidden', 'until-found');
+    return;
+  }
+  pageEl.removeAttribute('hidden');
+}
+
+function handlePdfFindShortcut(event) {
+  if (String(event.key || '').toLowerCase() !== 'f'
+    || (!event.metaKey && !event.ctrlKey)
+    || event.altKey) return;
+  schedulePdfFindIndexWork({ urgent: true });
+}
+
+function handlePdfFindBeforeMatch(event) {
+  const eventTarget = event.target?.nodeType === Node.ELEMENT_NODE
+    ? event.target
+    : event.target?.parentElement;
+  const matchPage = eventTarget?.closest?.('.pdf-find-page');
+  const pageNumber = normalizedPageNumber(matchPage?.dataset?.pageNumber);
+  if (!pageNumber) return;
+  matchPage.dataset.matchPending = 'true';
+  requestAnimationFrame(() => {
+    if (!pdfDocument || viewerSuspended) return;
+    requestReadAheadPages(pageNumber, { forceDrain: true });
+  });
+}
+
+function cancelPdfFindIndexSchedule() {
+  if (pdfFindIndexIdleHandle && typeof cancelIdleCallback === 'function') {
+    cancelIdleCallback(pdfFindIndexIdleHandle);
+  }
+  if (pdfFindIndexTimer) window.clearTimeout(pdfFindIndexTimer);
+  pdfFindIndexIdleHandle = 0;
+  pdfFindIndexTimer = 0;
+}
+
+function pausePdfFindIndex() {
+  cancelPdfFindIndexSchedule();
+  pdfFindIndexGeneration += 1;
+  updatePdfFindIndexDiagnostics();
+}
+
+function resumePdfFindIndex() {
+  schedulePdfFindIndexWork();
+}
+
+function teardownPdfFindIndex() {
+  cancelPdfFindIndexSchedule();
+  pdfFindIndexGeneration += 1;
+  pdfFindIndexQueue = [];
+  pdfFindIndexActivePage = 0;
+  pdfFindTextByPage.clear();
+  pdfFindPageElements.clear();
+  pdfFindIndexFailures.clear();
+  pdfFindIndexCharacterCount = 0;
+  findIndexEl?.replaceChildren();
+  updatePdfFindIndexDiagnostics();
+}
+
+function updatePdfFindIndexDiagnostics() {
+  const pending = pdfFindIndexQueue.length + (pdfFindIndexActivePage ? 1 : 0);
+  const complete = Boolean(pdfDocument) && pending === 0;
+  const state = viewerSuspended && !complete
+    ? 'paused'
+    : complete
+      ? pdfFindIndexFailures.size ? 'partial' : 'complete'
+      : pdfDocument ? 'indexing' : 'idle';
+  document.documentElement.dataset.pdfFindIndex = state;
+  document.documentElement.dataset.pdfFindPages = String(pdfFindTextByPage.size);
+  document.documentElement.dataset.pdfFindPending = String(pending);
+  document.documentElement.dataset.pdfFindFailures = String(pdfFindIndexFailures.size);
+  document.documentElement.dataset.pdfFindCharacters = String(pdfFindIndexCharacterCount);
+  if (complete && pdfFindIndexStartedAt) {
+    pdfPerformance.measure('find-indexed', pdfFindIndexStartedAt, {
+      pages: pdfFindTextByPage.size,
+      failures: pdfFindIndexFailures.size,
+      characters: pdfFindIndexCharacterCount
+    });
+    pdfFindIndexStartedAt = 0;
+  }
 }
 
 async function createPageShell(pdf, pageNumber) {
@@ -325,6 +556,7 @@ function evictPageRecord(pageNumber) {
   record.page?.cleanup?.();
   record.pageEl.remove();
   pageRecords.delete(pageNumber);
+  syncPdfFindPageSearchability(pageNumber);
   pageShellPromises.delete(pageNumber);
   const orderedIndex = orderedPageRecordEntries.findIndex(([existing]) => existing === pageNumber);
   if (orderedIndex >= 0) orderedPageRecordEntries.splice(orderedIndex, 1);
@@ -666,6 +898,7 @@ function releasePageSurface(pageNumber, record, options = {}) {
   renderingPages.delete(pageNumber);
   renderingTextLayers.delete(pageNumber);
   removeQueuedPage(pageNumber);
+  syncPdfFindPageSearchability(pageNumber);
   observer?.observe(record.pageEl);
   notifyPageChanged(pageNumber, 'released');
 }
@@ -706,6 +939,7 @@ function startTextLayerRender(pageNumber) {
         && record.renderToken === textLayerToken
         && renderingTextLayers.get(pageNumber) === textLayerToken) {
         record.pageEl.dataset.textLayer = 'failed';
+        syncPdfFindPageSearchability(pageNumber);
         syncPdfPageAccessibility(record);
         console.warn('PDF text layer failed', error);
       }
@@ -740,6 +974,7 @@ async function renderTextLayer(record, textLayerEl, viewport, generation, render
     await record.textLayer.render();
     if (record.renderToken !== renderToken || generation !== zoomGeneration) return false;
     record.pageEl.dataset.textLayer = textLayerEl.childElementCount ? 'ready' : 'empty';
+    syncPdfFindPageSearchability(pageNumberFromElement(record.pageEl));
     syncPdfPageAccessibility(record);
     notifyPageChanged(pageNumberFromElement(record.pageEl), 'text');
     scheduleSelectionOverlayUpdate();
@@ -747,6 +982,7 @@ async function renderTextLayer(record, textLayerEl, viewport, generation, render
   } catch (error) {
     if (!isRenderCancelled(error)) {
       record.pageEl.dataset.textLayer = 'failed';
+      syncPdfFindPageSearchability(pageNumberFromElement(record.pageEl));
       syncPdfPageAccessibility(record);
       notifyPageChanged(pageNumberFromElement(record.pageEl), 'text');
       console.warn('PDF text layer failed', error);
@@ -826,6 +1062,7 @@ function rebuildPageMetrics() {
     fallbackBaseHeight,
     baseHeights: pageBaseHeights
   });
+  syncPdfFindIndexGeometry();
 }
 
 function schedulePageControlsSync() {
@@ -1127,6 +1364,7 @@ function refreshZoomedPages(options = {}) {
     updatePageGeometry(record);
     record.pageEl.dataset.renderState = 'pending';
     record.pageEl.dataset.textLayer = 'pending';
+    syncPdfFindPageSearchability(pageNumber);
     observer?.observe(record.pageEl);
     notifyPageChanged(pageNumber, 'shell');
   }
@@ -1790,6 +2028,7 @@ function handleReaderLifecycleMessage(event) {
 function suspendPdfViewer(reason = 'hidden') {
   if (viewerSuspended && document.documentElement.dataset.pdfLifecycle === 'suspended') return;
   viewerSuspended = true;
+  pausePdfFindIndex();
   lifecycleGeneration += 1;
   pageWindowGeneration += 1;
   readAheadRequestId += 1;
@@ -1823,6 +2062,7 @@ function suspendPdfViewer(reason = 'hidden') {
 function resumePdfViewer(reason = 'visible') {
   if (!viewerSuspended) return;
   viewerSuspended = false;
+  resumePdfFindIndex();
   lifecycleGeneration += 1;
   const generation = lifecycleGeneration;
   document.documentElement.dataset.pdfLifecycle = 'resuming';
@@ -1846,6 +2086,7 @@ function resumePdfViewer(reason = 'visible') {
 
 function teardownPdfViewer() {
   suspendPdfViewer('teardown');
+  teardownPdfFindIndex();
   observer?.disconnect();
   for (const [pageNumber] of [...orderedPageRecords()]) evictPageRecord(pageNumber);
   pdfLoadingTask?.destroy?.();
@@ -1860,7 +2101,9 @@ function livePdfCounts() {
     renderedPages: renderedPages.size,
     textLayers: renderedTextLayers.size,
     renderQueue: renderQueue.length,
-    textQueue: textLayerQueue.length
+    textQueue: textLayerQueue.length,
+    findPages: pdfFindTextByPage.size,
+    findPending: pdfFindIndexQueue.length + (pdfFindIndexActivePage ? 1 : 0)
   };
 }
 
@@ -1872,6 +2115,7 @@ function updatePdfDiagnostics(phase) {
   document.documentElement.dataset.pdfTextLayers = String(counts.textLayers);
   document.documentElement.dataset.pdfRenderQueue = String(counts.renderQueue);
   document.documentElement.dataset.pdfTextQueue = String(counts.textQueue);
+  updatePdfFindIndexDiagnostics();
 }
 
 function installPdfLongTaskObserver() {

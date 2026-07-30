@@ -284,6 +284,33 @@
       pointer-events: none;
     }
 
+    .pdf-find-index {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 0;
+      width: 1px;
+      height: 0;
+      overflow: visible;
+      pointer-events: none;
+      contain: style;
+    }
+
+    .pdf-find-page {
+      position: absolute;
+      left: 0;
+      width: min(640px, calc(100vw - 24px));
+      height: 1px;
+      overflow: hidden;
+      contain: layout style paint;
+      color: rgba(0, 0, 0, .001);
+      font: 1px/1px sans-serif;
+      white-space: pre;
+      user-select: text;
+      -webkit-user-select: text;
+      pointer-events: none;
+    }
+
     .pdf-page-canvas {
       display: block;
       width: 100%;
@@ -416,6 +443,7 @@
   <div id="pdfViewport">
     <main id="pdfRoot" aria-label="PDF pages"></main>
   </div>
+  <div id="pdfFindIndex" class="pdf-find-index" aria-hidden="true"></div>
   <script type="module" src="pdf-viewer.js"></script>
 </body>
 </html>
