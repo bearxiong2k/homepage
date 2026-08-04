@@ -652,6 +652,11 @@ body.is-file-dragging .file-drop-catcher {
   user-select: none;
 }
 
+.notes-tab:not(:focus) {
+  background: transparent;
+  box-shadow: none;
+}
+
 body.is-reading-mode .notes-tab,
 body.is-reading-mode .right-panel {
   display: none;
