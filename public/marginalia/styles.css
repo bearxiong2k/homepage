@@ -652,7 +652,7 @@ body.is-file-dragging .file-drop-catcher {
   user-select: none;
 }
 
-.notes-tab:not(:focus) {
+.notes-tab:not(:hover) {
   background: transparent;
   box-shadow: none;
 }
