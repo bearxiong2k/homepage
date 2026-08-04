@@ -14,6 +14,7 @@ import {
   virtualGapHeight
 } from './pdf-page-window.js';
 import {
+  pdfSearchMatchAnchor,
   pdfSearchPageOrder,
   pdfSearchTextFromContent
 } from './pdf-find-index.js';
@@ -118,6 +119,8 @@ let pdfFindIndexGeneration = 0;
 let pdfFindIndexUrgent = false;
 let pdfFindIndexStartedAt = 0;
 let pdfFindIndexCharacterCount = 0;
+let pdfFindNavigationActive = false;
+let pdfFindNavigationRequestId = 0;
 
 if (params.get('embedded') === 'reader') {
   document.documentElement.classList.add('reader-embedded');
@@ -336,10 +339,17 @@ function syncPdfFindPageSearchability(pageNumber) {
   const pageEl = pdfFindPageElements.get(pageNumber);
   if (!pageEl) return;
   const record = pageRecords.get(pageNumber);
+  if (pageEl.dataset.matchPending === 'true') {
+    if (record) return;
+    delete pageEl.dataset.matchPending;
+  }
   const hasLiveText = record?.pageEl?.dataset?.textLayer === 'ready'
     && Boolean(record.textLayerEl?.textContent?.trim());
+  if (pdfFindNavigationActive && PDF_FIND_UNTIL_FOUND_SUPPORTED) {
+    pageEl.setAttribute('hidden', 'until-found');
+    return;
+  }
   if (hasLiveText) {
-    delete pageEl.dataset.matchPending;
     pageEl.setAttribute('hidden', '');
     return;
   }
@@ -354,6 +364,17 @@ function handlePdfFindShortcut(event) {
   if (String(event.key || '').toLowerCase() !== 'f'
     || (!event.metaKey && !event.ctrlKey)
     || event.altKey) return;
+  beginPdfFindNavigationSession();
+}
+
+function beginPdfFindNavigationSession() {
+  pdfFindNavigationActive = false;
+  pdfFindNavigationRequestId += 1;
+  for (const [pageNumber, pageEl] of pdfFindPageElements) {
+    delete pageEl.dataset.matchPending;
+    syncPdfFindPageSearchability(pageNumber);
+  }
+  document.documentElement.dataset.pdfFindNavigation = 'ready';
   schedulePdfFindIndexWork({ urgent: true });
 }
 
@@ -364,11 +385,33 @@ function handlePdfFindBeforeMatch(event) {
   const matchPage = eventTarget?.closest?.('.pdf-find-page');
   const pageNumber = normalizedPageNumber(matchPage?.dataset?.pageNumber);
   if (!pageNumber) return;
+  pdfFindNavigationActive = true;
+  const requestId = ++pdfFindNavigationRequestId;
   matchPage.dataset.matchPending = 'true';
+  document.documentElement.dataset.pdfFindNavigation = 'matching';
+  document.documentElement.dataset.pdfFindMatchPage = String(pageNumber);
   requestAnimationFrame(() => {
-    if (!pdfDocument || viewerSuspended) return;
-    requestReadAheadPages(pageNumber, { forceDrain: true });
+    requestAnimationFrame(() => {
+      navigateToPdfFindMatch(pageNumber, requestId).catch((error) => {
+        if (requestId !== pdfFindNavigationRequestId) return;
+        document.documentElement.dataset.pdfFindNavigation = 'failed';
+        document.documentElement.dataset.pdfError = error.message || 'PDF search-result navigation failed.';
+      });
+    });
   });
+}
+
+async function navigateToPdfFindMatch(pageNumber, requestId) {
+  if (!pdfDocument || viewerSuspended || requestId !== pdfFindNavigationRequestId) return false;
+  const anchor = pdfSearchMatchAnchor(pageNumber, visiblePageState());
+  const prepared = await queueReadAheadPages(pageNumber);
+  const materialized = prepared || Boolean(pageRecords.get(pageNumber)?.pageEl?.isConnected);
+  if (!materialized || viewerSuspended || requestId !== pdfFindNavigationRequestId) return false;
+  restoreVirtualScrollAnchor(anchor);
+  currentPageNumber = pageNumber;
+  syncPageControls({ force: true });
+  document.documentElement.dataset.pdfFindNavigation = 'settled';
+  return true;
 }
 
 function cancelPdfFindIndexSchedule() {
@@ -383,6 +426,7 @@ function cancelPdfFindIndexSchedule() {
 function pausePdfFindIndex() {
   cancelPdfFindIndexSchedule();
   pdfFindIndexGeneration += 1;
+  pdfFindNavigationRequestId += 1;
   updatePdfFindIndexDiagnostics();
 }
 
@@ -399,6 +443,8 @@ function teardownPdfFindIndex() {
   pdfFindPageElements.clear();
   pdfFindIndexFailures.clear();
   pdfFindIndexCharacterCount = 0;
+  pdfFindNavigationActive = false;
+  pdfFindNavigationRequestId += 1;
   findIndexEl?.replaceChildren();
   updatePdfFindIndexDiagnostics();
 }
@@ -2020,6 +2066,10 @@ function handleViewerVisibilityChange() {
 
 function handleReaderLifecycleMessage(event) {
   if (event.origin !== location.origin || event.source !== window.parent) return;
+  if (event.data?.type === 'marginalia-pdf-find-start') {
+    beginPdfFindNavigationSession();
+    return;
+  }
   if (event.data?.type !== 'marginalia-reader-lifecycle') return;
   if (event.data.state === 'hidden') suspendPdfViewer('parent-hidden');
   if (event.data.state === 'visible') resumePdfViewer('parent-visible');

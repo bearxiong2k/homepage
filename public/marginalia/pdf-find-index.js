@@ -20,6 +20,20 @@ export function pdfSearchPageOrder(pageCount, currentPage = 1) {
   return pages;
 }
 
+export function pdfSearchMatchAnchor(pageNumber, visibleState) {
+  const targetPage = positiveInteger(pageNumber);
+  if (!targetPage) return null;
+  const visiblePage = positiveInteger(visibleState?.pageNumber);
+  const visibleRatio = Number(visibleState?.ratio);
+  return {
+    pageNumber: targetPage,
+    pageIndex: targetPage - 1,
+    ratio: visiblePage === targetPage && Number.isFinite(visibleRatio)
+      ? clamp(visibleRatio, 0, 1)
+      : 0
+  };
+}
+
 function positiveInteger(value) {
   const number = Math.round(Number(value));
   return Number.isInteger(number) && number > 0 ? number : null;

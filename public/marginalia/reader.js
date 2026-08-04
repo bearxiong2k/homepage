@@ -1957,12 +1957,25 @@ function onFrameKeyDown(event) {
 }
 
 function handleDocumentKeyDown(event) {
+  preparePdfBrowserFind(event);
   if (handleReaderPageZoomShortcut(event)) return;
   if (handleReaderPositionShortcut(event)) return;
   if (handleSaveBundleHotkey(event)) return;
   if (handleInkToolHotkey(event)) return;
   if (handleHistoryHotkey(event)) return;
   if (event.key === 'Escape') handleEscapeKey(event);
+}
+
+function preparePdfBrowserFind(event) {
+  if (state.currentDocument?.sourceType !== 'pdf'
+    || String(event?.key || '').toLowerCase() !== 'f'
+    || (!event.metaKey && !event.ctrlKey)
+    || event.altKey) return;
+  try {
+    els.frame?.contentWindow?.postMessage?.({ type: 'marginalia-pdf-find-start' }, location.origin);
+  } catch {
+    // A navigating or replaced PDF iframe will prepare itself after load.
+  }
 }
 
 function handleReaderPageZoomShortcut(event) {
