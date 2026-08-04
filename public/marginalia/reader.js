@@ -62,6 +62,10 @@ import {
   nextSplitScrollPosition
 } from './split-scroll-sync.js';
 import { planSideNoteStack } from './side-note-layout.js';
+import {
+  createSideNoteRelocation,
+  sideNoteRelocationDocumentTop
+} from './side-note-relocation.js';
 
 const storageMode = currentStorageMode();
 const storage = createStorageAdapter({ mode: storageMode });
@@ -76,6 +80,7 @@ const state = {
   currentTarget: null,
   highlightOnlyRemovalAnnotationId: null,
   activeAnnotationId: null,
+  sideNoteRelocation: null,
   focusModeAnnotationId: null,
   focusModeNoteTop: null,
   focusModeAnchorTop: null,
@@ -1262,6 +1267,7 @@ async function loadDocument(docId) {
   syncBundleControls();
   state.currentTarget = null;
   state.activeAnnotationId = null;
+  state.sideNoteRelocation = null;
   state.focusModeAnnotationId = null;
   state.focusModeNoteTop = null;
   state.focusModeAnchorTop = null;
@@ -1585,6 +1591,7 @@ async function instrumentIframe() {
   });
   doc.defaultView.addEventListener('scroll', () => {
     broadcastSplitSourceScroll(doc);
+    if (state.sideNoteRelocation) requestSideNoteLayout(doc);
     scheduleFrameScrollWork(doc);
   }, { passive: true });
   if (state.currentDocument?.sourceType === 'pdf') {
@@ -1947,6 +1954,12 @@ function onFrameKeyDown(event) {
   if (handleReaderPageZoomShortcut(event)) return;
   if (handleSideNoteKeyboardAction(event)) return;
   if (handleReaderPositionShortcut(event)) return;
+  if (event.key === 'Escape' && state.sideNoteRelocation && !event.target?.closest?.('[contenteditable="plaintext-only"]')) {
+    event.preventDefault();
+    event.stopPropagation();
+    cancelSideNoteRelocation();
+    return;
+  }
   if (isFrameInteractiveControl(event?.target)) return;
   if (handleSaveBundleHotkey(event)) return;
   if (handleInkToolHotkey(event)) return;
@@ -2287,7 +2300,16 @@ function onFrameClick(event) {
     }
     if (!['ink-color', 'ink-width', 'ink-pressure'].includes(action)) event.preventDefault();
     event.stopPropagation();
+    if (action === 'relocate') {
+      toggleSideNoteRelocation(annotationId, sideNote);
+      return;
+    }
+    if (action === 'attach-here') {
+      attachSideNoteRelocation(annotationId).catch((error) => setStatus(error.message, true));
+      return;
+    }
     if (action === 'pin') {
+      if (state.sideNoteRelocation?.annotationId === annotationId) cancelSideNoteRelocation({ announce: false });
       togglePinnedNote(annotationId);
       return;
     }
@@ -2810,6 +2832,10 @@ function handleSplitNotesMessage(envelope) {
     createSplitNoteAtDocumentPosition(payload).catch((error) => setStatus(error.message, true));
     return;
   }
+  if (type === 'attach-note-here') {
+    attachSplitNoteRelocation(payload);
+    return;
+  }
   if (type === 'toggle-note-collapse') {
     if (payload.annotationId) toggleSideNoteCollapse(payload.annotationId);
     return;
@@ -2874,6 +2900,7 @@ function handleSplitNotesMessage(envelope) {
 function setSplitNotesActive(active, options = {}) {
   const next = Boolean(active);
   const changed = state.splitNotesActive !== next;
+  if (next && state.sideNoteRelocation) cancelSideNoteRelocation({ render: false, announce: false });
   state.splitNotesActive = next;
   refreshReaderPageZoomSurface();
   document.body.classList.toggle('reader-split-notes-source', next);
@@ -3146,7 +3173,7 @@ function splitNoteMetrics(doc) {
   return state.annotations.filter(annotationHasSideNote).map((annotation) => {
     const resolution = state.annotationResolution.get(annotation.id) || buildAnnotationResolution(doc, annotation);
     const position = sideNotePosition(doc, annotation);
-    const hintedY = Number(annotation?.target?.clientHint?.documentY);
+    const hintedY = Number(sideNoteAnchorTarget(annotation)?.clientHint?.documentY);
     return {
       id: annotation.id,
       top: Number.isFinite(position?.top)
@@ -3155,7 +3182,7 @@ function splitNoteMetrics(doc) {
           ? hintedY
           : 24,
       status: resolution.status || 'resolved',
-      pageNumber: annotationPrimaryPdfPageNumber(annotation) || null,
+      pageNumber: sideNotePdfPageNumber(annotation) || null,
       locationLabel: annotationSectionLabel(annotation)
     };
   });
@@ -3486,6 +3513,12 @@ function handleEscapeKey(event) {
   let handled = false;
   if (state.appDialog) {
     closeAppDialog(state.appDialog.cancelValue);
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  if (state.sideNoteRelocation) {
+    cancelSideNoteRelocation();
     event.preventDefault();
     event.stopPropagation();
     return;
@@ -5124,6 +5157,10 @@ function annotationsInResolvedDocumentOrder(doc) {
 }
 
 function resolvedAnnotationDocumentTop(doc, annotation) {
+  if (annotationHasSideNote(annotation)) {
+    const noteTop = sideNotePosition(doc, annotation)?.top;
+    if (Number.isFinite(noteTop)) return noteTop;
+  }
   const primary = annotationResolution(annotation)?.targets?.find((target) => target.primary)
     || annotationResolution(annotation)?.targets?.[0];
   const element = primary?.element || primary?.anchorElement;
@@ -5237,11 +5274,146 @@ function syncExistingSideNote(note, annotation) {
     'reader-side-note',
     annotation.id === state.activeAnnotationId ? 'is-active' : '',
     isPinned ? 'is-pinned' : '',
+    annotation.id === state.sideNoteRelocation?.annotationId ? 'is-relocating' : '',
     isCollapsed ? 'is-collapsed' : '',
     annotationResolution(annotation)?.status === 'unresolved' ? 'is-unresolved' : ''
   ].filter(Boolean).join(' ');
   if (annotation.id === state.activeAnnotationId) note.dataset.inkTool = state.inkTool;
   else delete note.dataset.inkTool;
+  syncSideNoteRelocationShell(note, annotation.id, isPinned);
+}
+
+function syncSideNoteRelocationShell(note, annotationId, isPinned = annotationId === state.pinnedAnnotationId) {
+  if (!note) return;
+  const isRelocating = annotationId === state.sideNoteRelocation?.annotationId;
+  note.classList.toggle('is-relocating', isRelocating);
+  const relocateButton = note.querySelector('[data-side-note-action="relocate"]');
+  if (relocateButton) {
+    relocateButton.classList.toggle('is-active', isRelocating);
+    relocateButton.title = isRelocating ? 'Cancel note relocation' : 'Relocate note';
+    relocateButton.setAttribute('aria-label', relocateButton.title);
+    relocateButton.setAttribute('aria-pressed', String(isRelocating));
+    relocateButton.disabled = isPinned;
+  }
+  syncSideNoteRelocationUi(note, annotationId);
+}
+
+function syncSideNoteRelocationShells(doc = state.iframeLoaded ? getFrameDoc() : null) {
+  doc?.querySelectorAll?.('.reader-side-note[data-annotation-id]').forEach((note) => {
+    syncSideNoteRelocationShell(note, note.dataset.annotationId);
+  });
+}
+
+function syncSideNoteRelocationUi(note, annotationId) {
+  if (!note) return;
+  const relocation = state.sideNoteRelocation?.annotationId === annotationId
+    ? state.sideNoteRelocation
+    : null;
+  let button = note.querySelector(':scope > .reader-side-note-attach-here');
+  if (!relocation) {
+    button?.remove();
+    return;
+  }
+  if (!button) {
+    button = note.ownerDocument.createElement('button');
+    button.type = 'button';
+    button.className = 'reader-side-note-attach-here';
+    button.dataset.sideNoteAction = 'attach-here';
+    button.addEventListener('pointerdown', preserveSideNoteActionClick);
+    note.insertBefore(button, note.firstChild);
+  }
+  button.disabled = relocation.committing === true;
+  button.textContent = relocation.committing ? 'Attaching…' : 'Attach here';
+  button.setAttribute('aria-label', button.textContent);
+}
+
+function toggleSideNoteRelocation(annotationId, note) {
+  if (state.sideNoteRelocation?.annotationId === annotationId) {
+    cancelSideNoteRelocation();
+    return;
+  }
+  if (state.pinnedAnnotationId === annotationId) {
+    setStatus('Unpin the note before relocating it.', true);
+    return;
+  }
+  const view = note?.ownerDocument?.defaultView;
+  const relocation = createSideNoteRelocation(
+    annotationId,
+    note?.getBoundingClientRect?.().top,
+    view?.innerHeight
+  );
+  if (!relocation) return;
+  state.sideNoteRelocation = relocation;
+  state.activeAnnotationId = annotationId;
+  renderAnnotations();
+  syncSideNoteRelocationShells();
+  renderNoteList({ anchorAnnotationId: annotationId });
+  setStatus('Note detached. Scroll to the new position, then choose Attach here.');
+}
+
+function cancelSideNoteRelocation(options) {
+  options = options || {};
+  if (!state.sideNoteRelocation) return false;
+  state.sideNoteRelocation = null;
+  if (options.render !== false && state.iframeLoaded) renderAnnotations();
+  syncSideNoteRelocationShells();
+  if (options.announce !== false) setStatus('Note relocation cancelled.');
+  return true;
+}
+
+async function attachSideNoteRelocation(annotationId) {
+  const relocation = state.sideNoteRelocation;
+  if (!relocation || relocation.annotationId !== annotationId || relocation.committing) return false;
+  const doc = getFrameDoc();
+  const documentY = sideNoteRelocationDocumentTop(
+    relocation,
+    doc.defaultView.scrollY,
+    doc.defaultView.innerHeight
+  );
+  relocation.committing = true;
+  syncSideNoteRelocationUi(
+    doc.querySelector(`.reader-side-note[data-annotation-id="${cssEscape(annotationId)}"]`),
+    annotationId
+  );
+  try {
+    await persistSideNoteRelocation(annotationId, documentY);
+    state.sideNoteRelocation = null;
+    renderAnnotations();
+    syncSideNoteRelocationShells(doc);
+    renderNoteList({ anchorAnnotationId: annotationId });
+    setStatus('Note attached at the new position.');
+    return true;
+  } catch (error) {
+    relocation.committing = false;
+    syncSideNoteRelocationUi(
+      doc.querySelector(`.reader-side-note[data-annotation-id="${cssEscape(annotationId)}"]`),
+      annotationId
+    );
+    throw error;
+  }
+}
+
+async function persistSideNoteRelocation(annotationId, documentY) {
+  const annotation = state.annotations.find((item) => item.id === annotationId);
+  if (!annotation) throw new Error('The note is no longer available.');
+  if (!Number.isFinite(Number(documentY))) throw new Error('No source position is available here.');
+  const doc = getFrameDoc();
+  const noteAnchor = sideNoteAnchorTargetAtDocumentY(
+    doc,
+    Number(documentY),
+    layoutMetrics(doc).sourceWidth
+  );
+  if (!noteAnchor) throw new Error('No source position is available here.');
+  const before = cloneAnnotation(annotation);
+  const display = {
+    ...(annotation.display || {}),
+    noteAnchor
+  };
+  const updated = await storage.updateAnnotation(state.docId, annotationId, { display });
+  state.annotations = state.annotations.map((item) => item.id === annotationId ? updated : item);
+  state.activeAnnotationId = annotationId;
+  recordAnnotationHistory('note relocation', before, updated, annotationId);
+  return updated;
 }
 
 function applyTextHighlight(doc, annotation, target = annotation.target, targetIndex = 0) {
@@ -5447,9 +5619,10 @@ function annotationResolution(annotation) {
 
 function attachMarker(doc, annotation) {
   const isPinned = annotation.id === state.pinnedAnnotationId;
-  const block = resolveTargetElement(doc, annotation.target);
-  if (!block && !isPinned) return;
-  if (block) block.dataset.readerHasNotes = 'true';
+  const primaryBlock = resolveTargetElement(doc, annotation.target);
+  const displayBlock = resolveTargetElement(doc, sideNoteAnchorTarget(annotation));
+  if (!primaryBlock && !displayBlock && !isPinned && !Number.isFinite(sideNotePosition(doc, annotation)?.top)) return;
+  if (primaryBlock) primaryBlock.dataset.readerHasNotes = 'true';
 
   const layer = getSideNoteLayer(doc);
   const note = doc.createElement('aside');
@@ -5458,6 +5631,7 @@ function attachMarker(doc, annotation) {
     'reader-side-note',
     annotation.id === state.activeAnnotationId ? 'is-active' : '',
     isPinned ? 'is-pinned' : '',
+    annotation.id === state.sideNoteRelocation?.annotationId ? 'is-relocating' : '',
     isCollapsed ? 'is-collapsed' : '',
     annotationResolution(annotation)?.status === 'unresolved' ? 'is-unresolved' : ''
   ].filter(Boolean).join(' ');
@@ -5529,6 +5703,16 @@ function attachMarker(doc, annotation) {
   fullButton.setAttribute('aria-label', isPinned ? 'Unpin note editor' : 'Pin note editor');
   fullButton.setAttribute('aria-pressed', String(isPinned));
   fullButton.textContent = '「」';
+  const relocateButton = doc.createElement('button');
+  relocateButton.type = 'button';
+  const isRelocating = annotation.id === state.sideNoteRelocation?.annotationId;
+  relocateButton.className = `reader-side-note-tool ${isRelocating ? 'is-active' : ''}`;
+  relocateButton.dataset.sideNoteAction = 'relocate';
+  relocateButton.title = isRelocating ? 'Cancel note relocation' : 'Relocate note';
+  relocateButton.setAttribute('aria-label', isRelocating ? 'Cancel note relocation' : 'Relocate note');
+  relocateButton.setAttribute('aria-pressed', String(isRelocating));
+  relocateButton.disabled = isPinned;
+  relocateButton.textContent = '↕';
   const deleteButton = doc.createElement('button');
   deleteButton.type = 'button';
   deleteButton.className = 'reader-side-note-tool reader-side-note-delete';
@@ -5539,7 +5723,7 @@ function attachMarker(doc, annotation) {
   tools.append(collapseButton);
   if (attachButton) tools.append(attachButton);
   if (removeHighlightButton) tools.append(removeHighlightButton);
-  tools.append(fullButton, deleteButton);
+  tools.append(relocateButton, fullButton, deleteButton);
 
   card.append(tools, title);
   if (annotationResolution(annotation)?.status === 'unresolved') {
@@ -5609,6 +5793,7 @@ function attachMarker(doc, annotation) {
     if (isPinned) card.append(createPinnedInsertionBoundary(doc, annotation.id, { afterBlockId: block.id }, block.id));
   });
   note.append(card);
+  syncSideNoteRelocationUi(note, annotation.id);
   layer.append(note);
 }
 
@@ -6129,6 +6314,9 @@ function injectReaderStyles(doc) {
     .reader-side-note { position: absolute; width: 100%; pointer-events: auto; }
     .reader-side-note.is-pinned { position: fixed !important; top: 0 !important; right: 0 !important; bottom: 0 !important; left: var(--reader-text-note-edge) !important; z-index: 92 !important; width: auto; min-width: 220px; overflow: auto; overscroll-behavior: none; }
     .reader-side-note-card { position: relative; border-left: 2px solid #d8c7a8; padding: 0 0 0 .58rem; color: #151515; background: transparent; font-family: Georgia, 'Times New Roman', serif; font-size: 1.03rem; line-height: 1.45; cursor: text; overflow: visible; }
+    .reader-side-note.is-relocating > .reader-side-note-card { opacity: .52; transition: opacity 120ms ease; }
+    .reader-side-note-attach-here { position: relative; z-index: 6; display: block; width: fit-content; margin: 0 0 .32rem .58rem; padding: .28rem .52rem; border: 1px solid #7a3d00; border-radius: 5px; background: #fffdf8; color: #5d3700; box-shadow: 0 6px 16px rgba(52, 38, 18, .16); font: 600 12px/1.3 ui-sans-serif, system-ui, sans-serif; cursor: pointer; opacity: 1; }
+    .reader-side-note-attach-here:disabled { cursor: wait; }
     .reader-side-note.is-overlapping .reader-side-note-card, .reader-side-note.is-active .reader-side-note-card, .reader-side-note.is-editing .reader-side-note-card { padding: .36rem .44rem .42rem .58rem; background: #fffdf8; box-shadow: none; }
     .reader-side-note.is-pinned .reader-side-note-card { min-height: 100%; padding: .78rem .8rem 1rem; background: rgba(255, 253, 248, .96); box-shadow: 0 14px 34px rgba(52, 38, 18, .18); cursor: default; }
     .reader-side-note.is-active .reader-side-note-card, .reader-side-note.is-editing .reader-side-note-card { border-left-color: #7a3d00; box-shadow: 0 6px 16px rgba(52, 38, 18, .14); }
@@ -7947,8 +8135,21 @@ function installNoteDrawerResizeObserver() {
 }
 
 function sideNotePosition(doc, annotation) {
+  if (annotation?.id === state.sideNoteRelocation?.annotationId) {
+    const top = sideNoteRelocationDocumentTop(
+      state.sideNoteRelocation,
+      doc.defaultView.scrollY,
+      doc.defaultView.innerHeight
+    );
+    if (Number.isFinite(top)) return { top };
+  }
   if (annotation?.id === state.focusModeAnnotationId && Number.isFinite(state.focusModeNoteTop)) {
     return { top: state.focusModeNoteTop };
+  }
+  const persistedAnchor = annotation?.display?.noteAnchor;
+  if (persistedAnchor) {
+    const persistedPosition = sideNoteTargetPosition(doc, persistedAnchor);
+    if (persistedPosition) return persistedPosition;
   }
   const anchor = annotationAnchorElement(doc, annotation);
   if (!anchor) {
@@ -7982,6 +8183,38 @@ function sideNotePosition(doc, annotation) {
   return {
     top: scrollY + rect.top
   };
+}
+
+function sideNoteTargetPosition(doc, target) {
+  const anchor = resolveTargetElement(doc, target);
+  const documentY = Number(target?.clientHint?.documentY);
+  if (!anchor) return Number.isFinite(documentY) ? { top: documentY } : null;
+  const rect = anchor.getBoundingClientRect();
+  const scrollY = doc.defaultView.scrollY;
+  if (target?.type === 'pdf-page-point' || target?.type === 'pdf-rect') {
+    const y = target.type === 'pdf-rect'
+      ? clampNumber(target.rect?.y, 0, 1, 0)
+      : clampNumber(target.y, 0, 1, 0);
+    return { top: scrollY + rect.top + rect.height * y };
+  }
+  const anchorOffsetY = Number(target?.clientHint?.anchorOffsetY);
+  return {
+    top: scrollY + rect.top + (Number.isFinite(anchorOffsetY) ? anchorOffsetY : 0)
+  };
+}
+
+function sideNoteAnchorTarget(annotation) {
+  if (annotationHasSideNote(annotation) && annotation?.display?.noteAnchor) {
+    return annotation.display.noteAnchor;
+  }
+  return annotation?.target || null;
+}
+
+function sideNotePdfPageNumber(annotation) {
+  const pageIndex = pdfPageIndexFromTarget(sideNoteAnchorTarget(annotation));
+  return Number.isInteger(pageIndex) && pageIndex >= 0
+    ? pageIndex + 1
+    : annotationPrimaryPdfPageNumber(annotation);
 }
 
 function rememberResolvedPdfSideNoteTop(doc, annotation, anchor, anchorRect, scrollY) {
@@ -8666,33 +8899,10 @@ async function createBlankSideNoteAt(event) {
   }
   const doc = getFrameDoc();
   const documentY = doc.defaultView.scrollY + event.clientY;
-  const block = nearestAnchorForDocumentY(doc, documentY);
-  if (!block) return;
-  const anchorId = getAnchorId(block);
-  const blockRect = block.getBoundingClientRect();
-  const anchorTop = doc.defaultView.scrollY + blockRect.top;
-  const isPdf = state.currentDocument?.sourceType === 'pdf';
-  const pageIndex = Number(block.dataset.pdfPageIndex);
-  const normalizedX = blockRect.width ? clampNumber((event.clientX - blockRect.left) / blockRect.width, 0, 1, 0) : 0;
-  const normalizedY = blockRect.height ? clampNumber((event.clientY - blockRect.top) / blockRect.height, 0, 1, 0) : 0;
+  const target = sideNoteAnchorTargetAtDocumentY(doc, documentY, event.clientX);
+  if (!target) return;
   const payload = {
-    target: {
-      type: isPdf ? 'pdf-page-point' : 'block',
-      pageId: pageIdForElement(block),
-      anchorId,
-      domPath: anchorId ? null : domPathFor(block),
-      pageIndex: isPdf && Number.isFinite(pageIndex) ? pageIndex : null,
-      pageLabel: isPdf ? block.dataset.pdfPageLabel || String((Number.isFinite(pageIndex) ? pageIndex : 0) + 1) : null,
-      x: isPdf ? Number(normalizedX.toFixed(6)) : null,
-      y: isPdf ? Number(normalizedY.toFixed(6)) : null,
-      exact: '',
-      clientHint: {
-        x: event.clientX,
-        y: event.clientY,
-        documentY,
-        anchorOffsetY: documentY - anchorTop
-      }
-    },
+    target,
     highlight: { enabled: false, color: 'yellow' },
     note: defaultBlankNote(),
     display: { mode: 'side', collapsed: true }
@@ -8704,6 +8914,36 @@ async function createBlankSideNoteAt(event) {
   renderAnnotations();
   renderNoteList();
   editAnnotationInline(annotation.id, false);
+}
+
+function sideNoteAnchorTargetAtDocumentY(doc, documentY, clientX = 0) {
+  const block = nearestAnchorForDocumentY(doc, documentY);
+  if (!block) return null;
+  const anchorId = getAnchorId(block);
+  const blockRect = block.getBoundingClientRect();
+  const anchorTop = doc.defaultView.scrollY + blockRect.top;
+  const clientY = documentY - doc.defaultView.scrollY;
+  const isPdf = state.currentDocument?.sourceType === 'pdf';
+  const pageIndex = Number(block.dataset.pdfPageIndex);
+  const normalizedX = blockRect.width ? clampNumber((clientX - blockRect.left) / blockRect.width, 0, 1, 0) : 0;
+  const normalizedY = blockRect.height ? clampNumber((clientY - blockRect.top) / blockRect.height, 0, 1, 0) : 0;
+  return {
+    type: isPdf ? 'pdf-page-point' : 'block',
+    pageId: pageIdForElement(block),
+    anchorId,
+    domPath: anchorId ? null : domPathFor(block),
+    pageIndex: isPdf && Number.isFinite(pageIndex) ? pageIndex : null,
+    pageLabel: isPdf ? block.dataset.pdfPageLabel || String((Number.isFinite(pageIndex) ? pageIndex : 0) + 1) : null,
+    x: isPdf ? Number(normalizedX.toFixed(6)) : null,
+    y: isPdf ? Number(normalizedY.toFixed(6)) : null,
+    exact: '',
+    clientHint: {
+      x: clientX,
+      y: clientY,
+      documentY,
+      anchorOffsetY: documentY - anchorTop
+    }
+  };
 }
 
 async function createSplitNoteAtDocumentPosition(payload) {
@@ -8721,6 +8961,33 @@ async function createSplitNoteAtDocumentPosition(payload) {
     clientX: Math.max(0, layoutMetrics(doc).sourceWidth),
     clientY: documentY - (view.scrollY || 0)
   });
+}
+
+async function attachSplitNoteRelocation(payload = {}) {
+  const annotationId = String(payload.annotationId || '');
+  try {
+    const requestedDocumentY = Number(payload.documentY);
+    if (!annotationId || !Number.isFinite(requestedDocumentY)) {
+      throw new Error('No source position is available here.');
+    }
+    const doc = getFrameDoc();
+    const view = doc.defaultView;
+    const scrollHeight = Math.max(doc.documentElement.scrollHeight, doc.body?.scrollHeight || 0, view.innerHeight || 0);
+    const documentY = clampNumber(requestedDocumentY, 0, scrollHeight, view.scrollY || 0);
+    await persistSideNoteRelocation(annotationId, documentY);
+    renderAnnotations();
+    renderNoteList({ anchorAnnotationId: annotationId });
+    state.splitChannel?.post('source-state', buildSplitNotesSourceState(doc));
+    state.splitChannel?.post('note-relocation-complete', { annotationId, ok: true });
+    setStatus('Note attached at the new position.');
+  } catch (error) {
+    state.splitChannel?.post('note-relocation-complete', {
+      annotationId,
+      ok: false,
+      message: error.message || 'The note could not be attached here.'
+    });
+    setStatus(error.message || 'The note could not be attached here.', true);
+  }
 }
 
 function nearestAnchorForDocumentY(doc, y) {
@@ -9324,7 +9591,7 @@ function annotationSectionLabel(annotation) {
 }
 
 function pdfAnnotationLocationLabel(annotation, sourceElement) {
-  const target = primaryAnnotationTarget(annotation);
+  const target = sideNoteAnchorTarget(annotation);
   const pageLabel = target?.pageLabel || sourceElement?.dataset?.pdfPageLabel || '';
   if (pageLabel) return `Page ${pageLabel}`;
   const pageIndex = Number(target?.pageIndex ?? sourceElement?.dataset?.pdfPageIndex);
@@ -9342,6 +9609,10 @@ function unresolvedAnnotationLabel(annotation) {
 }
 
 function annotationSourceElement(doc, annotation) {
+  if (annotationHasSideNote(annotation) && annotation?.display?.noteAnchor) {
+    const noteAnchor = resolveTargetElement(doc, annotation.display.noteAnchor);
+    if (noteAnchor) return closestAnchorElement(noteAnchor) || noteAnchor;
+  }
   const anchor = annotationAnchorElement(doc, annotation);
   if (anchor) return closestAnchorElement(anchor) || anchor;
   const target = primaryAnnotationTarget(annotation);
@@ -9635,7 +9906,9 @@ function syncJumpToNoteButton(doc = getFrameDoc()) {
 
 function detachedPdfSelectionJumpDirection(doc, annotation) {
   if (state.currentDocument?.sourceType !== 'pdf' || !annotation) return null;
-  const pageNumber = annotationPrimaryPdfPageNumber(annotation);
+  const pageNumber = annotationHasSideNote(annotation)
+    ? sideNotePdfPageNumber(annotation)
+    : annotationPrimaryPdfPageNumber(annotation);
   if (!pageNumber) return null;
   const pageIndex = pageNumber - 1;
   if (readerPositionPdfPageElementNow(doc, { pageIndex, pageNumber })) return null;
@@ -9748,7 +10021,9 @@ function retryPendingHighlightNavigatorJump(doc = getFrameDoc()) {
 function requestPdfPageForAnnotationJump(doc, annotation, options) {
   options = options || {};
   if (state.currentDocument?.sourceType !== 'pdf' || !annotation) return false;
-  const pageNumber = annotationPrimaryPdfPageNumber(annotation);
+  const pageNumber = options.alignNoteTop
+    ? sideNotePdfPageNumber(annotation)
+    : annotationPrimaryPdfPageNumber(annotation);
   if (!pageNumber) return false;
   const pageIndex = pageNumber - 1;
   const pendingJump = {
@@ -9823,6 +10098,9 @@ function pdfAnnotationJumpTargetReady(doc, pending) {
   if (!page || page.dataset.renderState !== 'rendered') return false;
   const annotation = state.annotations.find((item) => item.id === pending?.annotationId);
   if (!annotation) return false;
+  if (pending?.alignNoteTop && annotation?.display?.noteAnchor) {
+    return Boolean(resolveTargetElement(doc, annotation.display.noteAnchor));
+  }
   const resolution = buildAnnotationResolution(doc, annotation);
   const primary = resolution?.targets?.find((target) => target.primary) || resolution?.targets?.[0];
   return Boolean(primary) && primary.status !== 'pending';
@@ -10101,6 +10379,7 @@ async function deleteAnnotation(annotationId) {
   annotation = state.annotations.find((item) => item.id === annotationId) || annotation;
   const before = cloneAnnotation(annotation);
   await storage.deleteAnnotation(state.docId, annotationId);
+  if (state.sideNoteRelocation?.annotationId === annotationId) state.sideNoteRelocation = null;
   state.activeAnnotationId = null;
   if (state.pinnedAnnotationId === annotationId) {
     state.pinnedAnnotationId = null;
@@ -10122,6 +10401,9 @@ async function deleteAnnotation(annotationId) {
 }
 
 function togglePinnedNote(annotationId) {
+  if (state.sideNoteRelocation?.annotationId === annotationId) {
+    cancelSideNoteRelocation({ render: false, announce: false });
+  }
   state.pinnedAnnotationId = state.pinnedAnnotationId === annotationId ? null : annotationId;
   if (!state.pinnedAnnotationId) state.pendingHighlightNavigatorJump = null;
   state.activeAnnotationId = annotationId;

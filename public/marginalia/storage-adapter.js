@@ -2466,6 +2466,7 @@ function isRelativeAssetUrl(value) {
 }
 
 function normalizeHydratedAnnotation(input) {
+  const noteAnchor = normalizeSideNoteAnchor(input.display?.noteAnchor);
   return {
     id: String(input.id),
     docId: String(input.docId),
@@ -2479,11 +2480,49 @@ function normalizeHydratedAnnotation(input) {
     noteRef: input.noteRef || null,
     display: {
       mode: input.display?.mode === 'highlight' ? 'highlight' : 'side',
-      collapsed: input.display?.collapsed !== false
+      collapsed: input.display?.collapsed !== false,
+      ...(noteAnchor ? { noteAnchor } : {})
     },
     createdAt: input.createdAt || new Date().toISOString(),
     updatedAt: input.updatedAt || new Date().toISOString()
   };
+}
+
+export function normalizeSideNoteAnchor(input) {
+  if (!input || typeof input !== 'object') return null;
+  const type = input.type === 'pdf-page-point' ? 'pdf-page-point' : input.type === 'block' ? 'block' : '';
+  if (!type) return null;
+  const anchor = { type };
+  for (const key of ['pageId', 'anchorId', 'domPath', 'pageLabel', 'exact']) {
+    if (typeof input[key] === 'string' && input[key]) anchor[key] = input[key];
+  }
+  const pageIndex = input.pageIndex == null || input.pageIndex === '' ? NaN : Number(input.pageIndex);
+  if (Number.isInteger(pageIndex) && pageIndex >= 0) anchor.pageIndex = pageIndex;
+  for (const key of ['x', 'y']) {
+    const number = input[key] == null || input[key] === '' ? NaN : Number(input[key]);
+    if (Number.isFinite(number)) anchor[key] = Math.min(1, Math.max(0, number));
+  }
+  const clientHint = {};
+  for (const key of [
+    'x',
+    'y',
+    'documentX',
+    'documentY',
+    'anchorOffsetX',
+    'anchorOffsetY',
+    'pageX',
+    'pageY'
+  ]) {
+    const value = input.clientHint?.[key];
+    const number = value == null || value === '' ? NaN : Number(value);
+    if (Number.isFinite(number)) clientHint[key] = number;
+  }
+  if (Object.keys(clientHint).length) anchor.clientHint = clientHint;
+  const resolvable = anchor.anchorId
+    || anchor.domPath
+    || Number.isFinite(anchor.clientHint?.documentY)
+    || (type === 'pdf-page-point' && Number.isInteger(anchor.pageIndex));
+  return resolvable ? anchor : null;
 }
 
 export function normalizeNoteForStorage(note) {

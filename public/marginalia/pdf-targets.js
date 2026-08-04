@@ -32,7 +32,8 @@ export function annotationPrimaryPdfPageNumber(annotation) {
 function annotationPdfTargets(annotation) {
   return [
     annotation?.target,
-    ...(Array.isArray(annotation?.targets) ? annotation.targets : [])
+    ...(Array.isArray(annotation?.targets) ? annotation.targets : []),
+    annotation?.display?.noteAnchor
   ].filter((target) => target && ['text', 'pdf-page-point', 'pdf-rect'].includes(target.type));
 }
 

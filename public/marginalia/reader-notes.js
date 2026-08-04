@@ -24,6 +24,10 @@ import {
   nextSplitScrollPosition
 } from './split-scroll-sync.js';
 import { planSideNoteStack } from './side-note-layout.js';
+import {
+  createSideNoteRelocation,
+  sideNoteRelocationDocumentTop
+} from './side-note-relocation.js';
 
 const params = new URLSearchParams(location.search);
 const docId = params.get('doc') || '';
@@ -40,6 +44,7 @@ const state = {
   annotations: [],
   metricsById: new Map(),
   activeAnnotationId: null,
+  sideNoteRelocation: null,
   sourceScrollY: 0,
   sourceScrollHeight: 0,
   sourceViewportHeight: 0,
@@ -129,14 +134,17 @@ function init() {
   els.canvas.addEventListener('click', onSideNoteClick);
   els.canvas.addEventListener('dblclick', onSideNoteDoubleClick);
   els.canvas.addEventListener('pointerdown', (event) => {
-    if (event.target?.closest?.('.split-side-note-text-mode')) event.preventDefault();
+    const action = event.target?.closest?.('[data-split-note-action]')?.dataset?.splitNoteAction;
+    if (event.target?.closest?.('.split-side-note-text-mode') || ['relocate', 'attach-here'].includes(action)) {
+      event.preventDefault();
+    }
   });
   els.canvas.addEventListener('input', onSideNoteInput);
   els.canvas.addEventListener('change', onSideNoteInput);
   els.canvas.addEventListener('focusout', onSideNoteFocusOut);
   els.canvas.addEventListener('keydown', onSideNoteKeyDown);
   els.canvas.addEventListener('paste', onSideNotePaste);
-  document.addEventListener('keydown', handleSplitPageZoomShortcut);
+  document.addEventListener('keydown', handleSplitDocumentKeyDown);
   state.notesPanelWidth = loadNotesPanelWidth(false);
   applyNotesSplitPageZoom();
   applyNotesPanelWidth();
@@ -164,6 +172,10 @@ function handleSessionMessage(envelope) {
     applySourceScroll(payload.scrollY, envelope.sentAt);
     return;
   }
+  if (type === 'note-relocation-complete') {
+    finishSplitSideNoteRelocation(payload);
+    return;
+  }
   if (type === 'close-source') {
     setStatus('Reader window closed the split session.');
     state.channel?.close();
@@ -176,9 +188,14 @@ function applySourceState(payload, sentAt = 0) {
   const initialState = !state.hasSourceState;
   state.hasSourceState = true;
   state.annotations = Array.isArray(payload.annotations) ? payload.annotations : [];
+  if (state.sideNoteRelocation
+    && !state.annotations.some((annotation) => annotation.id === state.sideNoteRelocation.annotationId)) {
+    state.sideNoteRelocation = null;
+  }
   state.metricsById = new Map((payload.noteMetrics || []).map((metric) => [metric.id, metric]));
   state.activeAnnotationId = payload.activeAnnotationId || null;
   state.pinnedAnnotationId = payload.pinnedAnnotationId || null;
+  if (state.sideNoteRelocation?.annotationId === state.pinnedAnnotationId) state.sideNoteRelocation = null;
   state.focusModeAnnotationId = payload.focusModeAnnotationId || null;
   state.collapsedSideNoteIds = new Set(Array.isArray(payload.collapsedSideNoteIds) ? payload.collapsedSideNoteIds : []);
   state.mode = typeof payload.mode === 'string' ? payload.mode : 'select';
@@ -268,6 +285,9 @@ function splitSideNoteRenderKey(annotation, metric) {
     focused: annotation.id === state.focusModeAnnotationId,
     attaching: state.mode === 'attach-highlight' && annotation.id === state.attachTargetAnnotationId,
     removing: state.mode === 'remove-highlight' && annotation.id === state.removeTargetAnnotationId,
+    relocating: annotation.id === state.sideNoteRelocation?.annotationId,
+    relocationCommitting: annotation.id === state.sideNoteRelocation?.annotationId
+      && state.sideNoteRelocation.committing === true,
     features: state.features,
     status: metric?.status || ''
   });
@@ -276,17 +296,109 @@ function splitSideNoteRenderKey(annotation, metric) {
 function syncSplitSideNoteShell(note, annotation, metric, editing = false) {
   const isCollapsed = state.collapsedSideNoteIds.has(annotation.id);
   const isPinned = annotation.id === state.pinnedAnnotationId;
+  const relocation = annotation.id === state.sideNoteRelocation?.annotationId
+    ? state.sideNoteRelocation
+    : null;
   note.className = [
     'split-side-note',
     annotation.id === state.activeAnnotationId ? 'is-active' : '',
     isPinned ? 'is-pinned' : '',
+    relocation ? 'is-relocating' : '',
     isCollapsed ? 'is-collapsed' : '',
     editing ? 'is-editing' : '',
     metric?.status === 'unresolved' ? 'is-unresolved' : '',
     metric?.status === 'pending' ? 'is-target-pending' : ''
   ].filter(Boolean).join(' ');
-  note.style.top = `${Math.max(0, Math.round(metric?.top ?? 24))}px`;
+  const relocatedTop = relocation && !isPinned
+    ? sideNoteRelocationDocumentTop(relocation, els.scroller.scrollTop, splitNotesViewport().height)
+    : null;
+  note.style.top = `${Math.max(0, Math.round(Number.isFinite(relocatedTop) ? relocatedTop : metric?.top ?? 24))}px`;
   if (isPinned) note.style.removeProperty('z-index');
+  syncSplitSideNoteRelocationUi(note, annotation.id);
+}
+
+function syncSplitSideNoteRelocationUi(note, annotationId) {
+  if (!note) return;
+  const relocation = state.sideNoteRelocation?.annotationId === annotationId
+    ? state.sideNoteRelocation
+    : null;
+  let button = note.querySelector(':scope > .split-side-note-attach-here');
+  if (!relocation) {
+    button?.remove();
+    return;
+  }
+  if (!button) {
+    button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'split-side-note-attach-here';
+    button.dataset.splitNoteAction = 'attach-here';
+    note.insertBefore(button, note.firstChild);
+  }
+  button.disabled = relocation.committing === true;
+  button.textContent = relocation.committing ? 'Attaching…' : 'Attach here';
+  button.setAttribute('aria-label', button.textContent);
+}
+
+function toggleSplitSideNoteRelocation(annotationId, note) {
+  if (state.sideNoteRelocation?.annotationId === annotationId) {
+    cancelSplitSideNoteRelocation();
+    return;
+  }
+  if (state.pinnedAnnotationId === annotationId) {
+    setStatus('Unpin the note before relocating it.', true);
+    return;
+  }
+  const zoom = Math.max(0.1, Number(state.splitPageZoom) || SPLIT_PAGE_ZOOM_DEFAULT);
+  const relocation = createSideNoteRelocation(
+    annotationId,
+    (note?.getBoundingClientRect?.().top || 0) / zoom,
+    splitNotesViewport().height
+  );
+  if (!relocation) return;
+  state.sideNoteRelocation = relocation;
+  activateSplitSideNote(annotationId);
+  renderSideNotes();
+  setStatus('Note detached. Scroll to the new position, then choose Attach here.');
+}
+
+function cancelSplitSideNoteRelocation(options = {}) {
+  if (!state.sideNoteRelocation) return false;
+  state.sideNoteRelocation = null;
+  renderSideNotes();
+  if (options.announce !== false) setStatus('Note relocation cancelled.');
+  return true;
+}
+
+function attachSplitSideNoteRelocation(annotationId) {
+  const relocation = state.sideNoteRelocation;
+  if (!relocation || relocation.annotationId !== annotationId || relocation.committing) return false;
+  const documentY = sideNoteRelocationDocumentTop(
+    relocation,
+    els.scroller.scrollTop,
+    splitNotesViewport().height
+  );
+  if (!Number.isFinite(documentY)) return false;
+  relocation.committing = true;
+  renderSideNotes();
+  state.channel?.post('attach-note-here', { annotationId, documentY });
+  setStatus('Attaching note...');
+  return true;
+}
+
+function finishSplitSideNoteRelocation(payload) {
+  payload = payload || {};
+  const annotationId = String(payload.annotationId || '');
+  if (!state.sideNoteRelocation || state.sideNoteRelocation.annotationId !== annotationId) return;
+  if (payload.ok === false) {
+    state.sideNoteRelocation.committing = false;
+    renderSideNotes();
+    setStatus(payload.message || 'The note could not be attached here.', true);
+    return;
+  }
+  state.sideNoteRelocation = null;
+  renderSideNotes();
+  renderNavigator();
+  setStatus('Note attached at the new position.');
 }
 
 function splitNoteEditingActive(annotationId) {
@@ -303,6 +415,12 @@ function requestSplitSideNoteLayout() {
 }
 
 function layoutSplitSideNotes() {
+  const relocation = state.sideNoteRelocation;
+  if (relocation) {
+    const note = els.canvas.querySelector(`.split-side-note[data-annotation-id="${cssEscape(relocation.annotationId)}"]`);
+    const top = sideNoteRelocationDocumentTop(relocation, els.scroller.scrollTop, splitNotesViewport().height);
+    if (note && Number.isFinite(top)) note.style.top = `${Math.max(0, Math.round(top))}px`;
+  }
   const entries = Array.from(els.canvas.querySelectorAll('.split-side-note:not(.is-pinned)'))
     .map((note) => ({
       annotationId: note.dataset.annotationId,
@@ -333,6 +451,14 @@ function handleSplitPageZoomShortcut(event) {
   state.channel?.post('notes-scroll', { scrollY });
   setStatus(`Split notes page zoom: ${Math.round(state.splitPageZoom * 100)}%.`);
   return true;
+}
+
+function handleSplitDocumentKeyDown(event) {
+  if (handleSplitPageZoomShortcut(event)) return;
+  if (event.defaultPrevented || event.key !== 'Escape' || !state.sideNoteRelocation) return;
+  event.preventDefault();
+  event.stopPropagation();
+  cancelSplitSideNoteRelocation();
 }
 
 function applyNotesSplitPageZoom() {
@@ -376,6 +502,7 @@ function sideNoteHtml(annotation, metric) {
   const isCollapsed = state.collapsedSideNoteIds.has(annotation.id);
   const isPinned = state.pinnedAnnotationId === annotation.id;
   const isFocused = state.focusModeAnnotationId === annotation.id;
+  const isRelocating = state.sideNoteRelocation?.annotationId === annotation.id;
   const isAttaching = state.mode === 'attach-highlight' && state.attachTargetAnnotationId === annotation.id;
   const isRemoving = state.mode === 'remove-highlight' && state.removeTargetAnnotationId === annotation.id;
   const hasHighlights = splitAnnotationHasHighlights(annotation);
@@ -394,6 +521,7 @@ function sideNoteHtml(annotation, metric) {
         <button type="button" class="split-side-note-tool" data-split-note-action="toggle-collapse" title="${isCollapsed ? 'Expand note' : 'Collapse note'}" aria-label="${isCollapsed ? 'Expand note' : 'Collapse note'}" aria-expanded="${String(!isCollapsed)}">${isCollapsed ? '▼' : '▲'}</button>
         ${state.features.singleBlockTextHighlights ? `<button type="button" class="split-side-note-tool ${isAttaching ? 'is-active' : ''}" data-split-note-action="attach" title="${isAttaching ? 'Adding highlights to this note' : 'Add highlight'}" aria-label="${isAttaching ? 'Finish adding highlights' : 'Add highlight to note'}" aria-pressed="${String(isAttaching)}">+</button>` : ''}
         ${state.features.singleBlockTextHighlights && hasHighlights ? `<button type="button" class="split-side-note-tool ${isRemoving ? 'is-active' : ''}" data-split-note-action="remove-highlight" title="${isRemoving ? 'Click a highlight to remove it' : 'Remove highlight'}" aria-label="${isRemoving ? 'Finish removing highlights' : 'Remove highlight from note'}" aria-pressed="${String(isRemoving)}">−</button>` : ''}
+        <button type="button" class="split-side-note-tool ${isRelocating ? 'is-active' : ''}" data-split-note-action="relocate" title="${isRelocating ? 'Cancel note relocation' : 'Relocate note'}" aria-label="${isRelocating ? 'Cancel note relocation' : 'Relocate note'}" aria-pressed="${String(isRelocating)}" ${isPinned ? 'disabled' : ''}>↕</button>
         <button type="button" class="split-side-note-tool ${isPinned ? 'is-active' : ''}" data-split-note-action="pin" title="${isPinned ? 'Unpin note editor' : 'Pin note editor'}" aria-label="${isPinned ? 'Unpin note editor' : 'Pin note editor'}" aria-pressed="${String(isPinned)}">「」</button>
         <button type="button" class="split-side-note-tool danger" data-split-note-action="delete-note" title="Delete note" aria-label="Delete note">×</button>
       </div>
@@ -744,11 +872,22 @@ function onSideNoteClick(event) {
   if (!annotationId) return;
   const actionButton = event.target?.closest?.('[data-split-note-action]');
   const action = actionButton?.dataset?.splitNoteAction || '';
+  if (action === 'relocate') {
+    toggleSplitSideNoteRelocation(annotationId, note);
+    return;
+  }
+  if (action === 'attach-here') {
+    attachSplitSideNoteRelocation(annotationId);
+    return;
+  }
   if (action === 'toggle-collapse') {
     state.channel?.post('toggle-note-collapse', { annotationId });
     return;
   }
   if (action === 'pin') {
+    if (state.sideNoteRelocation?.annotationId === annotationId) {
+      cancelSplitSideNoteRelocation({ announce: false });
+    }
     state.channel?.post('toggle-pin-note', { annotationId });
     return;
   }
@@ -765,6 +904,9 @@ function onSideNoteClick(event) {
     return;
   }
   if (action === 'delete-note') {
+    if (state.sideNoteRelocation?.annotationId === annotationId) {
+      cancelSplitSideNoteRelocation({ announce: false });
+    }
     requestDeleteAnnotation(annotationId, actionButton);
     return;
   }
@@ -1200,6 +1342,7 @@ function alignSplitNoteToTop(annotationId) {
 
 function onNotesScroll() {
   const y = Math.max(0, els.scroller.scrollTop || 0);
+  if (state.sideNoteRelocation) requestSplitSideNoteLayout();
   if (consumeRemoteScrollEcho(y)) return;
   cancelRemoteScrollFollower();
   state.lastLocalScrollSentAt = Date.now();
