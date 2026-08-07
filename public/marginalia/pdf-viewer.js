@@ -23,7 +23,7 @@ import {
   horizontalOffsetForCenteredZoom,
   horizontalOffsetForPanelResize,
   normalizePdfViewState,
-  planPdfFreeWheelScroll,
+  pdfWheelVerticalDelta,
   previewScaleFactor,
   zoomStateForPanelResize
 } from './pdf-zoom-lock.js';
@@ -102,6 +102,9 @@ let pdfWindowScrollIdleTimer = 0;
 let readAheadRequestId = 0;
 let latestAnnotationPagePreparationRequestId = 0;
 let lockedHorizontalScrollLeft = 0;
+let horizontalPanMaxOffset = 0;
+let pendingPdfTiltVerticalDelta = 0;
+let pdfTiltScrollRaf = 0;
 let lastNonReadingViewportWidth = 0;
 let currentPageNumber = 1;
 let lastDispatchedCurrentPageNumber = null;
@@ -177,7 +180,7 @@ window.addEventListener('message', handleReaderLifecycleMessage);
 window.addEventListener('resize', scheduleZoomRefresh);
 window.addEventListener('scroll', handlePdfWindowScroll, { passive: true });
 pdfViewport?.addEventListener('scroll', handlePdfViewportScroll, { passive: true });
-pdfViewport?.addEventListener('wheel', handlePdfViewportWheel, { passive: false });
+pdfViewport?.addEventListener('wheel', handlePdfViewportWheel, { passive: true });
 findIndexEl?.addEventListener('beforematch', handlePdfFindBeforeMatch);
 
 syncHorizontalPanLock();
@@ -1439,11 +1442,12 @@ function refreshZoomedPages(options = {}) {
 
 function captureHorizontalPan() {
   if (!pdfViewport) return null;
-  const maxScroll = maxHorizontalPanOffset();
+  const maxOffset = maxHorizontalPanOffset();
   const left = horizontalPanLocked ? lockedHorizontalScrollLeft : pdfViewport.scrollLeft;
   return {
     left,
-    ratio: maxScroll > 0 ? left / maxScroll : 0
+    ratio: maxOffset > 0 ? left / maxOffset : 0,
+    maxOffset
   };
 }
 
@@ -1859,25 +1863,28 @@ function handlePdfViewportScroll() {
 }
 
 function handlePdfViewportWheel(event) {
-  if (!pdfViewport || horizontalPanLocked || event.defaultPrevented || event.ctrlKey) return;
-  const scrollingElement = document.scrollingElement || document.documentElement;
-  const plan = planPdfFreeWheelScroll({
+  if (!pdfViewport || horizontalPanLocked || viewerSuspended || event.defaultPrevented || event.ctrlKey) return;
+  const verticalDelta = pdfWheelVerticalDelta({
     deltaX: event.deltaX,
     deltaY: event.deltaY,
     deltaMode: event.deltaMode,
     linePixels: 16,
     pagePixels: window.innerHeight,
     left: pdfViewport.scrollLeft,
-    top: window.scrollY,
-    maxLeft: maxHorizontalPanOffset(),
-    maxTop: Math.max(0, scrollingElement.scrollHeight - window.innerHeight)
+    maxLeft: horizontalPanMaxOffset
   });
-  if (!plan.handled) return;
-  event.preventDefault();
-  if (plan.horizontalChanged) setHorizontalScrollLeft(plan.left);
-  if (plan.verticalChanged) {
-    window.scrollTo({ left: window.scrollX, top: plan.top, behavior: 'auto' });
-  }
+  if (Math.abs(verticalDelta) <= 0.001) return;
+  pendingPdfTiltVerticalDelta += verticalDelta;
+  if (pdfTiltScrollRaf) return;
+  pdfTiltScrollRaf = requestAnimationFrame(flushPdfTiltVerticalScroll);
+}
+
+function flushPdfTiltVerticalScroll() {
+  pdfTiltScrollRaf = 0;
+  const delta = pendingPdfTiltVerticalDelta;
+  pendingPdfTiltVerticalDelta = 0;
+  if (viewerSuspended || horizontalPanLocked || Math.abs(delta) <= 0.001) return;
+  window.scrollBy(0, delta);
 }
 
 function commitPageNumberInput() {
@@ -2057,6 +2064,11 @@ function setLockedHorizontalPanOffset(offset) {
 function syncPdfViewStateDatasets() {
   const pan = captureHorizontalPan();
   if (!pan) return;
+  horizontalPanMaxOffset = pan.maxOffset;
+  const overflowState = pan.maxOffset > 0.5 ? 'scrollable' : 'none';
+  if (document.documentElement.dataset.pdfHorizontalOverflow !== overflowState) {
+    document.documentElement.dataset.pdfHorizontalOverflow = overflowState;
+  }
   document.documentElement.dataset.pdfHorizontalOffset = String(Number(pan.left.toFixed(3)));
   document.documentElement.dataset.pdfHorizontalRatio = String(Number(pan.ratio.toFixed(6)));
 }
@@ -2110,13 +2122,15 @@ function suspendPdfViewer(reason = 'hidden') {
   textLayerQueue.length = 0;
   window.clearTimeout(pdfWindowScrollIdleTimer);
   pdfWindowScrolling = false;
-  for (const rafId of [selectionOverlayRaf, pageMetricsRaf, pageControlsRaf, zoomRefreshRaf]) {
+  for (const rafId of [selectionOverlayRaf, pageMetricsRaf, pageControlsRaf, zoomRefreshRaf, pdfTiltScrollRaf]) {
     if (rafId) cancelAnimationFrame(rafId);
   }
   selectionOverlayRaf = 0;
   pageMetricsRaf = 0;
   pageControlsRaf = 0;
   zoomRefreshRaf = 0;
+  pdfTiltScrollRaf = 0;
+  pendingPdfTiltVerticalDelta = 0;
   for (const [pageNumber, record] of orderedPageRecords()) {
     record.renderTask?.cancel?.();
     record.textLayer?.cancel?.();

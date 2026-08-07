@@ -219,14 +219,15 @@
 
     #pdfViewport {
       width: 100vw;
-      overflow-x: auto;
+      overflow-x: clip;
       overflow-y: visible;
       overscroll-behavior-x: contain;
       overscroll-behavior-y: auto;
     }
 
-    :root[data-pdf-horizontal-pan="locked"] #pdfViewport {
-      overflow-x: clip;
+    /* An empty horizontal scroller traps trackpad tilt before the page can scroll vertically. */
+    :root[data-pdf-horizontal-pan="unlocked"][data-pdf-horizontal-overflow="scrollable"] #pdfViewport {
+      overflow-x: auto;
     }
 
     :root.reader-embedded #pdfViewport {

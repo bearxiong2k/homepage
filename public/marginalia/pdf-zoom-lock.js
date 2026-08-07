@@ -33,7 +33,7 @@ export function horizontalOffsetForCenteredZoom(options = {}) {
   return Math.min(maxOffset, Math.max(0, nextLeft));
 }
 
-export function planPdfFreeWheelScroll(options = {}) {
+export function pdfWheelVerticalDelta(options = {}) {
   const deltaMode = Math.round(finiteNumber(options.deltaMode, 0));
   const deltaUnit = deltaMode === 1
     ? positiveNumber(options.linePixels, 16)
@@ -43,21 +43,11 @@ export function planPdfFreeWheelScroll(options = {}) {
   const deltaX = finiteNumber(options.deltaX, 0) * deltaUnit;
   const deltaY = finiteNumber(options.deltaY, 0) * deltaUnit;
   const maxLeft = Math.max(0, finiteNumber(options.maxLeft, 0));
-  const maxTop = Math.max(0, finiteNumber(options.maxTop, 0));
   const currentLeft = clampPosition(options.left, maxLeft);
-  const currentTop = clampPosition(options.top, maxTop);
-  const left = clampPosition(currentLeft + deltaX, maxLeft);
-  const consumedX = left - currentLeft;
-  const unusedX = deltaX - consumedX;
-  const verticalDelta = Math.abs(deltaY) > 0.001 ? deltaY : unusedX;
-  const top = clampPosition(currentTop + verticalDelta, maxTop);
-  return {
-    handled: Math.abs(deltaX) > 0.001 || Math.abs(deltaY) > 0.001,
-    left,
-    top,
-    horizontalChanged: Math.abs(left - currentLeft) > 0.001,
-    verticalChanged: Math.abs(top - currentTop) > 0.001
-  };
+  const nextLeft = clampPosition(currentLeft + deltaX, maxLeft);
+  const consumedX = nextLeft - currentLeft;
+  if (Math.abs(deltaY) > 0.001) return Math.abs(consumedX) > 0.001 ? deltaY : 0;
+  return deltaX - consumedX;
 }
 
 export function previewScaleFactor(previewScale, committedScale) {
