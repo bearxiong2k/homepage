@@ -1,7 +1,7 @@
 import { installNoteMath } from './note-math.js';
 import { noteMermaidPlaceholder, renderNoteMermaidDiagrams } from './note-mermaid.js';
 
-export const NOTE_MARKDOWN_RENDERER_VERSION = '3:markdown-it-14.3.0:katex-0.17.0:mermaid-11.16.0';
+export const NOTE_MARKDOWN_RENDERER_VERSION = '4:markdown-it-14.3.0:katex-0.17.0:mermaid-11.16.0';
 
 const DEFAULT_CACHE_SIZE = 128;
 const MARKDOWN_IT_SCRIPT_URL = new URL('./vendor/markdown-it/markdown-it.min.js', import.meta.url).href;
