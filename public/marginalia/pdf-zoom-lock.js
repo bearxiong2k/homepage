@@ -33,6 +33,33 @@ export function horizontalOffsetForCenteredZoom(options = {}) {
   return Math.min(maxOffset, Math.max(0, nextLeft));
 }
 
+export function planPdfFreeWheelScroll(options = {}) {
+  const deltaMode = Math.round(finiteNumber(options.deltaMode, 0));
+  const deltaUnit = deltaMode === 1
+    ? positiveNumber(options.linePixels, 16)
+    : deltaMode === 2
+      ? positiveNumber(options.pagePixels, 1)
+      : 1;
+  const deltaX = finiteNumber(options.deltaX, 0) * deltaUnit;
+  const deltaY = finiteNumber(options.deltaY, 0) * deltaUnit;
+  const maxLeft = Math.max(0, finiteNumber(options.maxLeft, 0));
+  const maxTop = Math.max(0, finiteNumber(options.maxTop, 0));
+  const currentLeft = clampPosition(options.left, maxLeft);
+  const currentTop = clampPosition(options.top, maxTop);
+  const left = clampPosition(currentLeft + deltaX, maxLeft);
+  const consumedX = left - currentLeft;
+  const unusedX = deltaX - consumedX;
+  const verticalDelta = Math.abs(deltaY) > 0.001 ? deltaY : unusedX;
+  const top = clampPosition(currentTop + verticalDelta, maxTop);
+  return {
+    handled: Math.abs(deltaX) > 0.001 || Math.abs(deltaY) > 0.001,
+    left,
+    top,
+    horizontalChanged: Math.abs(left - currentLeft) > 0.001,
+    verticalChanged: Math.abs(top - currentTop) > 0.001
+  };
+}
+
 export function previewScaleFactor(previewScale, committedScale) {
   return positiveNumber(previewScale, 1) / positiveNumber(committedScale, 1);
 }
@@ -61,6 +88,10 @@ function clampScale(value, options) {
   const minimum = positiveNumber(options.minScale, 0.35);
   const maximum = Math.max(minimum, positiveNumber(options.maxScale, 10));
   return Math.min(maximum, Math.max(minimum, value));
+}
+
+function clampPosition(value, maximum) {
+  return Math.min(maximum, Math.max(0, finiteNumber(value, 0)));
 }
 
 function positiveNumber(value, fallback) {

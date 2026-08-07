@@ -23,6 +23,7 @@ import {
   horizontalOffsetForCenteredZoom,
   horizontalOffsetForPanelResize,
   normalizePdfViewState,
+  planPdfFreeWheelScroll,
   previewScaleFactor,
   zoomStateForPanelResize
 } from './pdf-zoom-lock.js';
@@ -176,6 +177,7 @@ window.addEventListener('message', handleReaderLifecycleMessage);
 window.addEventListener('resize', scheduleZoomRefresh);
 window.addEventListener('scroll', handlePdfWindowScroll, { passive: true });
 pdfViewport?.addEventListener('scroll', handlePdfViewportScroll, { passive: true });
+pdfViewport?.addEventListener('wheel', handlePdfViewportWheel, { passive: false });
 findIndexEl?.addEventListener('beforematch', handlePdfFindBeforeMatch);
 
 syncHorizontalPanLock();
@@ -1854,6 +1856,28 @@ function handlePdfViewportScroll() {
   scheduleSelectionOverlayUpdate();
   schedulePageControlsSync();
   notifyPdfViewStateChange();
+}
+
+function handlePdfViewportWheel(event) {
+  if (!pdfViewport || horizontalPanLocked || event.defaultPrevented || event.ctrlKey) return;
+  const scrollingElement = document.scrollingElement || document.documentElement;
+  const plan = planPdfFreeWheelScroll({
+    deltaX: event.deltaX,
+    deltaY: event.deltaY,
+    deltaMode: event.deltaMode,
+    linePixels: 16,
+    pagePixels: window.innerHeight,
+    left: pdfViewport.scrollLeft,
+    top: window.scrollY,
+    maxLeft: maxHorizontalPanOffset(),
+    maxTop: Math.max(0, scrollingElement.scrollHeight - window.innerHeight)
+  });
+  if (!plan.handled) return;
+  event.preventDefault();
+  if (plan.horizontalChanged) setHorizontalScrollLeft(plan.left);
+  if (plan.verticalChanged) {
+    window.scrollTo({ left: window.scrollX, top: plan.top, behavior: 'auto' });
+  }
 }
 
 function commitPageNumberInput() {
