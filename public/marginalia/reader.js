@@ -311,6 +311,7 @@ const PDF_POSITION_READY_TIMEOUT_MS = 12000;
 const PDF_NOTE_JUMP_SETTLE_STABLE_FRAMES = 2;
 const PDF_NOTE_JUMP_SETTLE_MAX_FRAMES = 90;
 const PDF_NOTE_JUMP_GEOMETRY_EPSILON = 1;
+const PDF_SIDE_NOTE_EVICTION_VIEWPORT_MARGIN = 96;
 const READER_POSITION_SAVE_DELAY_MS = 350;
 const READER_POSITION_PRECISE_CAPTURE_DELAY_MS = 160;
 const QUICK_MARK_SCROLL_SYNC_INTERVAL_MS = 120;
@@ -1654,6 +1655,8 @@ function scheduleFrameScrollWork(doc = getFrameDoc()) {
   state.frameScrollIdleTimer = window.setTimeout(() => {
     state.frameScrollIdleTimer = 0;
     state.frameScrolling = false;
+    const prunedSideNotes = pruneDetachedPdfSideNotes(doc);
+    if (prunedSideNotes && state.activeAnnotationId) syncJumpToNoteButton(doc);
     if (state.pdfDeferredRefreshEffects && state.currentDocument?.sourceType === 'pdf') {
       schedulePdfFrameRefresh(doc);
     }
@@ -1736,7 +1739,7 @@ function handlePdfPageReady(doc, event) {
       clearRenderedAnnotation(doc, annotation.id);
       state.annotationResolution.set(annotation.id, buildAnnotationResolution(doc, annotation));
       const note = doc.querySelector(`.reader-side-note[data-annotation-id="${cssEscape(annotation.id)}"]`);
-      if (annotation.id !== state.pinnedAnnotationId) note?.remove();
+      if (!retainPdfSideNoteAfterPageEviction(doc, annotation, note)) note?.remove();
     }
     requestSideNoteLayout(doc);
     syncPinnedHighlightNavigator(doc);
@@ -1745,6 +1748,69 @@ function handlePdfPageReady(doc, event) {
   }
   state.pdfDirtyPageIndexes.add(pageIndex);
   schedulePdfFrameRefresh(doc);
+}
+
+function retainPdfSideNoteAfterPageEviction(doc, annotation, note) {
+  if (!note) return false;
+  if (annotation?.id === state.pinnedAnnotationId) return true;
+  if (pdfSideNoteAnchorPageIsLive(doc, annotation)) {
+    delete note.dataset.pdfDetachedTop;
+    return true;
+  }
+  const editing = note.classList?.contains?.('is-editing')
+    || note.contains?.(doc.activeElement);
+  if (!editing && !elementNearViewport(note, doc.defaultView, PDF_SIDE_NOTE_EVICTION_VIEWPORT_MARGIN)) {
+    return false;
+  }
+  rememberDetachedPdfSideNoteTop(doc, note);
+  return true;
+}
+
+function rememberDetachedPdfSideNoteTop(doc, note) {
+  const styledTop = Number.parseFloat(note?.style?.top);
+  const rectTop = Number(note?.getBoundingClientRect?.().top);
+  const documentTop = Number.isFinite(styledTop)
+    ? styledTop
+    : Number.isFinite(rectTop)
+      ? (Number(doc?.defaultView?.scrollY) || 0) + rectTop
+      : NaN;
+  if (!Number.isFinite(documentTop)) return false;
+  note.dataset.pdfDetachedTop = String(documentTop);
+  return true;
+}
+
+function pdfSideNoteAnchorPageIsLive(doc, annotation) {
+  const pageNumber = sideNotePdfPageNumber(annotation);
+  return Boolean(pageNumber && readerPositionPdfPageElementNow(doc, {
+    pageIndex: pageNumber - 1,
+    pageNumber
+  }));
+}
+
+function pruneDetachedPdfSideNotes(doc = getFrameDoc()) {
+  if (state.currentDocument?.sourceType !== 'pdf' || !doc) return 0;
+  const annotationsById = annotationIndexById();
+  let removed = 0;
+  for (const note of doc.querySelectorAll('.reader-side-note:not(.is-pinned)')) {
+    const annotation = annotationsById.get(note.dataset.annotationId);
+    if (!annotation) {
+      note.remove();
+      removed += 1;
+      continue;
+    }
+    if (pdfSideNoteAnchorPageIsLive(doc, annotation)) {
+      delete note.dataset.pdfDetachedTop;
+      continue;
+    }
+    if (note.classList.contains('is-editing')
+      || note.contains?.(doc.activeElement)
+      || elementNearViewport(note, doc.defaultView, PDF_SIDE_NOTE_EVICTION_VIEWPORT_MARGIN)) {
+      continue;
+    }
+    note.remove();
+    removed += 1;
+  }
+  return removed;
 }
 
 function schedulePdfFrameRefresh(doc = getFrameDoc()) {
@@ -8008,7 +8074,7 @@ function layoutSideNotes(doc) {
       }
       const annotation = annotationsById.get(note.dataset.annotationId);
       if (!annotation) return null;
-      const position = sideNotePosition(doc, annotation);
+      const position = sideNoteLayoutPosition(doc, annotation, note);
       if (!position) return null;
       note.style.left = '0px';
       note.style.top = `${position.top}px`;
@@ -8047,7 +8113,7 @@ function previewSideNoteLayout(doc) {
   for (const note of doc.querySelectorAll('.reader-side-note:not(.is-pinned)')) {
     const annotation = annotationsById.get(note.dataset.annotationId);
     if (!annotation) continue;
-    const position = sideNotePosition(doc, annotation);
+    const position = sideNoteLayoutPosition(doc, annotation, note);
     if (!position) continue;
     note.style.left = '0px';
     note.style.top = `${position.top}px`;
@@ -8146,6 +8212,24 @@ function installNoteDrawerResizeObserver() {
     requestNavigatorInkPreviewRedraw();
   });
   state.noteDrawerResizeObserver.observe(els.noteDrawerBody);
+}
+
+function sideNoteLayoutPosition(doc, annotation, note) {
+  if (state.currentDocument?.sourceType !== 'pdf' || !note) {
+    return sideNotePosition(doc, annotation);
+  }
+  if (annotation?.id === state.sideNoteRelocation?.annotationId
+    || annotation?.id === state.focusModeAnnotationId) {
+    return sideNotePosition(doc, annotation);
+  }
+  if (pdfSideNoteAnchorPageIsLive(doc, annotation)) {
+    delete note.dataset.pdfDetachedTop;
+    return sideNotePosition(doc, annotation);
+  }
+  const detachedTop = Number(note.dataset.pdfDetachedTop);
+  return Number.isFinite(detachedTop)
+    ? { top: detachedTop }
+    : sideNotePosition(doc, annotation);
 }
 
 function sideNotePosition(doc, annotation) {
@@ -9023,6 +9107,10 @@ function nearestAnchorForDocumentY(doc, y) {
 function beginInlineTextEdit(annotationId, note, focusField = 'body', pointerEvent = null, requestedBlockId = '') {
   const annotation = state.annotations.find((item) => item.id === annotationId);
   if (!annotation) return;
+  if (state.currentDocument?.sourceType === 'pdf'
+    && !pdfSideNoteAnchorPageIsLive(note.ownerDocument, annotation)) {
+    rememberDetachedPdfSideNoteTop(note.ownerDocument, note);
+  }
   if (state.activeAnnotationId !== annotationId) {
     state.activeAnnotationId = annotationId;
     syncActiveAnnotationState();
