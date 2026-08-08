@@ -1,8 +1,10 @@
 import { createReaderSessionChannel } from './reader-session-channel.js';
 import { createStorageAdapter } from './storage-adapter.js';
 import {
+  alignNoteMarkdownRenderedAnchor,
   analyzeNoteMarkdown,
   captureNoteMarkdownEditAnchor,
+  captureNoteMarkdownRenderAnchor,
   centerNoteMarkdownCaret,
   ensureNoteMarkdownStyles,
   placeNoteMarkdownCaret,
@@ -57,6 +59,7 @@ const state = {
   markdownSources: new WeakMap(),
   markdownAnalysisTimers: new WeakMap(),
   markdownRevision: 0,
+  pendingMarkdownRenderAnchors: new Map(),
   collapsedSideNoteIds: new Set(),
   pinnedAnnotationId: null,
   focusModeAnnotationId: null,
@@ -234,6 +237,9 @@ function renderSideNotes() {
   const currentIds = new Set(state.annotations.map((annotation) => annotation.id));
   els.canvas.querySelectorAll('.split-notes-empty').forEach((empty) => empty.remove());
   state.collapsedSideNoteIds = new Set([...state.collapsedSideNoteIds].filter((id) => currentIds.has(id)));
+  for (const [key, session] of state.textEditSessions) {
+    if (!currentIds.has(key.split(':', 1)[0])) session.cleanupMarkdownSelectionTracking?.();
+  }
   state.textEditSessions = new Map(
     [...state.textEditSessions].filter(([key]) => currentIds.has(key.split(':', 1)[0]))
   );
@@ -605,7 +611,7 @@ function hydrateSplitNoteBlocks(note, annotation) {
     if (block?.type === 'text') {
       const body = note.querySelector(`.split-side-note-body[data-block-id="${cssEscape(block.id)}"]`);
       const button = note.querySelector(`.split-side-note-text-mode[data-block-id="${cssEscape(block.id)}"]`);
-      renderSplitMarkdownBlock(body, button, block.id, block.markdown || '');
+      renderSplitMarkdownBlock(body, button, annotation.id, block.id, block.markdown || '');
     }
     if (block?.type === 'image') {
       const image = note.querySelector(`.split-side-note-image[data-asset-path="${cssEscape(block.assetPath)}"]`);
@@ -615,7 +621,7 @@ function hydrateSplitNoteBlocks(note, annotation) {
   }
 }
 
-async function renderSplitMarkdownBlock(body, button, blockId, source) {
+async function renderSplitMarkdownBlock(body, button, annotationId, blockId, source) {
   if (!body || !button) return;
   const revision = ++state.markdownRevision;
   body.dataset.markdownRevision = String(revision);
@@ -633,6 +639,7 @@ async function renderSplitMarkdownBlock(body, button, blockId, source) {
       body.tabIndex = 0;
       button.hidden = true;
       setSplitRenderFeedback(button, '');
+      clearPendingSplitMarkdownRenderAnchor(annotationId, blockId);
       requestSplitSideNoteLayout();
       return;
     }
@@ -646,10 +653,43 @@ async function renderSplitMarkdownBlock(body, button, blockId, source) {
     button.dataset.splitNoteAction = 'edit-text';
     setSplitRenderFeedback(button, '');
     requestSplitSideNoteLayout();
+    restorePendingSplitMarkdownRenderAnchor(body, annotationId, blockId);
   } catch {
     if (body.isConnected) body.textContent = source;
+    clearPendingSplitMarkdownRenderAnchor(annotationId, blockId);
     requestSplitSideNoteLayout();
   }
+}
+
+function splitMarkdownRenderAnchorKey(annotationId, blockId) {
+  return JSON.stringify([String(annotationId || ''), String(blockId || '')]);
+}
+
+function clearPendingSplitMarkdownRenderAnchor(annotationId, blockId) {
+  state.pendingMarkdownRenderAnchors.delete(splitMarkdownRenderAnchorKey(annotationId, blockId));
+}
+
+function restorePendingSplitMarkdownRenderAnchor(body, annotationId, blockId) {
+  const key = splitMarkdownRenderAnchorKey(annotationId, blockId);
+  const pending = state.pendingMarkdownRenderAnchors.get(key);
+  if (!pending) return;
+  requestAnimationFrame(() => {
+    if (state.pendingMarkdownRenderAnchors.get(key) !== pending
+      || !body.isConnected
+      || body.isContentEditable
+      || !body.classList.contains('is-rendered')) return;
+    layoutSplitSideNotes();
+    const note = body.closest('.split-side-note');
+    alignNoteMarkdownRenderedAnchor(
+      body,
+      pending,
+      note?.classList.contains('is-pinned') ? note : els.scroller
+    );
+    if (state.pendingMarkdownRenderAnchors.get(key) === pending) {
+      state.pendingMarkdownRenderAnchors.delete(key);
+    }
+    requestSplitSideNoteLayout();
+  });
 }
 
 function setSplitRenderFeedback(button, message = '') {
@@ -1051,7 +1091,12 @@ function onSideNoteFocusOut(event) {
     return;
   }
   const body = event.target.closest('.split-side-note-body');
-  if (body) finishSplitTextEdit(note.dataset.annotationId, body.dataset.blockId, { save: true });
+  if (body) {
+    finishSplitTextEdit(note.dataset.annotationId, body.dataset.blockId, {
+      save: true,
+      markdownRenderAnchor: captureNoteMarkdownRenderAnchor(body, editablePlainText(body))
+    });
+  }
 }
 
 function onSideNoteKeyDown(event) {
@@ -1155,7 +1200,8 @@ function beginSplitTextEdit(annotationId, blockId, pointerEvent = null) {
     ? captureNoteMarkdownEditAnchor(body, pointerEvent, block.markdown)
     : null;
   const key = `${annotationId}:${blockId}`;
-  state.textEditSessions.set(key, { original: block.markdown || '' });
+  const editSession = { original: block.markdown || '', markdownRenderAnchor: null };
+  state.textEditSessions.set(key, editSession);
   note.classList.add('is-editing');
   body.textContent = block.markdown || '';
   body.classList.remove('is-rendered', 'note-markdown');
@@ -1167,11 +1213,26 @@ function beginSplitTextEdit(annotationId, blockId, pointerEvent = null) {
   setSplitRenderFeedback(button, '');
   body.focus({ preventScroll: true });
   if (!placeNoteMarkdownCaret(body, markdownEditAnchor)) placeSplitCaretFromPoint(body, pointerEvent);
+  const rememberMarkdownRenderAnchor = () => {
+    const anchor = captureNoteMarkdownRenderAnchor(body, editablePlainText(body));
+    if (anchor) editSession.markdownRenderAnchor = anchor;
+  };
+  editSession.cleanupMarkdownSelectionTracking = () => {
+    document.removeEventListener('selectionchange', rememberMarkdownRenderAnchor);
+    delete editSession.cleanupMarkdownSelectionTracking;
+  };
+  document.addEventListener('selectionchange', rememberMarkdownRenderAnchor);
+  body.addEventListener('input', rememberMarkdownRenderAnchor);
+  body.addEventListener('keyup', rememberMarkdownRenderAnchor);
+  body.addEventListener('pointerup', rememberMarkdownRenderAnchor);
   layoutSplitSideNotes();
   if (markdownEditAnchor) {
     requestAnimationFrame(() => {
       centerNoteMarkdownCaret(body, note.classList.contains('is-pinned') ? note : els.scroller);
+      rememberMarkdownRenderAnchor();
     });
+  } else {
+    requestAnimationFrame(rememberMarkdownRenderAnchor);
   }
 }
 
@@ -1215,13 +1276,20 @@ async function tryRenderSplitTextBlock(annotationId, blockId) {
   finishSplitTextEdit(annotationId, blockId, { save: true });
 }
 
-function finishSplitTextEdit(annotationId, blockId, options = {}) {
+function finishSplitTextEdit(annotationId, blockId, options = null) {
+  const editOptions = options || {};
   const key = `${annotationId}:${blockId}`;
   const session = state.textEditSessions.get(key);
   if (!session) return;
   const note = els.canvas.querySelector(`.split-side-note[data-annotation-id="${cssEscape(annotationId)}"]`);
   const body = note?.querySelector(`.split-side-note-body[data-block-id="${cssEscape(blockId)}"]`);
-  const markdown = options.save === false ? session.original : editablePlainText(body);
+  const markdown = editOptions.save === false ? session.original : editablePlainText(body);
+  const markdownRenderAnchor = editOptions.save === false
+    ? null
+    : editOptions.markdownRenderAnchor
+      || captureNoteMarkdownRenderAnchor(body, markdown)
+      || session.markdownRenderAnchor;
+  session.cleanupMarkdownSelectionTracking?.();
   state.textEditSessions.delete(key);
   const annotation = state.annotations.find((item) => item.id === annotationId);
   const blocks = sideNoteBlocks(annotation);
@@ -1229,7 +1297,13 @@ function finishSplitTextEdit(annotationId, blockId, options = {}) {
   if (block?.type === 'text') block.markdown = markdown;
   if (annotation?.note && block?.type === 'text') annotation.note.blocks = blocks;
   if (!splitNoteEditingActive(annotationId)) note?.classList.remove('is-editing');
-  if (options.save !== false) {
+  if (editOptions.save !== false) {
+    if (markdownRenderAnchor) {
+      state.pendingMarkdownRenderAnchors.set(
+        splitMarkdownRenderAnchorKey(annotationId, blockId),
+        markdownRenderAnchor
+      );
+    }
     state.channel?.post('save-note-text', { annotationId, blockId, markdown });
     setStatus('Saving note...');
   }

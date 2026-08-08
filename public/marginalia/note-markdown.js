@@ -249,6 +249,73 @@ export function centerNoteMarkdownCaret(element, scrollSurface = null) {
   return true;
 }
 
+export function captureNoteMarkdownRenderAnchor(element, source) {
+  const doc = element?.ownerDocument;
+  const selection = doc?.getSelection?.();
+  if (!selection?.rangeCount) return null;
+  const selectedRange = selection.getRangeAt(0);
+  if (!element.contains?.(selectedRange.startContainer)) return null;
+  const range = selectedRange.cloneRange();
+  range.collapse(true);
+  const rect = range.getClientRects?.()[0] || range.getBoundingClientRect?.();
+  if (!rect || !Number.isFinite(rect.top)) return null;
+
+  const value = String(source ?? '');
+  const sourceOffset = noteMarkdownCaretSourceOffset(element, selectedRange, value);
+  if (!Number.isFinite(sourceOffset)) return null;
+  const offset = Math.max(0, Math.min(value.length, Math.trunc(sourceOffset)));
+  const line = noteMarkdownSourceLineAtOffset(value, offset);
+  const lineStart = noteMarkdownSourceOffset(value, line);
+  const nextBreak = value.indexOf('\n', lineStart);
+  const lineEnd = nextBreak < 0 ? value.length : nextBreak;
+  const lineLength = Math.max(1, lineEnd - lineStart);
+  return {
+    line,
+    sourceOffset: offset,
+    lineProgress: Math.min(0.999999, Math.max(0, (offset - lineStart) / lineLength)),
+    viewportY: rect.top + (Number(rect.height) || 0) / 2
+  };
+}
+
+export function alignNoteMarkdownRenderedAnchor(body, anchor, scrollSurface = null) {
+  const line = Number(anchor?.line);
+  const desiredViewportY = Number(anchor?.viewportY);
+  if (!body || !Number.isFinite(line) || !Number.isFinite(desiredViewportY)) return false;
+  const sourceElement = noteMarkdownRenderedElementForLine(body, line);
+  if (!sourceElement) return false;
+  const startLine = Math.max(0, Math.trunc(Number(sourceElement.dataset.noteSourceStartLine) || 0));
+  const endLine = Math.max(startLine + 1, Math.trunc(Number(sourceElement.dataset.noteSourceEndLine) || startLine + 1));
+  const lineProgress = Math.min(0.999999, Math.max(0, Number(anchor.lineProgress) || 0));
+  const blockProgress = Math.min(0.999999, Math.max(0, (
+    Math.min(endLine - 1, Math.max(startLine, Math.trunc(line))) - startLine + lineProgress
+  ) / (endLine - startLine)));
+  const renderedViewportY = noteMarkdownRenderedViewportY(sourceElement, blockProgress);
+  if (!Number.isFinite(renderedViewportY)) return false;
+
+  if (scrollSurface?.getBoundingClientRect && Number.isFinite(scrollSurface.scrollTop)) {
+    const surfaceRect = scrollSurface.getBoundingClientRect();
+    const visualScale = surfaceRect.height > 0 && scrollSurface.clientHeight > 0
+      ? surfaceRect.height / scrollSurface.clientHeight
+      : 1;
+    scrollSurface.scrollTop = Math.max(
+      0,
+      scrollSurface.scrollTop + (renderedViewportY - desiredViewportY) / visualScale
+    );
+    return true;
+  }
+
+  const doc = body.ownerDocument;
+  const view = doc?.defaultView;
+  if (!view?.scrollTo) return false;
+  const destination = Math.max(
+    0,
+    (Number(view.scrollY) || 0) + renderedViewportY - desiredViewportY
+  );
+  extendNoteMarkdownWindowScrollRange(body, destination);
+  view.scrollTo(Number(view.scrollX) || 0, destination);
+  return true;
+}
+
 function noteMarkdownSourceElementAtPointer(body, pointerEvent) {
   const direct = pointerEvent.target.closest('[data-note-source-start-line]');
   if (direct && body.contains?.(direct)) return direct;
@@ -270,6 +337,100 @@ function noteMarkdownSourceElementAtPointer(body, pointerEvent) {
     }
   }
   return best;
+}
+
+function noteMarkdownRenderedElementForLine(body, requestedLine) {
+  if (typeof body.querySelectorAll !== 'function') return null;
+  const line = Math.max(0, Math.trunc(Number(requestedLine) || 0));
+  let best = null;
+  let bestDistance = Infinity;
+  let bestSpan = Infinity;
+  for (const candidate of body.querySelectorAll('[data-note-source-start-line]')) {
+    const startLine = Math.max(0, Math.trunc(Number(candidate.dataset.noteSourceStartLine) || 0));
+    const endLine = Math.max(startLine + 1, Math.trunc(Number(candidate.dataset.noteSourceEndLine) || startLine + 1));
+    const distance = line < startLine ? startLine - line : line >= endLine ? line - endLine + 1 : 0;
+    const span = endLine - startLine;
+    if (distance < bestDistance || (distance === bestDistance && span < bestSpan)) {
+      best = candidate;
+      bestDistance = distance;
+      bestSpan = span;
+    }
+  }
+  return best;
+}
+
+function noteMarkdownRenderedViewportY(element, progress) {
+  const doc = element?.ownerDocument;
+  if (doc?.createRange) {
+    const textNodes = [];
+    collectTextNodes(element, textNodes);
+    const totalLength = textNodes.reduce((total, node) => total + String(node.nodeValue || '').length, 0);
+    let remaining = Math.round(totalLength * Math.min(0.999999, Math.max(0, progress)));
+    for (const node of textNodes) {
+      const length = String(node.nodeValue || '').length;
+      if (remaining <= length) {
+        const range = doc.createRange();
+        range.setStart(node, remaining);
+        range.collapse(true);
+        const rect = range.getClientRects?.()[0] || range.getBoundingClientRect?.();
+        if (rect && Number.isFinite(rect.top) && (Number(rect.height) || rect.top !== 0)) {
+          return rect.top + (Number(rect.height) || 0) / 2;
+        }
+        break;
+      }
+      remaining -= length;
+    }
+  }
+  const rect = element?.getBoundingClientRect?.();
+  if (!rect || !Number.isFinite(rect.top)) return NaN;
+  return rect.top + (Number(rect.height) || 0) * Math.min(0.999999, Math.max(0, progress));
+}
+
+function noteMarkdownCaretSourceOffset(element, range, source) {
+  const doc = element?.ownerDocument;
+  if (!doc?.createRange) return NaN;
+  try {
+    const prefixRange = doc.createRange();
+    prefixRange.selectNodeContents(element);
+    prefixRange.setEnd(range.startContainer, range.startOffset);
+    const prefix = String(prefixRange.toString?.() || '').replace(/\r\n?/g, '\n');
+    if (source.startsWith(prefix)) return prefix.length;
+    return noteMarkdownLoosePrefixOffset(source, prefix);
+  } catch {
+    return NaN;
+  }
+}
+
+function noteMarkdownLoosePrefixOffset(source, prefix) {
+  let sourceOffset = 0;
+  let prefixOffset = 0;
+  while (sourceOffset < source.length && prefixOffset < prefix.length) {
+    if (source[sourceOffset] === prefix[prefixOffset]) {
+      sourceOffset += 1;
+      prefixOffset += 1;
+      continue;
+    }
+    if (/\s/.test(source[sourceOffset]) || /\s/.test(prefix[prefixOffset])) {
+      while (sourceOffset < source.length && /\s/.test(source[sourceOffset])) sourceOffset += 1;
+      while (prefixOffset < prefix.length && /\s/.test(prefix[prefixOffset])) prefixOffset += 1;
+      continue;
+    }
+    sourceOffset += 1;
+    prefixOffset += 1;
+  }
+  if (/\s$/.test(prefix)) {
+    while (sourceOffset < source.length && /\s/.test(source[sourceOffset])) sourceOffset += 1;
+  }
+  return sourceOffset;
+}
+
+function noteMarkdownSourceLineAtOffset(source, requestedOffset) {
+  const offset = Math.max(0, Math.min(source.length, Math.trunc(Number(requestedOffset) || 0)));
+  let line = 0;
+  for (let index = 0; index < offset; index += 1) {
+    if (source[index] === '\n') line += 1;
+  }
+  return line;
 }
 
 function extendNoteMarkdownWindowScrollRange(element, destination) {

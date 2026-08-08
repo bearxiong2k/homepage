@@ -38,8 +38,10 @@ import { createReaderSessionChannel, randomSessionId } from './reader-session-ch
 import { currentStorageMode, registerServiceWorker, urlWithStorage } from './runtime.js';
 import { APP_VERSION_LABEL, APP_VERSION_SHORT } from './app-version.js';
 import {
+  alignNoteMarkdownRenderedAnchor,
   analyzeNoteMarkdown,
   captureNoteMarkdownEditAnchor,
+  captureNoteMarkdownRenderAnchor,
   centerNoteMarkdownCaret,
   ensureNoteMarkdownStyles,
   placeNoteMarkdownCaret,
@@ -116,7 +118,10 @@ const state = {
   sideInkSaveTimers: new Map(),
   noteMarkdownAnalysisTimers: new WeakMap(),
   noteMarkdownSources: new WeakMap(),
+  noteMarkdownRenderAnchors: new WeakMap(),
+  noteMarkdownSelectionCleanups: new WeakMap(),
   noteMarkdownRenderRevision: 0,
+  pendingNoteMarkdownRenderAnchors: new Map(),
   annotationBlockSaveQueues: new Map(),
   annotationBlockSaveRevisions: new Map(),
   noteNavigatorExpandAll: false,
@@ -1288,6 +1293,7 @@ async function loadDocument(docId) {
   state.sourceBookmarkRenameId = null;
   state.pdfPendingJumpNotice = null;
   state.pdfPendingJumpStatusUntil = 0;
+  state.pendingNoteMarkdownRenderAnchors.clear();
   if (state.pdfPendingJumpNoticeTimer) {
     window.clearTimeout(state.pdfPendingJumpNoticeTimer);
     state.pdfPendingJumpNoticeTimer = 0;
@@ -1759,10 +1765,17 @@ function retainPdfSideNoteAfterPageEviction(doc, annotation, note) {
   }
   const editing = note.classList?.contains?.('is-editing')
     || note.contains?.(doc.activeElement);
-  if (!editing && !elementNearViewport(note, doc.defaultView, PDF_SIDE_NOTE_EVICTION_VIEWPORT_MARGIN)) {
+  const pendingRender = pendingNoteMarkdownRenderAnchorForAnnotation(annotation?.id);
+  if (!editing
+    && !pendingRender
+    && !elementNearViewport(note, doc.defaultView, PDF_SIDE_NOTE_EVICTION_VIEWPORT_MARGIN)) {
     return false;
   }
-  rememberDetachedPdfSideNoteTop(doc, note);
+  if (Number.isFinite(pendingRender?.detachedTop)) {
+    note.dataset.pdfDetachedTop = String(pendingRender.detachedTop);
+  } else {
+    rememberDetachedPdfSideNoteTop(doc, note);
+  }
   return true;
 }
 
@@ -1804,6 +1817,7 @@ function pruneDetachedPdfSideNotes(doc = getFrameDoc()) {
     }
     if (note.classList.contains('is-editing')
       || note.contains?.(doc.activeElement)
+      || pendingNoteMarkdownRenderAnchorForAnnotation(annotation.id)
       || elementNearViewport(note, doc.defaultView, PDF_SIDE_NOTE_EVICTION_VIEWPORT_MARGIN)) {
       continue;
     }
@@ -5716,6 +5730,12 @@ function attachMarker(doc, annotation) {
     annotationResolution(annotation)?.status === 'unresolved' ? 'is-unresolved' : ''
   ].filter(Boolean).join(' ');
   note.dataset.annotationId = annotation.id;
+  const pendingRenderAnchor = pendingNoteMarkdownRenderAnchorForAnnotation(annotation.id);
+  if (Number.isFinite(pendingRenderAnchor?.detachedTop)
+    && state.currentDocument?.sourceType === 'pdf'
+    && !pdfSideNoteAnchorPageIsLive(doc, annotation)) {
+    note.dataset.pdfDetachedTop = String(pendingRenderAnchor.detachedTop);
+  }
   if (annotation.id === state.activeAnnotationId) note.dataset.inkTool = state.inkTool;
 
   const card = doc.createElement('div');
@@ -5906,11 +5926,11 @@ function createSideNoteTextBlock(doc, annotation, block, index) {
   feedback.hidden = true;
   actions.append(feedback, modeButton);
   wrapper.append(body, actions);
-  renderSideNoteMarkdownBlock(body, modeButton, block.id, block.markdown, doc);
+  renderSideNoteMarkdownBlock(body, modeButton, annotation.id, block.id, block.markdown, doc);
   return wrapper;
 }
 
-async function renderSideNoteMarkdownBlock(body, modeButton, blockId, source, doc = body?.ownerDocument) {
+async function renderSideNoteMarkdownBlock(body, modeButton, annotationId, blockId, source, doc = body?.ownerDocument) {
   if (!body || !modeButton) return;
   const revision = String(++state.noteMarkdownRenderRevision);
   body.dataset.markdownRevision = revision;
@@ -5929,6 +5949,7 @@ async function renderSideNoteMarkdownBlock(body, modeButton, blockId, source, do
       modeButton.hidden = true;
       setSideNoteRenderFeedback(modeButton, '');
       delete body.dataset.hasRenderableSyntax;
+      clearPendingNoteMarkdownRenderAnchor(annotationId, blockId);
       return;
     }
     ensureNoteMarkdownStyles(doc);
@@ -5941,6 +5962,7 @@ async function renderSideNoteMarkdownBlock(body, modeButton, blockId, source, do
     modeButton.hidden = false;
     setSideNoteRenderFeedback(modeButton, '');
     requestSideNoteLayout(doc);
+    restorePendingNoteMarkdownRenderAnchor(body, annotationId, blockId, doc);
   } catch {
     if (!body.isConnected || body.dataset.markdownRevision !== revision) return;
     body.classList.remove('is-rendered', 'note-markdown');
@@ -5948,7 +5970,48 @@ async function renderSideNoteMarkdownBlock(body, modeButton, blockId, source, do
     body.tabIndex = 0;
     modeButton.hidden = true;
     setSideNoteRenderFeedback(modeButton, '');
+    clearPendingNoteMarkdownRenderAnchor(annotationId, blockId);
   }
+}
+
+function noteMarkdownRenderAnchorKey(annotationId, blockId) {
+  return JSON.stringify([String(annotationId || ''), String(blockId || '')]);
+}
+
+function pendingNoteMarkdownRenderAnchorForAnnotation(annotationId) {
+  const requestedId = String(annotationId || '');
+  for (const pending of state.pendingNoteMarkdownRenderAnchors.values()) {
+    if (pending.annotationId === requestedId) return pending;
+  }
+  return null;
+}
+
+function clearPendingNoteMarkdownRenderAnchor(annotationId, blockId) {
+  state.pendingNoteMarkdownRenderAnchors.delete(noteMarkdownRenderAnchorKey(annotationId, blockId));
+}
+
+function restorePendingNoteMarkdownRenderAnchor(body, annotationId, blockId, doc) {
+  const key = noteMarkdownRenderAnchorKey(annotationId, blockId);
+  const pending = state.pendingNoteMarkdownRenderAnchors.get(key);
+  const view = doc?.defaultView;
+  if (!pending || !view?.requestAnimationFrame) return;
+  view.requestAnimationFrame(() => {
+    if (state.pendingNoteMarkdownRenderAnchors.get(key) !== pending
+      || !body.isConnected
+      || body.isContentEditable
+      || !body.classList.contains('is-rendered')) return;
+    layoutSideNotes(doc);
+    const note = body.closest('.reader-side-note');
+    const aligned = alignNoteMarkdownRenderedAnchor(
+      body,
+      pending.anchor,
+      note?.classList.contains('is-pinned') ? note : null
+    );
+    if (state.pendingNoteMarkdownRenderAnchors.get(key) === pending) {
+      state.pendingNoteMarkdownRenderAnchors.delete(key);
+    }
+    if (aligned) requestSideNoteLayout(doc);
+  });
 }
 
 function setSideNoteRenderFeedback(modeButton, message = '') {
@@ -9164,15 +9227,31 @@ function beginInlineTextEdit(annotationId, note, focusField = 'body', pointerEve
   field.dataset.originalText = editablePlainText(field);
   field.focus({ preventScroll: true });
   if (!placeNoteMarkdownCaret(field, markdownEditAnchor)) placeCaretFromPoint(field, pointerEvent);
+  const rememberMarkdownRenderAnchor = () => {
+    if (field !== body) return null;
+    const anchor = captureNoteMarkdownRenderAnchor(field, editablePlainText(field));
+    if (anchor) state.noteMarkdownRenderAnchors.set(field, anchor);
+    return anchor;
+  };
+  const cleanupMarkdownSelectionTracking = () => {
+    field.ownerDocument.removeEventListener('selectionchange', rememberMarkdownRenderAnchor);
+    state.noteMarkdownSelectionCleanups.delete(field);
+  };
+  state.noteMarkdownSelectionCleanups.set(field, cleanupMarkdownSelectionTracking);
+  field.ownerDocument.addEventListener('selectionchange', rememberMarkdownRenderAnchor);
   if (markdownEditAnchor) {
     requestSideNoteLayout(note.ownerDocument);
     note.ownerDocument.defaultView.requestAnimationFrame(() => {
       centerNoteMarkdownCaret(field, note.classList.contains('is-pinned') ? note : null);
+      rememberMarkdownRenderAnchor();
     });
+  } else {
+    note.ownerDocument.defaultView.requestAnimationFrame(rememberMarkdownRenderAnchor);
   }
 
   const onInput = () => {
     requestSideNoteLayout(note.ownerDocument);
+    rememberMarkdownRenderAnchor();
     if (field !== body || !modeButton) return;
     setSideNoteRenderFeedback(modeButton, '');
     const previousTimer = state.noteMarkdownAnalysisTimers.get(body);
@@ -9208,13 +9287,20 @@ function beginInlineTextEdit(annotationId, note, focusField = 'body', pointerEve
     }
   };
   const onBlur = () => {
+    const markdownRenderAnchor = field === body
+      ? state.noteMarkdownRenderAnchors.get(field) || rememberMarkdownRenderAnchor()
+      : null;
+    cleanupMarkdownSelectionTracking();
     window.setTimeout(() => {
       if (field === note.ownerDocument.activeElement) return;
-      finishInlineTextEdit(annotationId, note).catch((error) => setStatus(error.message, true));
+      finishInlineTextEdit(annotationId, note, { markdownRenderAnchor })
+        .catch((error) => setStatus(error.message, true));
     }, 0);
   };
   field.addEventListener('input', onInput);
   field.addEventListener('keydown', onKeyDown);
+  field.addEventListener('keyup', rememberMarkdownRenderAnchor);
+  field.addEventListener('pointerup', rememberMarkdownRenderAnchor);
   field.addEventListener('blur', onBlur, { once: true });
 }
 
@@ -9263,21 +9349,55 @@ async function tryRenderInlineTextBlock(annotationId, note, modeButton) {
   await finishInlineTextEdit(annotationId, note);
 }
 
-async function finishInlineTextEdit(annotationId, note) {
+async function finishInlineTextEdit(annotationId, note, options = null) {
+  const editOptions = options || {};
   const field = note.querySelector('.reader-side-note-title[contenteditable], .reader-side-note-body[contenteditable]');
   if (!field) return;
   const isTitle = field.classList.contains('reader-side-note-title');
   const blockId = field.dataset.blockId || '';
   const value = editablePlainText(field);
+  const rememberedMarkdownRenderAnchor = state.noteMarkdownRenderAnchors.get(field) || null;
+  const cancelSave = note.dataset.cancelInlineSave === 'true';
+  const markdownRenderAnchor = !isTitle && !cancelSave
+    ? editOptions.markdownRenderAnchor
+      || captureNoteMarkdownRenderAnchor(field, value)
+      || rememberedMarkdownRenderAnchor
+    : null;
+  state.noteMarkdownSelectionCleanups.get(field)?.();
+  state.noteMarkdownRenderAnchors.delete(field);
   field.removeAttribute('contenteditable');
   note.classList.remove('is-editing');
-  if (note.dataset.cancelInlineSave === 'true') {
+  if (cancelSave) {
     delete note.dataset.cancelInlineSave;
     renderAnnotations();
     flushDeferredPdfFullRefresh(note.ownerDocument);
     return;
   }
-  await saveInlineNoteField(annotationId, { title: isTitle ? value : undefined, blockId, markdown: isTitle ? undefined : value });
+  if (markdownRenderAnchor && blockId) {
+    const annotation = state.annotations.find((item) => item.id === annotationId);
+    if (state.currentDocument?.sourceType === 'pdf'
+      && annotation
+      && !pdfSideNoteAnchorPageIsLive(note.ownerDocument, annotation)
+      && !Number.isFinite(Number(note.dataset.pdfDetachedTop))) {
+      rememberDetachedPdfSideNoteTop(note.ownerDocument, note);
+    }
+    state.pendingNoteMarkdownRenderAnchors.set(noteMarkdownRenderAnchorKey(annotationId, blockId), {
+      annotationId: String(annotationId || ''),
+      blockId: String(blockId || ''),
+      anchor: markdownRenderAnchor,
+      detachedTop: Number(note.dataset.pdfDetachedTop)
+    });
+  }
+  try {
+    await saveInlineNoteField(annotationId, {
+      title: isTitle ? value : undefined,
+      blockId,
+      markdown: isTitle ? undefined : value
+    });
+  } catch (error) {
+    if (markdownRenderAnchor && blockId) clearPendingNoteMarkdownRenderAnchor(annotationId, blockId);
+    throw error;
+  }
 }
 
 async function saveInlineNoteField(annotationId, update = {}) {
