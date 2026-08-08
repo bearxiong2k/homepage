@@ -23,7 +23,7 @@ import {
   clampSplitScrollPosition,
   nextSplitScrollPosition
 } from './split-scroll-sync.js';
-import { planSideNoteStack } from './side-note-layout.js';
+import { orderAnnotationsByLinkedPosition, planSideNoteStack } from './side-note-layout.js';
 import {
   createSideNoteRelocation,
   sideNoteRelocationDocumentTop
@@ -476,16 +476,13 @@ function handleSplitNotesWindowResize() {
 }
 
 function orderedSplitAnnotations() {
-  const storedIndex = new Map(state.annotations.map((annotation, index) => [annotation.id, index]));
-  return state.annotations.slice().sort((a, b) => {
-    const aTop = Number(state.metricsById.get(a.id)?.top);
-    const bTop = Number(state.metricsById.get(b.id)?.top);
-    const aResolved = Number.isFinite(aTop);
-    const bResolved = Number.isFinite(bTop);
-    if (aResolved !== bResolved) return aResolved ? -1 : 1;
-    if (aResolved && Math.abs(aTop - bTop) > 0.5) return aTop - bTop;
-    return (storedIndex.get(a.id) || 0) - (storedIndex.get(b.id) || 0);
-  });
+  return orderAnnotationsByLinkedPosition(
+    state.annotations,
+    (annotation) => {
+      const metric = state.metricsById.get(annotation.id);
+      return Number.isFinite(Number(metric?.linkedPosition)) ? metric.linkedPosition : metric?.top;
+    }
+  );
 }
 
 function renderEmptyState(message) {
@@ -734,7 +731,7 @@ function renderNavigator() {
   }
   const currentIds = new Set(state.annotations.map((annotation) => annotation.id));
   state.expandedNavigatorNoteIds = new Set([...state.expandedNavigatorNoteIds].filter((id) => currentIds.has(id)));
-  for (const annotation of state.annotations) {
+  for (const annotation of orderedSplitAnnotations()) {
     els.noteList.append(createNavigatorCard(annotation));
   }
   restoreSplitNavigatorFocus(focusSnapshot);

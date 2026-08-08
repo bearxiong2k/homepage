@@ -1,5 +1,27 @@
 export const SIDE_NOTE_STACK_GAP = 12;
 
+export function orderAnnotationsByLinkedPosition(annotations = [], positionForAnnotation = () => NaN) {
+  return annotations
+    .map((annotation, sourceIndex) => {
+      const rawPosition = positionForAnnotation(annotation);
+      return {
+        annotation,
+        sourceIndex,
+        position: rawPosition === null || rawPosition === '' ? NaN : Number(rawPosition)
+      };
+    })
+    .sort((left, right) => {
+      const leftResolved = Number.isFinite(left.position);
+      const rightResolved = Number.isFinite(right.position);
+      if (leftResolved !== rightResolved) return leftResolved ? -1 : 1;
+      if (leftResolved && Math.abs(left.position - right.position) > 0.5) {
+        return left.position - right.position;
+      }
+      return left.sourceIndex - right.sourceIndex;
+    })
+    .map((entry) => entry.annotation);
+}
+
 export function planSideNoteStack(entries = [], activeAnnotationId = null, gap = SIDE_NOTE_STACK_GAP) {
   const ordered = entries
     .map((entry, sourceIndex) => ({

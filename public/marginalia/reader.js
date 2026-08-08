@@ -25,7 +25,8 @@ import {
 import {
   annotationPdfPageIndexes,
   annotationPrimaryPdfPageNumber,
-  pdfPageIndexFromTarget
+  pdfPageIndexFromTarget,
+  pdfTargetVerticalRatio
 } from './pdf-targets.js';
 import { normalizePdfViewState } from './pdf-zoom-lock.js';
 import {
@@ -61,7 +62,7 @@ import {
   clampSplitScrollPosition,
   nextSplitScrollPosition
 } from './split-scroll-sync.js';
-import { planSideNoteStack } from './side-note-layout.js';
+import { orderAnnotationsByLinkedPosition, planSideNoteStack } from './side-note-layout.js';
 import {
   createSideNoteRelocation,
   sideNoteRelocationDocumentTop
@@ -70,6 +71,8 @@ import {
 const storageMode = currentStorageMode();
 const storage = createStorageAdapter({ mode: storageMode });
 const readerPerformance = marginaliaPerformanceTrace('reader');
+const PDF_LINKED_POSITION_PAGE_STRIDE = 10_000;
+const PDF_LINKED_POSITION_RATIO_RANGE = 1_000;
 
 const state = {
   documents: [],
@@ -3174,6 +3177,7 @@ function splitNoteMetrics(doc) {
     const resolution = state.annotationResolution.get(annotation.id) || buildAnnotationResolution(doc, annotation);
     const position = sideNotePosition(doc, annotation);
     const hintedY = Number(sideNoteAnchorTarget(annotation)?.clientHint?.documentY);
+    const linkedPosition = annotationLinkedDocumentPosition(doc, annotation);
     return {
       id: annotation.id,
       top: Number.isFinite(position?.top)
@@ -3181,6 +3185,7 @@ function splitNoteMetrics(doc) {
         : Number.isFinite(hintedY)
           ? hintedY
           : 24,
+      ...(Number.isFinite(linkedPosition) ? { linkedPosition } : {}),
       status: resolution.status || 'resolved',
       pageNumber: sideNotePdfPageNumber(annotation) || null,
       locationLabel: annotationSectionLabel(annotation)
@@ -5126,7 +5131,7 @@ function renderAnnotations() {
   }
 
   if (sideNotesVisible) {
-    for (const annotation of annotationsInResolvedDocumentOrder(doc)) {
+    for (const annotation of annotationsInLinkedDocumentOrder(doc)) {
       if (annotationHasSideNote(annotation)) attachMarker(doc, annotation);
     }
   }
@@ -5142,18 +5147,27 @@ function renderAnnotations() {
   syncReaderDocumentNotice();
 }
 
-function annotationsInResolvedDocumentOrder(doc) {
-  const storedIndex = new Map(state.annotations.map((annotation, index) => [annotation.id, index]));
-  return state.annotations.slice().sort((a, b) => {
-    const aTop = resolvedAnnotationDocumentTop(doc, a);
-    const bTop = resolvedAnnotationDocumentTop(doc, b);
-    const aResolved = Number.isFinite(aTop);
-    const bResolved = Number.isFinite(bTop);
-    if (aResolved !== bResolved) return aResolved ? -1 : 1;
-    if (aResolved && Math.abs(aTop - bTop) > 0.5) return aTop - bTop;
-    return (storedIndex.get(a.id) || 0) - (storedIndex.get(b.id) || 0)
-      || String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
-  });
+function annotationsInLinkedDocumentOrder(doc) {
+  return orderAnnotationsByLinkedPosition(
+    state.annotations,
+    (annotation) => annotationLinkedDocumentPosition(doc, annotation)
+  );
+}
+
+function annotationLinkedDocumentPosition(doc, annotation) {
+  if (state.currentDocument?.sourceType === 'pdf') {
+    const target = sideNoteAnchorTarget(annotation);
+    const directPageIndex = pdfPageIndexFromTarget(target);
+    const primaryPageNumber = annotationPrimaryPdfPageNumber(annotation);
+    const pageIndex = directPageIndex ?? (primaryPageNumber == null ? null : primaryPageNumber - 1);
+    if (Number.isInteger(pageIndex) && pageIndex >= 0) {
+      return pageIndex * PDF_LINKED_POSITION_PAGE_STRIDE
+        + pdfTargetVerticalRatio(target) * PDF_LINKED_POSITION_RATIO_RANGE;
+    }
+  }
+  const resolvedTop = doc ? resolvedAnnotationDocumentTop(doc, annotation) : NaN;
+  if (Number.isFinite(resolvedTop)) return resolvedTop;
+  return sideNoteAnchorTarget(annotation)?.clientHint?.documentY;
 }
 
 function resolvedAnnotationDocumentTop(doc, annotation) {
@@ -9224,9 +9238,7 @@ function renderNoteList(options = {}) {
     return;
   }
   els.noteList.textContent = '';
-  const sortedAnnotations = state.annotations
-    .slice()
-    .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+  const sortedAnnotations = annotationsInLinkedDocumentOrder(state.iframeLoaded ? getFrameDoc() : null);
   for (const annotation of sortedAnnotations) {
     els.noteList.append(createNavigatorNoteCard(annotation));
   }
@@ -9250,7 +9262,17 @@ function renderNavigatorNoteCards(annotationIds) {
     if (existing.querySelector('.note-card-title.is-editing')) continue;
     existing.replaceWith(createNavigatorNoteCard(annotation));
   }
+  reorderNavigatorNoteCards();
   requestNavigatorInkPreviewRedraw();
+}
+
+function reorderNavigatorNoteCards() {
+  if (!els.noteList) return;
+  const annotations = annotationsInLinkedDocumentOrder(state.iframeLoaded ? getFrameDoc() : null);
+  for (const annotation of annotations) {
+    const card = els.noteList.querySelector(`.note-card[data-annotation-id="${cssEscape(annotation.id)}"]`);
+    if (card) els.noteList.append(card);
+  }
 }
 
 function createNavigatorNoteCard(annotation) {
@@ -10340,7 +10362,7 @@ function installInlineConfirmPopover(popover, trigger, options = {}) {
 }
 
 function neighboringAnnotationId(annotationId, doc) {
-  const ordered = annotationsInResolvedDocumentOrder(doc);
+  const ordered = annotationsInLinkedDocumentOrder(doc);
   const index = ordered.findIndex((annotation) => annotation.id === annotationId);
   if (index < 0) return null;
   return ordered[index + 1]?.id || ordered[index - 1]?.id || null;

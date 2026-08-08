@@ -13,6 +13,18 @@ export function pdfPageNumberFromTarget(target) {
   return pageIndex != null ? pageIndex + 1 : null;
 }
 
+export function pdfTargetVerticalRatio(target, fallback = 0.5) {
+  const candidates = target?.type === 'pdf-rect'
+    ? [target?.rect?.y, target?.pageY, target?.y, target?.clientHint?.pageY]
+    : [target?.pageY, target?.y, target?.rect?.y, target?.clientHint?.pageY];
+  for (const candidate of candidates) {
+    if (candidate === null || candidate === '') continue;
+    const number = Number(candidate);
+    if (Number.isFinite(number)) return Math.min(1, Math.max(0, number));
+  }
+  return Math.min(1, Math.max(0, Number(fallback) || 0));
+}
+
 export function annotationPdfPageIndexes(annotation) {
   const indexes = new Set();
   for (const target of annotationPdfTargets(annotation)) {
@@ -45,6 +57,7 @@ function pdfPageNumberFromTargetId(value) {
 }
 
 function integerOrNull(value) {
+  if (value === null || value === '') return null;
   const number = Number(value);
   return Number.isInteger(number) ? number : null;
 }

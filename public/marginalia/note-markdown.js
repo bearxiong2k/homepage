@@ -1,7 +1,7 @@
 import { installNoteMath } from './note-math.js';
 import { noteMermaidPlaceholder, renderNoteMermaidDiagrams } from './note-mermaid.js';
 
-export const NOTE_MARKDOWN_RENDERER_VERSION = '4:markdown-it-14.3.0:katex-0.17.0:mermaid-11.16.0';
+export const NOTE_MARKDOWN_RENDERER_VERSION = '5:markdown-it-14.3.0:katex-0.17.0:mermaid-11.16.0';
 
 const DEFAULT_CACHE_SIZE = 128;
 const MARKDOWN_IT_SCRIPT_URL = new URL('./vendor/markdown-it/markdown-it.min.js', import.meta.url).href;
@@ -172,8 +172,8 @@ export function noteMarkdownSourceOffset(source, lineIndex) {
 
 export function captureNoteMarkdownEditAnchor(body, pointerEvent, source) {
   if (!body || !pointerEvent?.target?.closest) return null;
-  const sourceElement = pointerEvent.target.closest('[data-note-source-start-line]');
-  if (!sourceElement || !body.contains?.(sourceElement)) return null;
+  const sourceElement = noteMarkdownSourceElementAtPointer(body, pointerEvent);
+  if (!sourceElement) return null;
   const startLine = Math.max(0, Math.trunc(Number(sourceElement.dataset.noteSourceStartLine) || 0));
   const endLine = Math.max(startLine + 1, Math.trunc(Number(sourceElement.dataset.noteSourceEndLine) || startLine + 1));
   const rect = sourceElement.getBoundingClientRect?.();
@@ -243,14 +243,59 @@ export function centerNoteMarkdownCaret(element, scrollSurface = null) {
   const view = doc.defaultView;
   if (!view?.scrollTo || !Number.isFinite(view.innerHeight)) return false;
   const scrollY = Math.max(0, Number(view.scrollY) || 0);
-  view.scrollTo(Number(view.scrollX) || 0, Math.max(0, scrollY + caretCenter - view.innerHeight / 2));
+  const destination = Math.max(0, scrollY + caretCenter - view.innerHeight / 2);
+  extendNoteMarkdownWindowScrollRange(element, destination);
+  view.scrollTo(Number(view.scrollX) || 0, destination);
+  return true;
+}
+
+function noteMarkdownSourceElementAtPointer(body, pointerEvent) {
+  const direct = pointerEvent.target.closest('[data-note-source-start-line]');
+  if (direct && body.contains?.(direct)) return direct;
+  const clientY = Number(pointerEvent.clientY);
+  if (!Number.isFinite(clientY) || typeof body.querySelectorAll !== 'function') return null;
+
+  let best = null;
+  let bestDistance = Infinity;
+  let bestHeight = Infinity;
+  for (const candidate of body.querySelectorAll('[data-note-source-start-line]')) {
+    const rect = candidate.getBoundingClientRect?.();
+    if (!rect || !Number.isFinite(rect.top) || !Number.isFinite(rect.bottom)) continue;
+    const distance = clientY < rect.top ? rect.top - clientY : clientY > rect.bottom ? clientY - rect.bottom : 0;
+    const height = Math.max(0, Number(rect.height) || rect.bottom - rect.top || 0);
+    if (distance < bestDistance || (distance === bestDistance && height < bestHeight)) {
+      best = candidate;
+      bestDistance = distance;
+      bestHeight = height;
+    }
+  }
+  return best;
+}
+
+function extendNoteMarkdownWindowScrollRange(element, destination) {
+  const doc = element?.ownerDocument;
+  const view = doc?.defaultView;
+  const layer = element?.closest?.('.reader-side-note-layer');
+  if (!doc || !view || !layer || !Number.isFinite(destination)) return false;
+  const scrollHeight = Math.max(
+    Number(doc.documentElement?.scrollHeight) || 0,
+    Number(doc.body?.scrollHeight) || 0
+  );
+  const maxScrollY = Math.max(0, scrollHeight - (Number(view.innerHeight) || 0));
+  const missing = destination - maxScrollY;
+  if (missing <= 0) return false;
+  const currentHeight = Math.max(
+    Number.parseFloat(layer.style?.height) || 0,
+    Number(layer.getBoundingClientRect?.().height) || 0
+  );
+  layer.style.height = `${Math.ceil(currentHeight + missing)}px`;
   return true;
 }
 
 function annotateNoteMarkdownSourceLines(tokens) {
   for (const token of tokens || []) {
     if (!Array.isArray(token?.map) || token.map.length < 2 || typeof token.attrSet !== 'function') continue;
-    if (token.nesting !== 1 && !['code_block', 'hr'].includes(token.type)) continue;
+    if (token.nesting !== 1 && !['code_block', 'fence', 'hr'].includes(token.type)) continue;
     const startLine = Math.max(0, Math.trunc(Number(token.map[0]) || 0));
     const endLine = Math.max(startLine + 1, Math.trunc(Number(token.map[1]) || startLine + 1));
     token.attrSet('data-note-source-start-line', String(startLine));
